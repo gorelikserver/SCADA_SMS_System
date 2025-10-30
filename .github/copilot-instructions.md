@@ -54,6 +54,19 @@ SCADASMSSystem.Web/
 
 ## ?? **AI Assistant Guidelines**
 
+### **?? IMPORTANT: NO DOCUMENTATION FILES**
+**DO NOT create markdown documentation files** unless explicitly requested by the user. This includes:
+- ? No `*_FIX.md`, `*_COMPLETE.md`, `*_IMPROVEMENTS.md` files
+- ? No `*_SUMMARY.md`, `*_IMPLEMENTATION.md`, `*_GUIDE.md` files
+- ? No `GIT_*.md`, `CURL_*.md`, `BUILD_*.md` files
+- ? No `DEPLOYMENT_*.md`, `AIR_GAPPED_*.md` files
+- ? Only modify code files and essential project files
+
+**Exception**: You may create/update these documentation files ONLY:
+- ? `README.md` (project readme)
+- ? `.github/` folder files (GitHub templates and workflows)
+- ? Essential technical documentation explicitly requested
+
 ### **When Working on This Project, Always:**
 
 1. **Use Razor Pages Pattern**: This is a Razor Pages project, not MVC or Blazor
@@ -62,6 +75,7 @@ SCADASMSSystem.Web/
 4. **Implement Async/Await**: All database operations must be asynchronous
 5. **Include Error Handling**: Comprehensive try-catch with logging
 6. **Follow Bootstrap 5.3**: Use existing CSS framework and patterns
+7. **Make Code Changes Only**: Focus on implementing features in code, not documentation
 
 ### **Service Layer Guidelines**
 ```csharp
@@ -102,11 +116,11 @@ public class ExamplePageModel : PageModel
 
 ---
 
-## ?? **Current Implementation Status**
+## ? **Current Implementation Status**
 
 ### **? Completed Components (100%)**
-- **Entity Models**: User, Group, GroupMember, SmsAudit, DateDimension, SmsSettings
-- **Business Services**: UserService, GroupService, SmsService, HolidayService, AuditService
+- **Entity Models**: User, Group, GroupMember, SmsAudit, DateDimension, SmsSettings, AlarmAction
+- **Business Services**: UserService, GroupService, SmsService, HolidayService, AuditService, AlarmActionService
 - **Database Context**: Full EF Core setup with relationships
 - **Dashboard**: Professional UI with real-time statistics
 - **Management Pages**: Complete CRUD interface for all entities
@@ -114,33 +128,27 @@ public class ExamplePageModel : PageModel
 - **API Controllers**: RESTful endpoints for external integration
 - **Configuration**: Dependency injection and settings management
 - **Sample Data**: Automatic seeding with realistic test data
+- **SCADA Integration**: Alarm group assignment and management
+- **Deployment**: Windows Service, air-gapped support, build automation
 
-### **?? Available Management Interface**
+### **??? Available Management Interface**
 ```
-? Pages/Users/Index.cshtml     # List users with search/filter - COMPLETED
-? Pages/Users/Create.cshtml    # Add new user form - COMPLETED  
-? Pages/Users/Edit.cshtml      # Edit user details - COMPLETED
-? Pages/Groups/Index.cshtml    # List groups with member counts - COMPLETED
-? Pages/Groups/Create.cshtml   # Create new group - COMPLETED
-? Pages/Groups/Edit.cshtml     # Edit group + manage members - COMPLETED
-? Pages/Audit/Index.cshtml     # SMS history with search - COMPLETED
-? Pages/Calendar/Index.cshtml  # Holiday calendar management - COMPLETED
-? Pages/Settings/Index.cshtml  # System configuration - COMPLETED
-? Pages/Test/Sms.cshtml        # SMS testing interface - COMPLETED
-? Pages/About.cshtml           # System information - COMPLETED
+? Pages/Index.cshtml           # Dashboard with real-time stats
+? Pages/Users/Index.cshtml     # List users with search/filter
+? Pages/Users/Create.cshtml    # Add new user form
+? Pages/Users/Edit.cshtml      # Edit user details
+? Pages/Groups/Index.cshtml    # List groups with member counts
+? Pages/Groups/Create.cshtml   # Create new group
+? Pages/Groups/Edit.cshtml     # Edit group + manage members
+? Pages/Alarms/ManageGroups.cshtml  # SCADA alarm group assignments
+? Pages/Audit/Index.cshtml     # SMS history with advanced filtering
+? Pages/Calendar/Index.cshtml  # Holiday calendar management
+? Pages/Settings/Index.cshtml  # System configuration and health
+? Pages/Test/Sms.cshtml        # SMS testing interface
+? Pages/About.cshtml           # System information
 ```
 
-**?? System Status: 100% Complete Management Interface**
-- Full CRUD operations for Users, Groups
-- Comprehensive SMS Audit history with advanced filtering
-- Holiday Calendar management with Jewish calendar integration
-- System Settings with health monitoring and configuration display
-- Professional responsive design with Bootstrap 5.3
-- Complete error handling and validation
-- Export capabilities (CSV, JSON)
-- Real-time statistics and dashboards
-- SMS testing and health monitoring
-- RESTful API for external integration
+**?? System Status: 100% Complete Production-Ready System**
 
 ---
 
@@ -158,6 +166,12 @@ public class ExamplePageModel : PageModel
 - Holiday work preferences
 - Group management with member assignments
 - Advanced filtering and search capabilities
+
+### **SCADA Alarm Integration**
+- Alarm action management with group assignments
+- Bulk update capabilities
+- Smart curl detection for air-gapped systems
+- RESTful API for alarm notifications
 
 ### **Monitoring & Administration**
 - Real-time dashboard with system health
@@ -178,17 +192,18 @@ public class ExamplePageModel : PageModel
 ## ?? **Getting Started for AI Assistants**
 
 ### **To Add New Features:**
-1. Follow existing Razor Pages patterns in `Pages/` directory
-2. Use dependency injection for all services
-3. Implement proper error handling and logging
-4. Follow Bootstrap 5.3 styling conventions
-5. Add appropriate unit tests
+1. **Implement in Code**: Focus on .cs, .cshtml, .csproj files
+2. **Follow Patterns**: Use existing Razor Pages patterns in `Pages/` directory
+3. **Use DI**: Inject services via constructor
+4. **Error Handling**: Implement proper try-catch and logging
+5. **Follow UI Conventions**: Use Bootstrap 5.3 styling
+6. **No Documentation**: Don't create markdown files unless explicitly requested
 
 ### **To Modify Existing Features:**
 1. Check existing implementation patterns
 2. Maintain backward compatibility
-3. Update related documentation
-4. Test thoroughly before deployment
+3. Test thoroughly before committing
+4. Update inline code comments only
 
 ### **To Debug Issues:**
 1. Check application logs
@@ -196,4 +211,105 @@ public class ExamplePageModel : PageModel
 3. Test API endpoints
 4. Review configuration settings
 
+### **To Respond to User Requests:**
+1. **Ask clarifying questions** if requirements are unclear
+2. **Make code changes directly** - don't create documentation
+3. **Explain changes briefly** in commit messages or inline comments
+4. **Test changes** mentally before suggesting
+
+---
+
+## ?? **Code Comments & Documentation**
+
+### **Inline Comments (? Encouraged)**
+```csharp
+// Use inline comments to explain complex logic
+public async Task<bool> ProcessSmsAsync(SmsRequest request)
+{
+    // Check if holiday and user doesn't work on holidays
+    if (await _holidayService.IsHolidayAsync(DateTime.Today) && !user.WorksOnHolidays)
+    {
+        _logger.LogInformation("Skipping SMS for user {UserId} due to holiday", user.UserId);
+        return false;
+    }
+    
+    // Rate limiting check
+    // ...existing code...
+}
+```
+
+### **XML Documentation (? Encouraged for public APIs)**
+```csharp
+/// <summary>
+/// Sends an SMS message to all members of the specified group.
+/// </summary>
+/// <param name="groupId">The ID of the group to notify</param>
+/// <param name="message">The SMS message content</param>
+/// <returns>True if SMS was sent successfully, false otherwise</returns>
+public async Task<bool> SendGroupSmsAsync(int groupId, string message)
+{
+    // Implementation
+}
+```
+
+### **Separate Documentation Files (? Avoid)**
+- Don't create separate markdown files for every change
+- Use commit messages for change documentation
+- Use inline comments for complex logic explanation
+- Update README.md only when adding major features
+
+---
+
+## ?? **Best Practices Summary**
+
+### **DO:**
+? Focus on code implementation  
+? Use existing patterns and conventions  
+? Add inline comments for complex logic  
+? Use XML documentation for public APIs  
+? Test changes thoroughly  
+? Follow C# and .NET best practices  
+? Use async/await consistently  
+? Implement proper error handling  
+
+### **DON'T:**
+? Create markdown documentation files  
+? Over-document simple changes  
+? Deviate from existing patterns  
+? Skip error handling  
+? Ignore logging  
+? Use blocking I/O operations  
+? Hard-code configuration values  
+? Create files without user request  
+
+---
+
+## ?? **Quick Reference**
+
+### **Common Services**
+- `IUserService` - User management operations
+- `IGroupService` - Group and member management
+- `ISmsService` - SMS sending and processing
+- `IHolidayService` - Jewish holiday calendar
+- `IAuditService` - SMS audit trail
+- `IAlarmActionService` - SCADA alarm integration
+
+### **Common Models**
+- `User` - User entity with SMS preferences
+- `Group` - Notification group entity
+- `GroupMember` - Many-to-many relationship
+- `SmsAudit` - SMS delivery audit trail
+- `AlarmAction` - SCADA alarm group assignments
+- `DateDimension` - Jewish calendar dates
+
+### **API Endpoints**
+- `POST /api/sms/send` - Send SMS message
+- `POST /api/sms/test` - Send test SMS
+- `GET /api/sms/status` - Service status
+- `GET /health` - Health check endpoint
+
+---
+
 **System is production-ready and fully functional for industrial SCADA SMS notifications.**
+
+**Remember: Focus on code, not documentation. Make changes, don't document changes.**

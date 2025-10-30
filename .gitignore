@@ -316,7 +316,11 @@ SMS_credentials.txt
 # Deployment files
 publish/
 deployment/
+deployment_package/
 *.zip
+temp_curl/
+build.log
+build_log.txt
 
 # Coverage reports
 coverage/
@@ -326,3 +330,34 @@ coverage/
 # Temporary files
 temp/
 tmp/
+
+# Python projects (not part of this .NET solution)
+pyproject/
+*.pyc
+__pycache__/
+
+# Excessive documentation (keep only essential docs)
+*_FIX.md
+*_COMPLETE.md
+*_IMPROVEMENTS.md
+*_SUMMARY.md
+*_IMPLEMENTATION.md
+*_GUIDE.md
+*_REFERENCE.md
+GIT_*.md
+CURL_*.md
+BUILD_*.md
+COMMAND_*.md
+MANAGE_*.md
+ALARM_*.md
+REMOVE_*.md
+DEPLOYMENT_*.md
+AIR_GAPPED_*.md
+PAGINATION_*.md
+JSON_*.md
+NEW_FILES_*.md
+
+# Keep only these documentation files
+!README.md
+!LICENSE
+!.github/
