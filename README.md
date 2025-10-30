@@ -41,7 +41,7 @@ The **SCADA SMS System** is a production-ready notification platform designed fo
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/yourusername/SCADA_SMS_System.git
+   git clone https://github.com/gorelikserver/SCADA_SMS_System.git
    cd SCADA_SMS_System
    ```
 
@@ -530,19 +530,6 @@ Contributions are welcome! Please see [.github/CONTRIBUTING.md](.github/CONTRIBU
 ## ?? Support
 
 For issues and questions:
-- **GitHub Issues**: [Create an issue](https://github.com/yourusername/SCADA_SMS_System/issues)
+- **GitHub Issues**: [Create an issue](https://github.com/gorelikserver/SCADA_SMS_System/issues)
 - **Documentation**: See `.github/` folder for detailed guides
-- **Email**: support@yourcompany.com
-
----
-
-## ?? Acknowledgments
-
-- Built with [ASP.NET Core](https://dotnet.microsoft.com/apps/aspnet)
-- UI powered by [Bootstrap 5](https://getbootstrap.com/)
-- Logging by [Serilog](https://serilog.net/)
-- Database management with [Entity Framework Core](https://docs.microsoft.com/ef/)
-
----
-
-**Made with ?? for industrial automation professionals**
+- **GitHub Profile**: https://github.com/gorelikserver
