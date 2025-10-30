@@ -1,0 +1,271 @@
+@page
+@model SCADASMSSystem.Web.Pages.Test.SmsModel
+@{
+    ViewData["Title"] = "SMS Service Test";
+}
+
+<div class="container-fluid">
+    <!-- Page Heading -->
+    <div class="d-sm-flex align-items-center justify-content-between mb-4">
+        <h1 class="h3 mb-0 text-gray-800">
+            <i class="fas fa-vial me-2"></i>SMS Service Test
+        </h1>
+        <a href="/" class="d-none d-sm-inline-block btn btn-sm btn-secondary shadow-sm">
+            <i class="fas fa-arrow-left fa-sm text-white-50"></i> Back to Dashboard
+        </a>
+    </div>
+
+    <!-- Alert Messages -->
+    @if (TempData["SuccessMessage"] != null)
+    {
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            <i class="fas fa-check-circle me-2"></i>@TempData["SuccessMessage"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+
+    @if (TempData["ErrorMessage"] != null)
+    {
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            <i class="fas fa-exclamation-circle me-2"></i>@TempData["ErrorMessage"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+
+    <div class="row">
+        <!-- SMS Service Status -->
+        <div class="col-lg-6">
+            <div class="card shadow mb-4">
+                <div class="card-header py-3 d-flex justify-content-between align-items-center">
+                    <h6 class="m-0 font-weight-bold text-success">
+                        <i class="fas fa-heartbeat me-2"></i>SMS Service Status
+                    </h6>
+                    <button class="btn btn-sm btn-outline-primary" onclick="refreshStatus()">
+                        <i class="fas fa-sync-alt"></i> Refresh
+                    </button>
+                </div>
+                <div class="card-body" id="statusCard">
+                    <div class="row">
+                        <div class="col-6">
+                            <div class="border-bottom py-2">
+                                <small class="text-muted">Queue Size</small>
+                                <div class="font-weight-bold text-primary" id="queueSize">@Model.ServiceStatus.QueueSize</div>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="border-bottom py-2">
+                                <small class="text-muted">Messages Sent</small>
+                                <div class="font-weight-bold text-success" id="messagesSent">@Model.ServiceStatus.MessagesSent</div>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="border-bottom py-2">
+                                <small class="text-muted">Messages Failed</small>
+                                <div class="font-weight-bold text-danger" id="messagesFailed">@Model.ServiceStatus.MessagesFailed</div>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="border-bottom py-2">
+                                <small class="text-muted">Service Uptime</small>
+                                <div class="font-weight-bold" id="uptime">@Model.ServiceStatus.ServiceUptime.ToString(@"d\.hh\:mm\:ss")</div>
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <div class="py-2">
+                                <small class="text-muted">Last Message</small>
+                                <div class="font-weight-bold" id="lastMessage">
+                                    @if (Model.ServiceStatus.LastMessageTime.HasValue)
+                                    {
+                                        @Model.ServiceStatus.LastMessageTime.Value.ToString("yyyy-MM-dd HH:mm:ss")
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">Never</span>
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Service Configuration -->
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-info">
+                        <i class="fas fa-cogs me-2"></i>Service Configuration
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-6">
+                            <div class="border-bottom py-2">
+                                <small class="text-muted">Rate Limit</small>
+                                <div class="font-weight-bold">@Model.ServiceStatus.RateLimit / minute</div>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="border-bottom py-2">
+                                <small class="text-muted">Duplicate Window</small>
+                                <div class="font-weight-bold">@Model.ServiceStatus.DuplicateWindow minutes</div>
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <div class="py-2">
+                                <small class="text-muted">Deduplication</small>
+                                <div class="font-weight-bold">
+                                    @if (Model.ServiceStatus.DeduplicationEnabled)
+                                    {
+                                        <span class="text-success"><i class="fas fa-check-circle"></i> Enabled</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-warning"><i class="fas fa-exclamation-triangle"></i> Disabled</span>
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Test SMS Form -->
+        <div class="col-lg-6">
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-warning">
+                        <i class="fas fa-paper-plane me-2"></i>Send Test SMS
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <form method="post" asp-page-handler="SendTest">
+                        <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
+                        
+                        <div class="mb-3">
+                            <label asp-for="TestMessage.Message" class="form-label"></label>
+                            <textarea asp-for="TestMessage.Message" class="form-control" rows="3" 
+                                      placeholder="Enter your test message here..."></textarea>
+                            <span asp-validation-for="TestMessage.Message" class="text-danger"></span>
+                            <div class="form-text">
+                                <i class="fas fa-info-circle me-1"></i>
+                                Test message will be sent to all SMS-enabled users in the selected group
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label asp-for="TestMessage.GroupId" class="form-label"></label>
+                            <select asp-for="TestMessage.GroupId" class="form-select">
+                                <option value="">Select a group...</option>
+                                @foreach (var group in Model.AvailableGroups)
+                                {
+                                    <option value="@group.GroupId">@group.GroupName</option>
+                                }
+                            </select>
+                            <span asp-validation-for="TestMessage.GroupId" class="text-danger"></span>
+                        </div>
+
+                        @if (!Model.AvailableGroups.Any())
+                        {
+                            <div class="alert alert-warning">
+                                <i class="fas fa-exclamation-triangle me-2"></i>
+                                No groups available. Please <a href="/Groups/Create">create a group</a> before testing SMS.
+                            </div>
+                        }
+
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-warning" @(Model.AvailableGroups.Any() ? "" : "disabled")>
+                                <i class="fas fa-paper-plane me-2"></i>Send Test SMS
+                            </button>
+                        </div>
+                    </form>
+                    
+                    <form method="post" asp-page-handler="TestHealth" class="mt-2">
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-outline-info">
+                                <i class="fas fa-heartbeat me-2"></i>Test Health Check
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Testing Instructions -->
+            <div class="card shadow">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-secondary">
+                        <i class="fas fa-info-circle me-2"></i>Testing Instructions
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <h6 class="font-weight-bold">How to Test:</h6>
+                    <ol class="small">
+                        <li>Select a group that has members with SMS enabled</li>
+                        <li>Enter a test message (will include timestamp)</li>
+                        <li>Click "Send Test SMS" to queue the message</li>
+                        <li>Watch the service status update in real-time</li>
+                        <li>Check the <a href="/Audit">Audit page</a> for delivery results</li>
+                    </ol>
+
+                    <h6 class="font-weight-bold mt-3">API Testing:</h6>
+                    <p class="small">You can also test the API directly:</p>
+                    <pre class="bg-light p-2 small">
+POST /api/sms/send
+{
+  "message": "Test message",
+  "groupId": 1,
+  "alarmId": "TEST-123"
+}
+
+GET /status</pre>
+
+                    <h6 class="font-weight-bold mt-3">Holiday Filtering:</h6>
+                    <p class="small">
+                        SMS delivery respects holiday settings. On sabbatical days, only users with 
+                        "Available on Special Days" enabled will receive messages.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    
+    <script>
+        // Auto-refresh status every 5 seconds
+        setInterval(refreshStatus, 5000);
+        
+        function refreshStatus() {
+            fetch('/Test/Sms?handler=RefreshStatus')
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('queueSize').textContent = data.queueSize;
+                    document.getElementById('messagesSent').textContent = data.messagesSent;
+                    document.getElementById('messagesFailed').textContent = data.messagesFailed;
+                    document.getElementById('uptime').textContent = data.uptime;
+                    document.getElementById('lastMessage').textContent = data.lastMessage || 'Never';
+                })
+                .catch(error => {
+                    console.error('Error refreshing status:', error);
+                });
+        }
+
+        // Auto-dismiss alerts after 5 seconds
+        setTimeout(function() {
+            const alerts = document.querySelectorAll('.alert-dismissible');
+            alerts.forEach(alert => {
+                const bsAlert = new bootstrap.Alert(alert);
+                bsAlert.close();
+            });
+        }, 5000);
+
+        // Form validation feedback
+        document.querySelector('form').addEventListener('submit', function(e) {
+            const submitBtn = e.target.querySelector('button[type="submit"]');
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Sending Test SMS...';
+            submitBtn.disabled = true;
+        });
+    </script>
+}

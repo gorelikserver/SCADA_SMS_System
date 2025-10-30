@@ -1,0 +1,454 @@
+@page
+@model SCADASMSSystem.Web.Pages.Calendar.IndexModel
+@{
+    ViewData["Title"] = "Holiday Calendar";
+}
+
+<div class="container-fluid">
+    <!-- Page Heading -->
+    <div class="d-sm-flex align-items-center justify-content-between mb-4">
+        <h1 class="h3 mb-0 text-gray-800">
+            <i class="fas fa-calendar-alt me-2"></i>Holiday Calendar
+        </h1>
+        <div class="d-flex gap-2">
+            <form method="post" asp-page-handler="RefreshCalendar" style="display: inline;">
+                <button type="submit" class="btn btn-sm btn-success shadow-sm" 
+                        onclick="return confirm('This will refresh the holiday calendar data for the next 10 years. Continue?')">
+                    <i class="fas fa-sync-alt fa-sm text-white-50"></i> Refresh Calendar
+                </button>
+            </form>
+            <a href="/" class="btn btn-sm btn-secondary shadow-sm">
+                <i class="fas fa-arrow-left fa-sm text-white-50"></i> Back to Dashboard
+            </a>
+        </div>
+    </div>
+
+    <!-- Alert Messages -->
+    @if (TempData["SuccessMessage"] != null)
+    {
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            <i class="fas fa-check-circle me-2"></i>@TempData["SuccessMessage"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+
+    @if (TempData["ErrorMessage"] != null)
+    {
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            <i class="fas fa-exclamation-circle me-2"></i>@TempData["ErrorMessage"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+
+    <!-- Holiday Statistics Row -->
+    <div class="row mb-4">
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-left-warning shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">
+                                Sabbatical Days
+                            </div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                @Model.Statistics.SabbaticalDays
+                            </div>
+                            <div class="small text-muted">Next @Model.DaysAhead days</div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-ban fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-left-info shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-info text-uppercase mb-1">
+                                Regular Holidays
+                            </div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                @Model.Statistics.RegularHolidays
+                            </div>
+                            <div class="small text-muted">Jewish observances</div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-star-and-crescent fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-left-secondary shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-secondary text-uppercase mb-1">
+                                Saturdays
+                            </div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                @Model.Statistics.Saturdays
+                            </div>
+                            <div class="small text-muted">Sabbath days</div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-moon fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-left-success shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
+                                Holiday Workers
+                            </div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                @Model.Statistics.HolidayWorkers
+                            </div>
+                            <div class="small text-muted">@Model.Statistics.HolidayWorkerPercentage.ToString("F0")% of users</div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-user-clock fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filter and View Controls -->
+    <div class="card shadow mb-4">
+        <div class="card-header py-3">
+            <h6 class="m-0 font-weight-bold text-primary">
+                <i class="fas fa-filter me-2"></i>Calendar View Options
+            </h6>
+        </div>
+        <div class="card-body">
+            <form method="get" class="row g-3">
+                <div class="col-md-3">
+                    <label class="form-label">View Mode</label>
+                    <select name="viewMode" class="form-select">
+                        <option value="upcoming" selected="@(Model.ViewMode == "upcoming")">Special Days Only</option>
+                        <option value="sabbatical" selected="@(Model.ViewMode == "sabbatical")">Sabbatical Days Only</option>
+                        <option value="all" selected="@(Model.ViewMode == "all")">All Days</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Days Ahead</label>
+                    <select name="daysAhead" class="form-select">
+                        <option value="30" selected="@(Model.DaysAhead == 30)">30 Days</option>
+                        <option value="90" selected="@(Model.DaysAhead == 90)">90 Days</option>
+                        <option value="180" selected="@(Model.DaysAhead == 180)">180 Days</option>
+                        <option value="365" selected="@(Model.DaysAhead == 365)">1 Year</option>
+                    </select>
+                </div>
+                <div class="col-md-6 d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary me-2">
+                        <i class="fas fa-search"></i> Update View
+                    </button>
+                    <button type="button" class="btn btn-outline-info" onclick="exportCalendarToCSV()">
+                        <i class="fas fa-download"></i> Export
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Information Alert -->
+    <div class="alert alert-info shadow-sm mb-4">
+        <div class="d-flex align-items-center">
+            <i class="fas fa-info-circle fa-2x me-3"></i>
+            <div>
+                <h6 class="alert-heading mb-1">SMS Notification Rules</h6>
+                <p class="mb-0">
+                    On <strong>Sabbatical Days</strong> (marked as "Restricted"), SMS notifications will only be sent to users with 
+                    <strong>"Available on Special Days/Holidays"</strong> enabled. Regular holidays and Saturdays are observances 
+                    but don't restrict SMS delivery.
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Holiday Calendar Table -->
+    <div class="card shadow mb-4">
+        <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+            <h6 class="m-0 font-weight-bold text-primary">
+                <i class="fas fa-calendar-day me-2"></i>Holiday Calendar (@Model.UpcomingHolidays.Count() entries)
+            </h6>
+            <div class="d-flex align-items-center">
+                <span class="text-muted me-3">
+                    <small>Next @Model.DaysAhead days</small>
+                </span>
+                <div class="dropdown no-arrow">
+                    <a class="dropdown-toggle" href="#" role="button" id="dropdownMenuLink"
+                       data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                        <i class="fas fa-ellipsis-v fa-sm fa-fw text-gray-400"></i>
+                    </a>
+                    <div class="dropdown-menu dropdown-menu-right shadow animated--fade-in"
+                         aria-labelledby="dropdownMenuLink">
+                        <div class="dropdown-header">Legend:</div>
+                        <a class="dropdown-item disabled">
+                            <span class="badge badge-warning me-2">Restricted</span> Sabbatical Days
+                        </a>
+                        <a class="dropdown-item disabled">
+                            <span class="badge badge-info me-2">Observance</span> Regular Holidays
+                        </a>
+                        <a class="dropdown-item disabled">
+                            <span class="badge badge-secondary me-2">Regular</span> Normal Days
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-bordered" id="calendarTable" width="100%" cellspacing="0">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Day</th>
+                            <th>Hebrew Date</th>
+                            <th>Holiday/Observance</th>
+                            <th>SMS Restriction</th>
+                            <th>Available Users</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var holiday in Model.UpcomingHolidays)
+                        {
+                            <tr class="@(holiday.IsSabbaticalHoliday ? "table-warning" : holiday.IsRegularHoliday || holiday.IsSaturday ? "table-info" : "")">
+                                <td>
+                                    <strong>@holiday.Date.ToString("yyyy-MM-dd")</strong>
+                                    <br>
+                                    <small class="text-muted">@holiday.Date.ToString("MMM dd")</small>
+                                </td>
+                                <td>
+                                    <span class="badge @(holiday.Date.DayOfWeek == DayOfWeek.Saturday || holiday.Date.DayOfWeek == DayOfWeek.Sunday ? "badge-warning" : "badge-light")">
+                                        @holiday.DayName
+                                    </span>
+                                </td>
+                                <td>
+                                    @if (!string.IsNullOrEmpty(holiday.HebrewDate))
+                                    {
+                                        <span class="small">@holiday.HebrewDate</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">-</span>
+                                    }
+                                </td>
+                                <td>
+                                    @if (!string.IsNullOrEmpty(holiday.JewishHoliday))
+                                    {
+                                        <div>
+                                            <strong>@holiday.JewishHoliday</strong>
+                                            @if (holiday.IsSabbaticalHoliday)
+                                            {
+                                                <br><small class="text-warning"><i class="fas fa-exclamation-triangle"></i> Work Restriction</small>
+                                            }
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">Regular Day</span>
+                                    }
+                                </td>
+                                <td>
+                                    <span class="badge @holiday.GetBadgeClass()">
+                                        @if (holiday.IsSabbaticalHoliday)
+                                        {
+                                            <i class="fas fa-ban me-1"></i><text>Restricted</text>
+                                        }
+                                        else if (holiday.IsRegularHoliday || holiday.IsSaturday)
+                                        {
+                                            <i class="fas fa-star me-1"></i><text>Observance</text>
+                                        }
+                                        else
+                                        {
+                                            <i class="fas fa-check me-1"></i><text>Regular</text>
+                                        }
+                                    </span>
+                                </td>
+                                <td>
+                                    @if (holiday.IsSabbaticalHoliday)
+                                    {
+                                        <div class="text-warning">
+                                            <strong>@Model.Statistics.HolidayWorkers users</strong>
+                                            <br><small>Holiday workers only</small>
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <div class="text-success">
+                                            <strong>@Model.Statistics.TotalUsers users</strong>
+                                            <br><small>All SMS-enabled users</small>
+                                        </div>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+
+                @if (!Model.UpcomingHolidays.Any())
+                {
+                    <div class="text-center py-5">
+                        <div class="mb-3">
+                            <i class="fas fa-calendar-alt fa-3x text-gray-300"></i>
+                        </div>
+                        <h5 class="text-gray-500">No Special Days Found</h5>
+                        <p class="text-gray-400">
+                            No holidays or special days found for the selected time period and view mode.
+                            Try adjusting your filter settings or refreshing the calendar data.
+                        </p>
+                        <button class="btn btn-primary" onclick="refreshCalendar()">
+                            <i class="fas fa-sync-alt me-2"></i>Refresh Calendar Data
+                        </button>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+
+    <!-- Holiday Type Legend -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card shadow">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-secondary">
+                        <i class="fas fa-info-circle me-2"></i>Holiday Types & SMS Notification Rules
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <span class="badge badge-warning me-2">
+                                    <i class="fas fa-ban"></i> Sabbatical Days
+                                </span>
+                                <strong>Restricted SMS</strong>
+                                <p class="text-muted small mb-0">
+                                    Major Jewish holidays with work restrictions. Only users with "Holiday Duty" enabled receive SMS.
+                                </p>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <span class="badge badge-info me-2">
+                                    <i class="fas fa-star"></i> Regular Holidays
+                                </span>
+                                <strong>Observance Days</strong>
+                                <p class="text-muted small mb-0">
+                                    Jewish holidays and Saturdays (Sabbath). All SMS-enabled users receive notifications.
+                                </p>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <span class="badge badge-secondary me-2">
+                                    <i class="fas fa-check"></i> Regular Days
+                                </span>
+                                <strong>Normal Operations</strong>
+                                <p class="text-muted small mb-0">
+                                    All other days. All SMS-enabled users receive notifications.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <script>
+        // Export to CSV functionality
+        function exportCalendarToCSV() {
+            const table = document.getElementById('calendarTable');
+            const rows = Array.from(table.querySelectorAll('tr'));
+            
+            const csvContent = rows.map(row => {
+                const cells = Array.from(row.querySelectorAll('th, td'));
+                return cells.map(cell => {
+                    const text = cell.textContent.trim().replace(/\s+/g, ' ');
+                    return `"${text.replace(/"/g, '""')}"`;
+                }).join(',');
+            }).join('\n');
+            
+            const blob = new Blob([csvContent], { type: 'text/csv' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `scada-holiday-calendar-${new Date().toISOString().split('T')[0]}.csv`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+        }
+
+        // Refresh calendar functionality
+        function refreshCalendar() {
+            if (confirm('This will refresh the holiday calendar data for the next 10 years. Continue?')) {
+                document.querySelector('form[asp-page-handler="RefreshCalendar"]').submit();
+            }
+        }
+
+        // Auto-dismiss alerts after 5 seconds
+        setTimeout(function() {
+            const alerts = document.querySelectorAll('.alert-dismissible');
+            alerts.forEach(alert => {
+                const bsAlert = new bootstrap.Alert(alert);
+                bsAlert.close();
+            });
+        }, 5000);
+
+        // Create holiday distribution chart
+        document.addEventListener('DOMContentLoaded', function() {
+            // Data from the model
+            const sabbaticalCount = @Model.Statistics.SabbaticalDays;
+            const regularHolidayCount = @Model.Statistics.RegularHolidays;
+            const saturdayCount = @Model.Statistics.Saturdays;
+            
+            // Only create chart if we have a canvas element and data
+            const chartCanvas = document.getElementById('holidayDistributionChart');
+            if (chartCanvas && (sabbaticalCount > 0 || regularHolidayCount > 0 || saturdayCount > 0)) {
+                const ctx = chartCanvas.getContext('2d');
+                const holidayChart = new Chart(ctx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['Sabbatical Days', 'Regular Holidays', 'Saturdays'],
+                        datasets: [{
+                            data: [sabbaticalCount, regularHolidayCount, saturdayCount],
+                            backgroundColor: ['#ffc107', '#17a2b8', '#6c757d'],
+                            borderWidth: 2,
+                            borderColor: '#fff'
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            legend: {
+                                position: 'bottom',
+                            },
+                            title: {
+                                display: true,
+                                text: `Special Days Distribution (Next ${@Model.DaysAhead} Days)`
+                            }
+                        }
+                    }
+                });
+            }
+        });
+    </script>
+}

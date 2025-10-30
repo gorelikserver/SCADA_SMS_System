@@ -1,0 +1,285 @@
+@page
+@model SCADASMSSystem.Web.Pages.Groups.IndexModel
+@{
+    ViewData["Title"] = "Groups Management";
+}
+
+<div class="container-fluid">
+    <!-- Page Heading -->
+    <div class="d-sm-flex align-items-center justify-content-between mb-4">
+        <h1 class="h3 mb-0 text-gray-800">
+            <i class="fas fa-layer-group me-2"></i>Groups Management
+        </h1>
+        <a href="/Groups/Create" class="d-none d-sm-inline-block btn btn-sm btn-primary shadow-sm">
+            <i class="fas fa-plus fa-sm text-white-50"></i> Create New Group
+        </a>
+    </div>
+
+    <!-- Alert Messages -->
+    @if (TempData["SuccessMessage"] != null)
+    {
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            <i class="fas fa-check-circle me-2"></i>@TempData["SuccessMessage"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+
+    @if (TempData["ErrorMessage"] != null)
+    {
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            <i class="fas fa-exclamation-circle me-2"></i>@TempData["ErrorMessage"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+
+    <!-- Search and Filter Card -->
+    <div class="card shadow mb-4">
+        <div class="card-header py-3">
+            <h6 class="m-0 font-weight-bold text-primary">
+                <i class="fas fa-search me-2"></i>Search and Filter Groups
+            </h6>
+        </div>
+        <div class="card-body">
+            <form method="get" class="row g-3">
+                <div class="col-md-6">
+                    <label class="form-label">Search</label>
+                    <input type="text" class="form-control" name="searchTerm" 
+                           value="@Model.SearchTerm" placeholder="Search by group name...">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Filter</label>
+                    <select name="statusFilter" class="form-select">
+                        <option value="">All Groups</option>
+                        <option value="active" selected="@(Model.StatusFilter == "active")">Active (Has Members)</option>
+                        <option value="empty" selected="@(Model.StatusFilter == "empty")">Empty Groups</option>
+                    </select>
+                </div>
+                <div class="col-md-3 d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary me-2">
+                        <i class="fas fa-search"></i> Search
+                    </button>
+                    <a href="/Groups" class="btn btn-outline-secondary me-2">
+                        <i class="fas fa-times"></i> Clear
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Groups Statistics Row -->
+    <div class="row mb-4">
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-left-primary shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
+                                Total Groups
+                            </div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                @Model.Groups.Count()
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-layer-group fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-left-success shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
+                                Active Groups
+                            </div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                @Model.Groups.Count(g => g.MemberCount > 0)
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-users fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-left-warning shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">
+                                Empty Groups
+                            </div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                @Model.Groups.Count(g => g.MemberCount == 0)
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-exclamation-triangle fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-left-info shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-info text-uppercase mb-1">
+                                Total Members
+                            </div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                @Model.Groups.Sum(g => g.MemberCount)
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-user-friends fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Groups Data Table -->
+    <div class="card shadow mb-4">
+        <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+            <h6 class="m-0 font-weight-bold text-primary">
+                <i class="fas fa-table me-2"></i>Groups (@Model.Groups.Count())
+            </h6>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-bordered" id="groupsTable" width="100%" cellspacing="0">
+                    <thead>
+                        <tr>
+                            <th>Group Name</th>
+                            <th>Created</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var groupItem in Model.Groups)
+                        {
+                            <tr>
+                                <td>
+                                    <div class="d-flex align-items-center">
+                                        <div class="me-3">
+                                            <i class="fas fa-layer-group fa-2x text-primary"></i>
+                                        </div>
+                                        <div>
+                                            <div class="font-weight-bold">@groupItem.Group.GroupName</div>
+                                            <small class="text-muted">
+                                                ID: @groupItem.Group.GroupId
+                                                <span class="badge @(groupItem.MemberCount > 0 ? "badge-primary" : "badge-secondary") ms-2">
+                                                    @groupItem.MemberCount @(groupItem.MemberCount == 1 ? "member" : "members")
+                                                </span>
+                                            </small>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <small class="text-muted">
+                                        @groupItem.Group.CreatedAt.ToString("MMM dd, yyyy")
+                                        <br>
+                                        <span class="badge badge-light">@groupItem.Group.CreatedAt.ToString("HH:mm")</span>
+                                    </small>
+                                </td>
+                                <td>
+                                    <div class="btn-group" role="group">
+                                        <a href="/Groups/Edit/@groupItem.Group.GroupId" class="btn btn-sm btn-outline-primary" title="Edit Group">
+                                            <i class="fas fa-edit"></i>
+                                        </a>
+                                        <a href="/Groups/Edit/@groupItem.Group.GroupId" class="btn btn-sm btn-outline-success" title="Manage Members">
+                                            <i class="fas fa-users"></i> <span class="badge badge-light">@groupItem.MemberCount</span>
+                                        </a>
+                                        <div class="btn-group" role="group">
+                                            <button class="btn btn-sm btn-outline-info dropdown-toggle" type="button" 
+                                                    data-bs-toggle="dropdown" aria-expanded="false" title="More Actions">
+                                                <i class="fas fa-ellipsis-h"></i>
+                                            </button>
+                                            <ul class="dropdown-menu">
+                                                <li>
+                                                    <a class="dropdown-item" href="/Audit?groupId=@groupItem.Group.GroupId">
+                                                        <i class="fas fa-history me-2"></i>SMS History
+                                                    </a>
+                                                </li>
+                                                <li>
+                                                    <a class="dropdown-item" href="#" onclick="sendTestSmsToGroup(@groupItem.Group.GroupId, '@groupItem.Group.GroupName')">
+                                                        <i class="fas fa-paper-plane me-2"></i>Send Test SMS
+                                                    </a>
+                                                </li>
+                                                <li><hr class="dropdown-divider"></li>
+                                                <li>
+                                                    <form method="post" asp-page-handler="Delete" asp-route-groupId="@groupItem.Group.GroupId" style="display: inline;">
+                                                        <button type="submit" class="dropdown-item text-danger" 
+                                                                onclick="return confirm('Are you sure you want to delete group \'@groupItem.Group.GroupName\'?\n\nThis will remove all members from the group but will not delete the users themselves.')">
+                                                            <i class="fas fa-trash me-2"></i>Delete Group
+                                                        </button>
+                                                    </form>
+                                                </li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+
+                @if (!Model.Groups.Any())
+                {
+                    <div class="text-center py-5">
+                        <div class="mb-3">
+                            <i class="fas fa-layer-group fa-3x text-gray-300"></i>
+                        </div>
+                        <h5 class="text-gray-500">No Groups Found</h5>
+                        <p class="text-gray-400">
+                            @if (!string.IsNullOrWhiteSpace(Model.SearchTerm) || !string.IsNullOrWhiteSpace(Model.StatusFilter))
+                            {
+                                <text>No groups match your current filters. Try adjusting your search criteria.</text>
+                            }
+                            else
+                            {
+                                <text>Get started by creating your first notification group.</text>
+                            }
+                        </p>
+                        <a href="/Groups/Create" class="btn btn-primary">
+                            <i class="fas fa-plus me-2"></i>Create First Group
+                        </a>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        // Send test SMS to specific group
+        async function sendTestSmsToGroup(groupId, groupName) {
+            if (confirm(`Send a test SMS to all members of "${groupName}"?`)) {
+                try {
+                    // This would call an API endpoint to send test SMS
+                    alert(`Test SMS functionality will be implemented with API endpoints.\nGroup: ${groupName} (ID: ${groupId})`);
+                } catch (error) {
+                    alert('Error sending test SMS: ' + error.message);
+                }
+            }
+        }
+
+        // Auto-dismiss alerts after 5 seconds
+        setTimeout(function() {
+            const alerts = document.querySelectorAll('.alert-dismissible');
+            alerts.forEach(alert => {
+                const bsAlert = new bootstrap.Alert(alert);
+                bsAlert.close();
+            });
+        }, 5000);
+    </script>
+}}

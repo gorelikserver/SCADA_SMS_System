@@ -1,0 +1,426 @@
+@page
+@model SCADASMSSystem.Web.Pages.Settings.IndexModel
+@{
+    ViewData["Title"] = "System Settings";
+}
+
+<div class="container-fluid">
+    <!-- Page Heading -->
+    <div class="d-sm-flex align-items-center justify-content-between mb-4">
+        <h1 class="h3 mb-0 text-gray-800">
+            <i class="fas fa-cogs me-2"></i>System Settings
+        </h1>
+        <a href="/" class="d-none d-sm-inline-block btn btn-sm btn-secondary shadow-sm">
+            <i class="fas fa-arrow-left fa-sm text-white-50"></i> Back to Dashboard
+        </a>
+    </div>
+
+    <!-- Alert Messages -->
+    @if (TempData["SuccessMessage"] != null)
+    {
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            <i class="fas fa-check-circle me-2"></i>@TempData["SuccessMessage"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+
+    @if (TempData["ErrorMessage"] != null)
+    {
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            <i class="fas fa-exclamation-circle me-2"></i>@TempData["ErrorMessage"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+
+    <div class="row">
+        <!-- System Health Column -->
+        <div class="col-lg-6">
+            <!-- System Health Card -->
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-success">
+                        <i class="fas fa-heartbeat me-2"></i>System Health Status
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <span class="font-weight-bold">Overall Health:</span>
+                        <span class="badge @Model.HealthStatus.GetHealthBadgeClass() badge-lg">
+                            @Model.HealthStatus.SystemHealth
+                        </span>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-6">
+                            <div class="border-bottom py-2">
+                                <small class="text-muted">Database</small>
+                                <div class="font-weight-bold">
+                                    @if (Model.HealthStatus.DatabaseConnected)
+                                    {
+                                        <span class="text-success"><i class="fas fa-check-circle"></i> Connected</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-danger"><i class="fas fa-times-circle"></i> Disconnected</span>
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="border-bottom py-2">
+                                <small class="text-muted">SMS Success Rate</small>
+                                <div class="font-weight-bold">@Model.HealthStatus.SmsSuccessRate.ToString("F1")%</div>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="border-bottom py-2">
+                                <small class="text-muted">Active Users</small>
+                                <div class="font-weight-bold">@Model.HealthStatus.ActiveUsers / @Model.HealthStatus.TotalUsers</div>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="border-bottom py-2">
+                                <small class="text-muted">Active Groups</small>
+                                <div class="font-weight-bold">@Model.HealthStatus.ActiveGroups / @Model.HealthStatus.TotalGroups</div>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="py-2">
+                                <small class="text-muted">Recent SMS (24h)</small>
+                                <div class="font-weight-bold">@Model.HealthStatus.RecentSmsCount</div>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="py-2">
+                                <small class="text-muted">Last SMS</small>
+                                <div class="font-weight-bold">
+                                    @if (Model.HealthStatus.LastSmsTime.HasValue)
+                                    {
+                                        @Model.HealthStatus.LastSmsTime.Value.ToString("MMM dd, HH:mm")
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">Never</span>
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- System Actions Card -->
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">
+                        <i class="fas fa-tools me-2"></i>System Actions
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        <form method="post" asp-page-handler="TestConnection">
+                            <button type="submit" class="btn btn-outline-success btn-block">
+                                <i class="fas fa-database me-2"></i>Test Database Connection
+                            </button>
+                        </form>
+                        <form method="post" asp-page-handler="CleanupData">
+                            <button type="submit" class="btn btn-outline-warning btn-block" 
+                                    onclick="return confirm('This will delete audit records older than 90 days. Continue?')">
+                                <i class="fas fa-broom me-2"></i>Cleanup Old Data
+                            </button>
+                        </form>
+                        <a href="/Calendar" class="btn btn-outline-info btn-block">
+                            <i class="fas fa-calendar-alt me-2"></i>Refresh Holiday Calendar
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- System Information Column -->
+        <div class="col-lg-6">
+            <!-- System Information Card -->
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-info">
+                        <i class="fas fa-info-circle me-2"></i>System Information
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-6">
+                            <div class="border-bottom py-2">
+                                <small class="text-muted">Version</small>
+                                <div class="font-weight-bold">@Model.SystemInformation.Version</div>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="border-bottom py-2">
+                                <small class="text-muted">Environment</small>
+                                <div class="font-weight-bold">
+                                    <span class="badge @(Model.SystemInformation.Environment == "Development" ? "badge-warning" : "badge-success")">
+                                        @Model.SystemInformation.Environment
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="border-bottom py-2">
+                                <small class="text-muted">Build Date</small>
+                                <div class="font-weight-bold">
+                                    @if (Model.SystemInformation.BuildDate != DateTime.MinValue)
+                                    {
+                                        @Model.SystemInformation.BuildDate.ToString("MMM dd, yyyy")
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">Unknown</span>
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="border-bottom py-2">
+                                <small class="text-muted">Server Time</small>
+                                <div class="font-weight-bold">@Model.SystemInformation.ServerTime.ToString("HH:mm:ss")</div>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="border-bottom py-2">
+                                <small class="text-muted">Uptime</small>
+                                <div class="font-weight-bold">@Model.SystemInformation.Uptime.ToString(@"dd\.hh\:mm\:ss")</div>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="border-bottom py-2">
+                                <small class="text-muted">Machine</small>
+                                <div class="font-weight-bold">@Model.SystemInformation.MachineName</div>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="border-bottom py-2">
+                                <small class="text-muted">Processors</small>
+                                <div class="font-weight-bold">@Model.SystemInformation.ProcessorCount cores</div>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="py-2">
+                                <small class="text-muted">Memory Usage</small>
+                                <div class="font-weight-bold">@Model.SystemInformation.WorkingSetMemory MB</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SMS Configuration Card -->
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-warning">
+                        <i class="fas fa-sms me-2"></i>SMS Configuration
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-12">
+                            <div class="border-bottom py-2">
+                                <small class="text-muted">API Endpoint</small>
+                                <div class="font-weight-bold text-truncate">
+                                    @if (!string.IsNullOrEmpty(Model.CurrentSmsSettings.ApiEndpoint))
+                                    {
+                                        @Model.CurrentSmsSettings.ApiEndpoint
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">Not configured</span>
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="border-bottom py-2">
+                                <small class="text-muted">Rate Limit</small>
+                                <div class="font-weight-bold">@Model.CurrentSmsSettings.RateLimit / minute</div>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="border-bottom py-2">
+                                <small class="text-muted">Duplicate Window</small>
+                                <div class="font-weight-bold">@Model.CurrentSmsSettings.DuplicateWindow minutes</div>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="border-bottom py-2">
+                                <small class="text-muted">Rate Window</small>
+                                <div class="font-weight-bold">@Model.CurrentSmsSettings.RateWindow seconds</div>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="py-2">
+                                <small class="text-muted">Sender Name</small>
+                                <div class="font-weight-bold">
+                                    @if (!string.IsNullOrEmpty(Model.CurrentSmsSettings.SenderName))
+                                    {
+                                        @Model.CurrentSmsSettings.SenderName
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">Default</span>
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="alert alert-info mt-3 mb-0">
+                        <small>
+                            <i class="fas fa-info-circle me-1"></i>
+                            SMS settings are configured in <code>appsettings.json</code>. 
+                            Restart the application after making changes.
+                        </small>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SCADA Configuration Card -->
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-danger">
+                        <i class="fas fa-project-diagram me-2"></i>SCADA Configuration
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-12">
+                            <div class="border-bottom py-2">
+                                <small class="text-muted">
+                                    <i class="fas fa-cog me-1"></i>PCIM Object ID
+                                    <span class="badge badge-warning ms-1" data-bs-toggle="tooltip" 
+                                          title="This ID varies by deployment and is used in alarm action commands">
+                                        <i class="fas fa-info-circle"></i>
+                                    </span>
+                                </small>
+                                <div class="font-weight-bold">
+                                    <code class="fs-5">@Model.CurrentSmsSettings.ScadaPcimObjectId</code>
+                                </div>
+                                <small class="text-muted">
+                                    Used in alarm commands as: 
+                                    <code>PFWALARMNG|PCIM!<span class="text-danger">@Model.CurrentSmsSettings.ScadaPcimObjectId</span>:(ThisObject).DESCRIPTION</code>
+                                </small>
+                            </div>
+                        </div>
+                        <div class="col-12 mt-2">
+                            <div class="py-2">
+                                <small class="text-muted">Alarm Command Syntax</small>
+                                <div class="font-weight-bold">
+                                    <code class="text-wrap" style="font-size: 0.75rem; word-break: break-all;">
+                                        'Run '+getalias('PCIMUTIL')+'Scada_sms.bat'+' "+'"+GetValue(PFWALARMNG|PCIM!<span class="text-danger">@Model.CurrentSmsSettings.ScadaPcimObjectId</span>:(ThisObject).DESCRIPTION)+'"'+<span class="text-primary">[GROUP_ID]</span>+' "+GetValue(PFWALARMNG|PCIM!<span class="text-danger">@Model.CurrentSmsSettings.ScadaPcimObjectId</span>:(ThisObject).ALM_VALUE)+'"'
+                                    </code>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="alert alert-warning mt-3 mb-0">
+                        <small>
+                            <i class="fas fa-exclamation-triangle me-1"></i>
+                            <strong>Important:</strong> The PCIM Object ID is deployment-specific and must be configured correctly in <code>appsettings.json</code> under 
+                            <code>SmsSettings.ScadaPcimObjectId</code>.
+                            <br />
+                            Common values: 1 (default), but may vary by installation.
+                            <br />
+                            <strong>Restart the application after changing this value.</strong>
+                        </small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Links Row -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card shadow">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-secondary">
+                        <i class="fas fa-external-link-alt me-2"></i>Quick Management Links
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-3 mb-3">
+                            <a href="/Users" class="btn btn-outline-primary btn-block">
+                                <i class="fas fa-users fa-2x mb-2"></i>
+                                <br><strong>Manage Users</strong>
+                                <br><small class="text-muted">Add, edit, and configure users</small>
+                            </a>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <a href="/Groups" class="btn btn-outline-success btn-block">
+                                <i class="fas fa-layer-group fa-2x mb-2"></i>
+                                <br><strong>Manage Groups</strong>
+                                <br><small class="text-muted">Create and manage notification groups</small>
+                            </a>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <a href="/Audit" class="btn btn-outline-info btn-block">
+                                <i class="fas fa-history fa-2x mb-2"></i>
+                                <br><strong>SMS Audit</strong>
+                                <br><small class="text-muted">View SMS delivery history</small>
+                            </a>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <a href="/Calendar" class="btn btn-outline-warning btn-block">
+                                <i class="fas fa-calendar-alt fa-2x mb-2"></i>
+                                <br><strong>Holiday Calendar</strong>
+                                <br><small class="text-muted">Manage Jewish holidays</small>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        // Auto-dismiss alerts after 5 seconds
+        setTimeout(function() {
+            const alerts = document.querySelectorAll('.alert-dismissible');
+            alerts.forEach(alert => {
+                const bsAlert = new bootstrap.Alert(alert);
+                bsAlert.close();
+            });
+        }, 5000);
+
+        // Auto-refresh server time every second
+        function updateServerTime() {
+            const serverTimeElements = document.querySelectorAll('.server-time');
+            const now = new Date();
+            const timeString = now.toLocaleTimeString('en-US', { hour12: false });
+            
+            serverTimeElements.forEach(element => {
+                element.textContent = timeString;
+            });
+        }
+
+        // Update server time display every second
+        setInterval(updateServerTime, 1000);
+
+        // Add loading states to action buttons
+        document.querySelectorAll('form button[type="submit"]').forEach(button => {
+            button.addEventListener('click', function() {
+                const originalText = this.innerHTML;
+                this.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Processing...';
+                this.disabled = true;
+                
+                // Re-enable after 5 seconds as fallback
+                setTimeout(() => {
+                    this.innerHTML = originalText;
+                    this.disabled = false;
+                }, 5000);
+            });
+        });
+    </script>
+}

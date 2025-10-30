@@ -1,0 +1,81 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Diagnostics.EntityFrameworkCore" Version="9.0.9" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="9.0.9" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="9.0.9">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" Version="9.0.9" />
+    <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore" Version="9.0.9" />
+    
+    <!-- File Logging Support -->
+    <PackageReference Include="Serilog" Version="3.1.1" />
+    <PackageReference Include="Serilog.AspNetCore" Version="8.0.0" />
+    <PackageReference Include="Serilog.Extensions.Logging" Version="8.0.0" />
+    <PackageReference Include="Serilog.Sinks.File" Version="5.0.0" />
+    <PackageReference Include="Serilog.Sinks.Console" Version="5.0.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Exclude pyproject folder from build -->
+    <Compile Remove="pyproject\**" />
+    <Content Remove="pyproject\**" />
+    <EmbeddedResource Remove="pyproject\**" />
+    <None Remove="pyproject\**" />
+    
+    <!-- Exclude MockSmsApi folders from build -->
+    <Compile Remove="MockSmsApi\**" />
+    <Content Remove="MockSmsApi\**" />
+    <EmbeddedResource Remove="MockSmsApi\**" />
+    <None Remove="MockSmsApi\**" />
+    
+    <Compile Remove="MockSmsApi_Clean\**" />
+    <Content Remove="MockSmsApi_Clean\**" />
+    <EmbeddedResource Remove="MockSmsApi_Clean\**" />
+    <None Remove="MockSmsApi_Clean\**" />
+    
+    <Compile Remove="MockSmsApi_Deployment\**" />
+    <Content Remove="MockSmsApi_Deployment\**" />
+    <EmbeddedResource Remove="MockSmsApi_Deployment\**" />
+    <None Remove="MockSmsApi_Deployment\**" />
+    
+    <Compile Remove="MockSmsApi_AirGapped_Deploy\**" />
+    <Content Remove="MockSmsApi_AirGapped_Deploy\**" />
+    <EmbeddedResource Remove="MockSmsApi_AirGapped_Deploy\**" />
+    <None Remove="MockSmsApi_AirGapped_Deploy\**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include=".github\CONTRIBUTING.md" />
+    <None Include=".github\copilot-instructions.md" />
+    <None Include=".github\FUNDING.yml" />
+    <None Include=".github\ISSUE_TEMPLATE\bug_report.md" />
+    <None Include=".github\ISSUE_TEMPLATE\feature_request.md" />
+    <None Include=".github\ISSUE_TEMPLATE\question.md" />
+    <None Include=".github\pull_request_template.md" />
+    <None Include=".github\README.md" />
+    <None Include=".github\SECURITY.md" />
+    <None Include=".github\workflows\ci-cd.yml" />
+    <None Include=".github\workflows\code-quality.yml" />
+    <None Include="MockSmsApi\MockSmsApi.csproj" />
+    <None Include="MockSmsApi\test_iaa_afcon_format.bat" />
+    <None Include="MockSmsApi\test_iaa_afcon_format.ps1" />
+    <None Include="MockSmsApi\test_iaa_afcon_replica.bat" />
+    <None Include="MockSmsApi\test_universal_api.bat" />
+    <None Include="MockSmsApi\test_universal_api.ps1" />
+    <None Include="MockSmsApi_Clean\MockSmsApi.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="SCADASMSService\" />
+  </ItemGroup>
+
+</Project>

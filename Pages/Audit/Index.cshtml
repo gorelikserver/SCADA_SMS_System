@@ -1,0 +1,665 @@
+@page
+@model SCADASMSSystem.Web.Pages.Audit.IndexModel
+@{
+    ViewData["Title"] = "SMS Audit History";
+}
+
+<div class="container-fluid">
+    <!-- Page Heading -->
+    <div class="d-sm-flex align-items-center justify-content-between mb-4">
+        <h1 class="h3 mb-0 text-gray-800">
+            <i class="fas fa-history me-2"></i>SMS Audit History
+        </h1>
+        <div class="d-flex gap-2">
+            <form method="post" asp-page-handler="Cleanup" style="display: inline;">
+                <button type="submit" class="btn btn-sm btn-warning shadow-sm" 
+                        onclick="return confirm('This will delete audit records older than 90 days. Continue?')">
+                    <i class="fas fa-broom fa-sm text-white-50"></i> Cleanup Old Records
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Alert Messages -->
+    @if (TempData["SuccessMessage"] != null)
+    {
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            <i class="fas fa-check-circle me-2"></i>@TempData["SuccessMessage"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+
+    @if (TempData["ErrorMessage"] != null)
+    {
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            <i class="fas fa-exclamation-circle me-2"></i>@TempData["ErrorMessage"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+
+    <!-- Advanced Filters Card -->
+    <div class="card shadow mb-4">
+        <div class="card-header py-3">
+            <h6 class="m-0 font-weight-bold text-primary">
+                <i class="fas fa-filter me-2"></i>Advanced Filters
+            </h6>
+        </div>
+        <div class="card-body">
+            <form method="get" class="row g-3">
+                <div class="col-md-2">
+                    <label class="form-label">Start Date</label>
+                    <input type="date" class="form-control" name="startDate" 
+                           value="@Model.StartDate?.ToString("yyyy-MM-dd")">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">End Date</label>
+                    <input type="date" class="form-control" name="endDate" 
+                           value="@Model.EndDate?.ToString("yyyy-MM-dd")">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Status</label>
+                    <select name="statusFilter" class="form-select">
+                        <option value="">All Statuses</option>
+                        <option value="SUCCESS" selected="@(Model.StatusFilter == "SUCCESS")">Success</option>
+                        <option value="FAILED" selected="@(Model.StatusFilter == "FAILED")">Failed</option>
+                        <option value="PENDING" selected="@(Model.StatusFilter == "PENDING")">Pending</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">User</label>
+                    <select name="userIdFilter" class="form-select">
+                        <option value="">All Users</option>
+                        @foreach (var user in Model.AvailableUsers)
+                        {
+                            <option value="@user.UserId" selected="@(Model.UserIdFilter == user.UserId)">@user.UserName</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Group</label>
+                    <select name="groupIdFilter" class="form-select">
+                        <option value="">All Groups</option>
+                        @foreach (var group in Model.AvailableGroups)
+                        {
+                            <option value="@group.GroupId" selected="@(Model.GroupIdFilter == group.GroupId)">@group.GroupName</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-md-8">
+                    <label class="form-label">Search</label>
+                    <input type="text" class="form-control" name="searchTerm" 
+                           value="@Model.SearchTerm" placeholder="Search by alarm ID, description, user name, group, or phone...">
+                </div>
+                <div class="col-md-4 d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary me-2">
+                        <i class="fas fa-search"></i> Apply Filters
+                    </button>
+                    <a href="/Audit" class="btn btn-outline-secondary me-2">
+                        <i class="fas fa-times"></i> Clear
+                    </a>
+                    <button type="button" class="btn btn-outline-success" onclick="exportAuditToCSV()">
+                        <i class="fas fa-download"></i> Export
+                    </button>
+                </div>
+            </form>
+            
+            <!-- ? Quick Filter Buttons -->
+            <div class="quick-filters mt-3">
+                <div class="d-flex flex-wrap gap-2">
+                    <div class="btn-group btn-group-sm" role="group" aria-label="Time filters">
+                        <button type="button" class="btn btn-outline-info quick-filter-btn" onclick="filterByTimeRange(1)">
+                            <i class="fas fa-clock me-1"></i>Today
+                        </button>
+                        <button type="button" class="btn btn-outline-info quick-filter-btn" onclick="filterByTimeRange(7)">
+                            <i class="fas fa-calendar-week me-1"></i>Last 7 Days
+                        </button>
+                        <button type="button" class="btn btn-outline-info quick-filter-btn" onclick="filterByTimeRange(30)">
+                            <i class="fas fa-calendar-alt me-1"></i>Last 30 Days
+                        </button>
+                    </div>
+                    
+                    <div class="btn-group btn-group-sm ms-2" role="group" aria-label="Status filters">
+                        <button type="button" class="btn btn-outline-success quick-filter-btn" onclick="filterByStatus('SUCCESS')">
+                            <i class="fas fa-check me-1"></i>Success Only
+                        </button>
+                        <button type="button" class="btn btn-outline-danger quick-filter-btn" onclick="filterByStatus('FAILED')">
+                            <i class="fas fa-times me-1"></i>Failed Only
+                        </button>
+                        <button type="button" class="btn btn-outline-warning quick-filter-btn" onclick="filterByStatus('PENDING')">
+                            <i class="fas fa-clock me-1"></i>Pending Only
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Audit Statistics Row -->
+    <div class="row mb-4">
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-left-primary shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
+                                Total SMS Sent
+                            </div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                @Model.TotalRecords
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-paper-plane fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-left-success shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
+                                Successful
+                            </div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                @Model.AllFilteredRecords.Count(a => a.Audit.Status == "SUCCESS")
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-check-circle fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-left-danger shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-danger text-uppercase mb-1">
+                                Failed
+                            </div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                @Model.AllFilteredRecords.Count(a => a.Audit.Status == "FAILED")
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-times-circle fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-left-info shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-info text-uppercase mb-1">
+                                Success Rate
+                            </div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                @{
+                                    var total = Model.TotalRecords;
+                                    var successful = Model.AllFilteredRecords.Count(a => a.Audit.Status == "SUCCESS");
+                                    var successRate = total > 0 ? (successful * 100 / total) : 0;
+                                }
+                                @successRate%
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-chart-pie fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Audit Records Table -->
+    <div class="card shadow mb-4">
+        <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+            <h6 class="m-0 font-weight-bold text-primary">
+                <i class="fas fa-table me-2"></i>SMS Audit Records 
+                <span class="badge bg-info">@Model.TotalRecords Total</span>
+                @if (Model.TotalPages > 1)
+                {
+                    <span class="text-muted">| Page @Model.PageNumber of @Model.TotalPages</span>
+                }
+            </h6>
+            <div class="d-flex align-items-center">
+                <!-- ? Page Size Selector -->
+                <div class="me-3">
+                    <select class="form-select form-select-sm" onchange="changePageSize(this.value)" style="width: auto;">
+                        <option value="25" selected="@(Model.PageSize == 25 ? "selected" : null)">25 per page</option>
+                        <option value="50" selected="@(Model.PageSize == 50 ? "selected" : null)">50 per page</option>
+                        <option value="100" selected="@(Model.PageSize == 100 ? "selected" : null)">100 per page</option>
+                        <option value="200" selected="@(Model.PageSize == 200 ? "selected" : null)">200 per page</option>
+                    </select>
+                </div>
+                
+                @if (Model.StartDate.HasValue && Model.EndDate.HasValue)
+                {
+                    <span class="text-muted me-3">
+                        <small>@Model.StartDate.Value.ToString("dd/MM/yyyy") - @Model.EndDate.Value.ToString("dd/MM/yyyy")</small>
+                    </span>
+                }
+                <div class="dropdown no-arrow">
+                    <a class="dropdown-toggle" href="#" role="button" id="dropdownMenuLink"
+                       data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                        <i class="fas fa-ellipsis-v fa-sm fa-fw text-gray-400"></i>
+                    </a>
+                    <div class="dropdown-menu dropdown-menu-right shadow animated--fade-in"
+                         aria-labelledby="dropdownMenuLink">
+                        <div class="dropdown-header">Export Options:</div>
+                        <a class="dropdown-item" href="#" onclick="exportAuditToCSV()">
+                            <i class="fas fa-file-csv me-2"></i>Export to CSV
+                        </a>
+                        <a class="dropdown-item" href="#" onclick="exportAuditToJSON()">
+                            <i class="fas fa-file-code me-2"></i>Export to JSON
+                        </a>
+                        <div class="dropdown-divider"></div>
+                        <div class="dropdown-header">View Options:</div>
+                        <a class="dropdown-item" href="#" onclick="resetFilters()">
+                            <i class="fas fa-refresh me-2"></i>Reset All Filters
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-bordered table-hover" id="auditTable" width="100%" cellspacing="0">
+                    <thead class="table-light">
+                        <tr>
+                            <!-- ? Sortable Column Headers -->
+                            <th class="sortable-header" onclick="location.href='@Model.GetSortUrl("CreatedAt")'">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <span>Timestamp</span>
+                                    <i class="@Model.GetSortIcon("CreatedAt")"></i>
+                                </div>
+                            </th>
+                            <th class="sortable-header" onclick="location.href='@Model.GetSortUrl("AlarmId")'">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <span>Alarm ID</span>
+                                    <i class="@Model.GetSortIcon("AlarmId")"></i>
+                                </div>
+                            </th>
+                            <th class="sortable-header" onclick="location.href='@Model.GetSortUrl("Description")'">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <span>Description</span>
+                                    <i class="@Model.GetSortIcon("Description")"></i>
+                                </div>
+                            </th>
+                            <th class="sortable-header" onclick="location.href='@Model.GetSortUrl("User")'">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <span>User</span>
+                                    <i class="@Model.GetSortIcon("User")"></i>
+                                </div>
+                            </th>
+                            <th class="sortable-header" onclick="location.href='@Model.GetSortUrl("Group")'">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <span>Group</span>
+                                    <i class="@Model.GetSortIcon("Group")"></i>
+                                </div>
+                            </th>
+                            <th class="sortable-header" onclick="location.href='@Model.GetSortUrl("Phone")'">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <span>Phone</span>
+                                    <i class="@Model.GetSortIcon("Phone")"></i>
+                                </div>
+                            </th>
+                            <th class="sortable-header" onclick="location.href='@Model.GetSortUrl("Status")'">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <span>Status</span>
+                                    <i class="@Model.GetSortIcon("Status")"></i>
+                                </div>
+                            </th>
+                            <th class="sortable-header" onclick="location.href='@Model.GetSortUrl("Response")'">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <span>Response</span>
+                                    <i class="@Model.GetSortIcon("Response")"></i>
+                                </div>
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var record in Model.AuditRecords)
+                        {
+                            <tr class="@(record.Audit.Status == "FAILED" ? "table-danger" : record.Audit.Status == "SUCCESS" ? "table-success" : "")">
+                                <td>
+                                    <div class="small">
+                                        <strong>@record.Audit.CreatedAt.ToString("dd/MM/yyyy")</strong>
+                                        <br>
+                                        <span class="text-muted">@record.Audit.CreatedAt.ToString("HH:mm:ss")</span>
+                                    </div>
+                                </td>
+                                <td>
+                                    <span class="badge badge-info">@record.Audit.AlarmId</span>
+                                </td>
+                                <td>
+                                    <div class="text-truncate" style="max-width: 250px;" title="@record.Audit.AlarmDescription">
+                                        @record.Audit.AlarmDescription
+                                    </div>
+                                </td>
+                                <td>
+                                    <div>
+                                        <strong>@record.UserName</strong>
+                                    </div>
+                                </td>
+                                <td>
+                                    @if (!string.IsNullOrEmpty(record.GroupName) && record.GroupName != "No Group")
+                                    {
+                                        <span class="badge badge-primary">@record.GroupName</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted small">No Group</span>
+                                    }
+                                </td>
+                                <td>
+                                    <a href="tel:@record.Audit.PhoneNumber" class="text-decoration-none">
+                                        @record.Audit.PhoneNumber
+                                    </a>
+                                </td>
+                                <td>
+                                    <span class="badge @(record.Audit.Status switch {
+                                        "SUCCESS" => "badge-success",
+                                        "FAILED" => "badge-danger", 
+                                        "PENDING" => "badge-warning",
+                                        _ => "badge-secondary"
+                                    })">
+                                        <i class="fas @(record.Audit.Status switch {
+                                            "SUCCESS" => "fa-check",
+                                            "FAILED" => "fa-times", 
+                                            "PENDING" => "fa-clock",
+                                            _ => "fa-question"
+                                        })"></i>
+                                        @record.Audit.Status
+                                    </span>
+                                </td>
+                                <td>
+                                    @if (!string.IsNullOrEmpty(record.Audit.MessageStatus))
+                                    {
+                                        <div class="text-truncate" style="max-width: 200px;" title="@record.Audit.MessageStatus">
+                                            @record.Audit.MessageStatus
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">No response</span>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+
+                @if (!Model.AuditRecords.Any())
+                {
+                    <div class="text-center py-5">
+                        <div class="mb-3">
+                            <i class="fas fa-history fa-3x text-gray-300"></i>
+                        </div>
+                        <h5 class="text-gray-500">No Audit Records Found</h5>
+                        <p class="text-gray-400">
+                            @if (!string.IsNullOrWhiteSpace(Model.SearchTerm) || Model.StartDate.HasValue || !string.IsNullOrWhiteSpace(Model.StatusFilter))
+                            {
+                                <text>No SMS records match your current filters. Try adjusting your search criteria or date range.</text>
+                            }
+                            else
+                            {
+                                <text>No SMS messages have been sent yet. SMS audit records will appear here after messages are sent.</text>
+                            }
+                        </p>
+                        <a href="/Users" class="btn btn-primary me-2">
+                            <i class="fas fa-users me-2"></i>Manage Users
+                        </a>
+                        <a href="/Groups" class="btn btn-success">
+                            <i class="fas fa-layer-group me-2"></i>Manage Groups
+                        </a>
+                    </div>
+                }
+            </div>
+
+            <!-- Enhanced Pagination (Alarm Groups Style) -->
+            @if (Model.TotalPages > 1)
+            {
+                <div class="card-footer">
+                    <nav aria-label="Alarm pagination">
+                        <ul class="pagination justify-content-center mb-0">
+                            <!-- First Page -->
+                            <li class="page-item @(!Model.HasPreviousPage ? "disabled" : "")">
+                                <a class="page-link" href="@Model.GetPageUrl(1)" aria-label="First">
+                                    <span aria-hidden="true">&laquo;&laquo;</span>
+                                </a>
+                            </li>
+
+                            <!-- Previous Page -->
+                            <li class="page-item @(!Model.HasPreviousPage ? "disabled" : "")">
+                                <a class="page-link" href="@Model.GetPageUrl(Model.PageNumber - 1)" aria-label="Previous">
+                                    <span aria-hidden="true">&laquo;</span>
+                                </a>
+                            </li>
+
+                            <!-- Page Numbers -->
+                            @{
+                                var startPage = Math.Max(1, Model.PageNumber - 2);
+                                var endPage = Math.Min(Model.TotalPages, Model.PageNumber + 2);
+                            }
+
+                            @if (startPage > 1)
+                            {
+                                <li class="page-item disabled">
+                                    <span class="page-link">...</span>
+                                </li>
+                            }
+
+                            @for (var i = startPage; i <= endPage; i++)
+                            {
+                                <li class="page-item @(i == Model.PageNumber ? "active" : "")">
+                                    <a class="page-link" href="@Model.GetPageUrl(i)">@i</a>
+                                </li>
+                            }
+
+                            @if (endPage < Model.TotalPages)
+                            {
+                                <li class="page-item disabled">
+                                    <span class="page-link">...</span>
+                                </li>
+                            }
+
+                            <!-- Next Page -->
+                            <li class="page-item @(!Model.HasNextPage ? "disabled" : "")">
+                                <a class="page-link" href="@Model.GetPageUrl(Model.PageNumber + 1)" aria-label="Next">
+                                    <span aria-hidden="true">&raquo;</span>
+                                </a>
+                            </li>
+
+                            <!-- Last Page -->
+                            <li class="page-item @(!Model.HasNextPage ? "disabled" : "")">
+                                <a class="page-link" href="@Model.GetPageUrl(Model.TotalPages)" aria-label="Last">
+                                    <span aria-hidden="true">&raquo;&raquo;</span>
+                                </a>
+                            </li>
+                        </ul>
+                    </nav>
+                    <div class="text-center mt-2">
+                        <small class="text-muted">
+                            Page @Model.PageNumber of @Model.TotalPages 
+                            (Showing @((Model.PageNumber - 1) * Model.PageSize + 1)-@Math.Min(Model.PageNumber * Model.PageSize, Model.TotalRecords) of @Model.TotalRecords records)
+                        </small>
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        // Export to CSV functionality - Exports ALL filtered records (not just current page)
+        function exportAuditToCSV() {
+            // Get simple export data (no circular references)
+            var exportData = [
+                @foreach (var record in Model.AllFilteredRecords)
+                {
+                    @:{
+                        @:timestamp: '@record.Audit.CreatedAt.ToString("O")',
+                        @:alarmId: '@Html.Raw(System.Text.Json.JsonSerializer.Serialize(record.Audit.AlarmId))',
+                        @:description: '@Html.Raw(System.Text.Json.JsonSerializer.Serialize(record.Audit.AlarmDescription))',
+                        @:user: '@Html.Raw(System.Text.Json.JsonSerializer.Serialize(record.UserName))',
+                        @:group: '@Html.Raw(System.Text.Json.JsonSerializer.Serialize(record.GroupName))',
+                        @:phone: '@Html.Raw(System.Text.Json.JsonSerializer.Serialize(record.Audit.PhoneNumber))',
+                        @:status: '@Html.Raw(System.Text.Json.JsonSerializer.Serialize(record.Audit.Status))',
+                        @:response: '@Html.Raw(System.Text.Json.JsonSerializer.Serialize(record.Audit.MessageStatus ?? ""))'
+                    @:},
+                }
+            ];
+            
+            // Build CSV header
+            const headers = ['Timestamp', 'Date', 'Time', 'Alarm ID', 'Description', 'User', 'Group', 'Phone', 'Status', 'Response'];
+            const csvContent = [headers.join(',')];
+            
+            // Build CSV rows from ALL filtered records
+            exportData.forEach(record => {
+                const timestamp = new Date(record.timestamp);
+                const row = [
+                    `"${timestamp.toISOString()}"`,
+                    `"${timestamp.toLocaleDateString('en-GB')}"`,
+                    `"${timestamp.toLocaleTimeString('en-GB')}"`,
+                    `"${(record.alarmId || '').replace(/"/g, '""')}"`,
+                    `"${(record.description || '').replace(/"/g, '""')}"`,
+                    `"${(record.user || '').replace(/"/g, '""')}"`,
+                    `"${(record.group || '').replace(/"/g, '""')}"`,
+                    `"${(record.phone || '').replace(/"/g, '""')}"`,
+                    `"${(record.status || '').replace(/"/g, '""')}"`,
+                    `"${(record.response || '').replace(/"/g, '""')}"`
+                ];
+                csvContent.push(row.join(','));
+            });
+            
+            const csvString = csvContent.join('\n');
+            const filename = `scada-sms-audit-${new Date().toISOString().split('T')[0]}-${exportData.length}-records.csv`;
+            
+            downloadFile(csvString, filename, 'text/csv');
+            
+            // Show notification
+            alert(`Exported ${exportData.length} filtered records to CSV`);
+        }
+
+        function exportAuditToJSON() {
+            // Export ALL filtered records (not just current page) - Simple DTOs only
+            var exportData = [
+                @foreach (var record in Model.AllFilteredRecords)
+                {
+                    @:{
+                        @:timestamp: '@record.Audit.CreatedAt.ToString("O")',
+                        @:alarmId: '@Html.Raw(System.Text.Json.JsonSerializer.Serialize(record.Audit.AlarmId))',
+                        @:description: '@Html.Raw(System.Text.Json.JsonSerializer.Serialize(record.Audit.AlarmDescription))',
+                        @:user: '@Html.Raw(System.Text.Json.JsonSerializer.Serialize(record.UserName))',
+                        @:group: '@Html.Raw(System.Text.Json.JsonSerializer.Serialize(record.GroupName))',
+                        @:phone: '@Html.Raw(System.Text.Json.JsonSerializer.Serialize(record.Audit.PhoneNumber))',
+                        @:status: '@Html.Raw(System.Text.Json.JsonSerializer.Serialize(record.Audit.Status))',
+                        @:response: '@Html.Raw(System.Text.Json.JsonSerializer.Serialize(record.Audit.MessageStatus ?? ""))'
+                    @:},
+                }
+            ];
+            
+            const jsonContent = JSON.stringify({
+                exportDate: new Date().toISOString(),
+                totalRecords: exportData.length,
+                filters: {
+                    searchTerm: '@Model.SearchTerm',
+                    statusFilter: '@Model.StatusFilter',
+                    userIdFilter: '@Model.UserIdFilter',
+                    groupIdFilter: '@Model.GroupIdFilter',
+                    startDate: '@Model.StartDate?.ToString("yyyy-MM-dd")',
+                    endDate: '@Model.EndDate?.ToString("yyyy-MM-dd")',
+                    sortColumn: '@Model.SortColumn',
+                    sortDirection: '@Model.SortDirection'
+                },
+                records: exportData
+            }, null, 2);
+            
+            const filename = `scada-sms-audit-${new Date().toISOString().split('T')[0]}-${exportData.length}-records.json`;
+            downloadFile(jsonContent, filename, 'application/json');
+            
+            // Show notification
+            alert(`Exported ${exportData.length} filtered records to JSON`);
+        }
+
+        // Utility function for file download
+        function downloadFile(content, filename, mimeType) {
+            const blob = new Blob([content], { type: mimeType });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+        }
+
+        // Auto-dismiss alerts after 5 seconds
+        setTimeout(function() {
+            const alerts = document.querySelectorAll('.alert-dismissible');
+            alerts.forEach(alert => {
+                const bsAlert = new bootstrap.Alert(alert);
+                bsAlert.close();
+            });
+        }, 5000);
+
+        // Page size change handler preserves ALL query parameters
+        function changePageSize(newPageSize) {
+            const url = new URL(window.location);
+            url.searchParams.set('PageSize', newPageSize);
+            url.searchParams.set('PageNumber', '1');
+            window.location.href = url.toString();
+        }
+
+        // Reset all filters
+        function resetFilters() {
+            window.location.href = '/Audit';
+        }
+
+        // Enhanced table interactions
+        document.addEventListener('DOMContentLoaded', function() {
+            // Add hover effects to sortable headers
+            const sortableHeaders = document.querySelectorAll('.sortable-header');
+            sortableHeaders.forEach(header => {
+                header.style.cursor = 'pointer';
+                header.addEventListener('mouseenter', function() {
+                    this.style.backgroundColor = '#f8f9fc';
+                });
+                header.addEventListener('mouseleave', function() {
+                    this.style.backgroundColor = '';
+                });
+            });
+        });
+
+        // Quick filter shortcuts
+        function filterByStatus(status) {
+            const url = new URL(window.location);
+            url.searchParams.set('StatusFilter', status);
+            url.searchParams.set('PageNumber', '1');
+            window.location.href = url.toString();
+        }
+
+        function filterByTimeRange(days) {
+            const url = new URL(window.location);
+            const endDate = new Date();
+            const startDate = new Date();
+            startDate.setDate(startDate.getDate() - days);
+            
+            url.searchParams.set('StartDate', startDate.toISOString().split('T')[0]);
+            url.searchParams.set('EndDate', endDate.toISOString().split('T')[0]);
+            url.searchParams.set('PageNumber', '1');
+            window.location.href = url.toString();
+        }
+    </script>
+}

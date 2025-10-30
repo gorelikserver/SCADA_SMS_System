@@ -1,0 +1,202 @@
+@page
+@model SCADASMSSystem.Web.Pages.AboutModel
+@{
+    ViewData["Title"] = "About SCADA SMS System";
+}
+
+<div class="container-fluid">
+    <!-- Page Heading with Logo -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex align-items-center mb-4">
+                <img src="~/img/logo.jpg" alt="SCADA Logo" style="height: 60px; width: auto; margin-right: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                <div>
+                    <h1 class="h3 mb-0 text-primary">About SCADA SMS System</h1>
+                    <p class="text-muted mb-0">Industrial SMS Notification Platform</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- System Information -->
+        <div class="col-lg-8">
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">
+                        <i class="fas fa-cogs me-2"></i>System Information
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="d-flex align-items-center mb-3">
+                                <img src="~/img/logo.jpg" alt="SCADA Logo" style="height: 40px; width: auto; margin-right: 12px; border-radius: 4px;">
+                                <div>
+                                    <h5 class="text-primary mb-0">SCADA SMS Notification System</h5>
+                                    <small class="text-muted">Version 1.0.0</small>
+                                </div>
+                            </div>
+                            
+                            <p class="text-muted mb-3">
+                                A modern .NET 9 application designed for industrial SCADA environments 
+                                to provide reliable SMS notifications during critical equipment failures.
+                            </p>
+                            
+                            <h6 class="font-weight-bold">Key Features:</h6>
+                            <ul class="list-unstyled">
+                                <li><i class="fas fa-check text-success me-2"></i>Real-time SMS notifications</li>
+                                <li><i class="fas fa-check text-success me-2"></i>User and group management</li>
+                                <li><i class="fas fa-check text-success me-2"></i>Holiday awareness (Jewish calendar)</li>
+                                <li><i class="fas fa-check text-success me-2"></i>Complete audit trail</li>
+                                <li><i class="fas fa-check text-success me-2"></i>Rate limiting and deduplication</li>
+                                <li><i class="fas fa-check text-success me-2"></i>Professional web dashboard</li>
+                                <li><i class="fas fa-check text-success me-2"></i>RESTful API integration</li>
+                            </ul>
+                        </div>
+                        <div class="col-md-6">
+                            <h6 class="font-weight-bold">Technical Specifications:</h6>
+                            <table class="table table-sm">
+                                <tr>
+                                    <td class="text-muted">Framework:</td>
+                                    <td>.NET 9</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted">Web Framework:</td>
+                                    <td>ASP.NET Core Razor Pages</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted">Database:</td>
+                                    <td>SQL Server / LocalDB</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted">ORM:</td>
+                                    <td>Entity Framework Core 9</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted">UI Framework:</td>
+                                    <td>Bootstrap 5.3</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted">Background Service:</td>
+                                    <td>Hosted Service</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted">Operating System:</td>
+                                    <td>Windows 10/11, Windows Server</td>
+                                </tr>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- System Status -->
+        <div class="col-lg-4">
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-info">
+                        <i class="fas fa-server me-2"></i>System Status
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="row g-0">
+                        <div class="col-12 mb-3">
+                            <div class="d-flex justify-content-between">
+                                <span class="text-muted">System Version:</span>
+                                <span class="fw-bold">1.0.0</span>
+                            </div>
+                        </div>
+                        <div class="col-12 mb-3">
+                            <div class="d-flex justify-content-between">
+                                <span class="text-muted">Build Date:</span>
+                                <span class="fw-bold">@DateTime.Now.ToString("yyyy-MM-dd")</span>
+                            </div>
+                        </div>
+                        <div class="col-12 mb-3">
+                            <div class="d-flex justify-content-between">
+                                <span class="text-muted">Framework:</span>
+                                <span class="fw-bold">.NET 9</span>
+                            </div>
+                        </div>
+                        <div class="col-12 mb-3">
+                            <div class="d-flex justify-content-between">
+                                <span class="text-muted">Environment:</span>
+                                <span class="fw-bold">@Model.Environment</span>
+                            </div>
+                        </div>
+                        <div class="col-12 mb-3">
+                            <div class="d-flex justify-content-between">
+                                <span class="text-muted">Machine Name:</span>
+                                <span class="fw-bold">@Environment.MachineName</span>
+                            </div>
+                        </div>
+                        <div class="col-12 mb-3">
+                            <div class="d-flex justify-content-between">
+                                <span class="text-muted">OS Version:</span>
+                                <span class="fw-bold">@Environment.OSVersion.VersionString</span>
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <div class="d-flex justify-content-between">
+                                <span class="text-muted">Current Time:</span>
+                                <span class="fw-bold" id="currentTime">@DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <hr>
+
+                    <div class="text-center">
+                        <a href="/health" class="btn btn-sm btn-outline-success me-2" target="_blank">
+                            <i class="fas fa-heartbeat me-1"></i>Health Check
+                        </a>
+                        <a href="/api/sms/status" class="btn btn-sm btn-outline-info" target="_blank">
+                            <i class="fas fa-chart-line me-1"></i>API Status
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quick Links -->
+            <div class="card shadow">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-secondary">
+                        <i class="fas fa-link me-2"></i>Quick Links
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="list-group list-group-flush">
+                        <a href="/" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                            Dashboard
+                            <i class="fas fa-external-link-alt text-muted"></i>
+                        </a>
+                        <a href="/Test/Sms" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                            Test SMS
+                            <i class="fas fa-external-link-alt text-muted"></i>
+                        </a>
+                        <a href="/Settings" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                            System Settings
+                            <i class="fas fa-external-link-alt text-muted"></i>
+                        </a>
+                        <a href="/Audit" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                            Audit Reports
+                            <i class="fas fa-external-link-alt text-muted"></i>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        // Update current time every second
+        setInterval(function() {
+            const now = new Date();
+            document.getElementById('currentTime').textContent = now.toLocaleString();
+        }, 1000);
+    </script>
+}

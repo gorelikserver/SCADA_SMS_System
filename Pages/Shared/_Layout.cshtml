@@ -1,0 +1,314 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] - SCADA SMS System</title>
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/x-icon" href="~/favicon.ico">
+    <link rel="apple-touch-icon" sizes="180x180" href="~/img/logo.jpg">
+    <link rel="icon" type="image/png" sizes="32x32" href="~/favicon.ico">
+    <link rel="icon" type="image/png" sizes="16x16" href="~/favicon.ico">
+    
+    <script type="importmap"></script>
+    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/SCADASMSSystem.Web.styles.css" asp-append-version="true" />
+    <!-- Font Awesome for icons - LOCAL VERSION for air-gapped deployment -->
+    <link rel="stylesheet" href="~/css/all.min.css" asp-append-version="true" />
+    
+    @await RenderSectionAsync("Styles", required: false)
+    
+    <style>
+        .border-left-primary {
+            border-left: .25rem solid #4e73df!important;
+        }
+        .border-left-success {
+            border-left: .25rem solid #1cc88a!important;
+        }
+        .border-left-info {
+            border-left: .25rem solid #36b9cc!important;
+        }
+        .border-left-warning {
+            border-left: .25rem solid #f6c23e!important;
+        }
+        .border-left-danger {
+            border-left: .25rem solid #e74a3b!important;
+        }
+        .border-left-secondary {
+            border-left: .25rem solid #858796!important;
+        }
+        .text-gray-300 {
+            color: #dddfeb!important;
+        }
+        .text-gray-800 {
+            color: #5a5c69!important;
+        }
+        .card {
+            transition: all 0.3s ease;
+        }
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1)!important;
+        }
+        .btn-block {
+            width: 100%;
+        }
+        .badge {
+            font-size: 0.875em;
+        }
+        .table-success {
+            background-color: rgba(40, 167, 69, 0.1);
+        }
+        .table-danger {
+            background-color: rgba(220, 53, 69, 0.1);
+        }
+        .table-warning {
+            background-color: rgba(255, 193, 7, 0.1);
+        }
+        .table-info {
+            background-color: rgba(23, 162, 184, 0.1);
+        }
+        
+        /* Logo styling */
+        .navbar-brand-logo {
+            height: 40px;
+            width: auto;
+            margin-right: 8px;
+            border-radius: 4px;
+        }
+        
+        .navbar-brand {
+            display: flex;
+            align-items: center;
+            font-weight: 600;
+            font-size: 1.25rem;
+        }
+        
+        .navbar-brand:hover {
+            text-decoration: none;
+            color: #4e73df !important;
+        }
+        
+        /* ✨ Enhanced Sortable Table Styles */
+        .sortable-header {
+            cursor: pointer;
+            user-select: none;
+            transition: background-color 0.2s ease;
+            position: relative;
+        }
+        
+        .sortable-header:hover {
+            background-color: #f8f9fc !important;
+        }
+        
+        .sortable-header i {
+            font-size: 0.75em;
+            opacity: 0.7;
+            transition: all 0.2s ease;
+        }
+        
+        .sortable-header:hover i {
+            opacity: 1;
+        }
+        
+        .table th.sortable-header {
+            padding: 12px 8px;
+            vertical-align: middle;
+        }
+        
+        /* Pagination Enhancement */
+        .pagination .page-link {
+            border-radius: 0.25rem;
+            margin: 0 2px;
+            color: #4e73df;
+            border-color: #e3e6f0;
+        }
+        
+        .pagination .page-link:hover {
+            background-color: #f8f9fc;
+            border-color: #4e73df;
+        }
+        
+        .pagination .page-item.active .page-link {
+            background-color: #4e73df;
+            border-color: #4e73df;
+        }
+        
+        /* Table enhancements */
+        .table-hover tbody tr:hover {
+            background-color: rgba(0,0,0,.02);
+        }
+        
+        .badge-info {
+            color: #fff;
+            background-color: #36b9cc;
+        }
+        
+        .badge-success {
+            color: #fff;
+            background-color: #1cc88a;
+        }
+        
+        .badge-danger {
+            color: #fff;
+            background-color: #e74a3b;
+        }
+        
+        .badge-warning {
+            color: #212529;
+            background-color: #f6c23e;
+        }
+        
+        .badge-secondary {
+            color: #fff;
+            background-color: #858796;
+        }
+        
+        /* Loading states */
+        .loading-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(255, 255, 255, 0.8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+        }
+        
+        /* Quick filter buttons */
+        .quick-filters {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+            margin-bottom: 1rem;
+        }
+        
+        .quick-filter-btn {
+            font-size: 0.75rem;
+            padding: 0.25rem 0.5rem;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <nav class="navbar navbar-expand-sm navbar-toggleable-sm navbar-light bg-white border-bottom box-shadow mb-3">
+            <div class="container">
+                <a class="navbar-brand" asp-area="" asp-page="/Index">
+                    <img src="~/img/logo.jpg" alt="SCADA Logo" class="navbar-brand-logo">
+                    <span class="text-primary">SCADA SMS System</span>
+                </a>
+                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target=".navbar-collapse" aria-controls="navbarSupportedContent"
+                        aria-expanded="false" aria-label="Toggle navigation">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+                <div class="navbar-collapse collapse d-sm-inline-flex justify-content-between">
+                    <ul class="navbar-nav flex-grow-1">
+                        <li class="nav-item">
+                            <a class="nav-link text-dark" asp-area="" asp-page="/Index">
+                                <i class="fas fa-home me-1"></i>Dashboard
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link text-dark" asp-area="" asp-page="/Users/Index">
+                                <i class="fas fa-users me-1"></i>Users
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link text-dark" asp-area="" asp-page="/Groups/Index">
+                                <i class="fas fa-layer-group me-1"></i>Groups
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link text-dark" asp-area="" asp-page="/Alarms/ManageGroups">
+                                <i class="fas fa-bell me-1"></i>Alarm Groups
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link text-dark" asp-area="" asp-page="/Audit/Index">
+                                <i class="fas fa-history me-1"></i>Audit
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link text-dark" asp-area="" asp-page="/Calendar/Index">
+                                <i class="fas fa-calendar-alt me-1"></i>Calendar
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link text-dark" asp-area="" asp-page="/Settings/Index">
+                                <i class="fas fa-cogs me-1"></i>Settings
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link text-dark" asp-area="" asp-page="/Test/Sms">
+                                <i class="fas fa-vial me-1"></i>Test SMS
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link text-dark" asp-area="" asp-page="/About">
+                                <i class="fas fa-info-circle me-1"></i>About
+                            </a>
+                        </li>
+                        @if (Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") == "Development")
+                        {
+                            <li class="nav-item dropdown">
+                                <a class="nav-link dropdown-toggle text-warning" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                    <i class="fas fa-bug me-1"></i>Debug
+                                </a>
+                                <ul class="dropdown-menu">
+                                    <li><a class="dropdown-item" asp-page="/Debug/AuditDiagnostics">
+                                        <i class="fas fa-stethoscope me-1"></i>Audit Diagnostics
+                                    </a></li>
+                                    <li><a class="dropdown-item" asp-page="/Debug/AuditFix">
+                                        <i class="fas fa-tools me-1"></i>Audit Data Fix
+                                    </a></li>
+                                    <li><a class="dropdown-item" asp-page="/Debug/ApiTest">
+                                        <i class="fas fa-flask me-1"></i>API Test
+                                    </a></li>
+                                    <li><a class="dropdown-item" asp-page="/Debug/TestAudit">
+                                        <i class="fas fa-database me-1"></i>Test Audit
+                                    </a></li>
+                                </ul>
+                            </li>
+                        }
+                    </ul>
+                </div>
+            </div>
+        </nav>
+    </header>
+    <div class="container-fluid">
+        <main role="main" class="pb-3">
+            @RenderBody()
+        </main>
+    </div>
+
+    <footer class="border-top footer text-muted mt-5">
+        <div class="container-fluid">
+            <div class="row align-items-center">
+                <div class="col-md-6">
+                    <div class="d-flex align-items-center">
+                        <img src="~/img/logo.jpg" alt="SCADA Logo" style="height: 20px; width: auto; margin-right: 8px; border-radius: 2px;">
+                        <span>&copy; 2025 - SCADA SMS System</span>
+                    </div>
+                </div>
+                <div class="col-md-6 text-end">
+                    <a asp-area="" asp-page="/About" class="text-decoration-none">About</a>
+                    <span class="mx-2">•</span>
+                    <a href="/health" class="text-decoration-none" target="_blank">System Status</a>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <script src="~/lib/jquery/dist/jquery.min.js"></script>
+    <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="~/js/site.js" asp-append-version="true"></script>
+    <script src="~/js/main.js" asp-append-version="true"></script>
+
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

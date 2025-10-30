@@ -1,0 +1,1 @@
+?'Run '+getalias('PCIMUTIL')+'Scada_sms.bat'+' "+'"+GetValue(PFWALARMNG|PCIM!198:(ThisObject).DESCRIPTION)+'"'+31+' "+GetValue(PFWALARMNG|PCIM!198:(ThisObject).ALM_VALUE)+'"?
