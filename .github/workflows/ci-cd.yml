@@ -25,7 +25,7 @@ jobs:
         dotnet-version: ${{ env.DOTNET_VERSION }}
         
     - name: Cache dependencies
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: ~/.nuget/packages
         key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
@@ -38,16 +38,9 @@ jobs:
     - name: Build application
       run: dotnet build ${{ env.PROJECT_PATH }} --no-restore --configuration Release
       
-    - name: Run unit tests
-      run: dotnet test ${{ env.PROJECT_PATH }} --no-build --configuration Release --verbosity normal --collect:"XPlat Code Coverage"
-      continue-on-error: true
-      
-    - name: Upload coverage reports
-      uses: codecov/codecov-action@v3
-      with:
-        file: ./coverage.xml
-        fail_ci_if_error: false
-      continue-on-error: true
+    # Tests disabled - no test project exists yet
+    # - name: Run unit tests
+    #   run: dotnet test ${{ env.PROJECT_PATH }} --no-build --configuration Release --verbosity normal
 
   code-quality:
     name: Code Quality Analysis
@@ -89,23 +82,25 @@ jobs:
       with:
         dotnet-version: ${{ env.DOTNET_VERSION }}
         
-    - name: Publish application
+    - name: Publish application (Air-gap compatible)
       run: |
         dotnet publish ${{ env.PROJECT_PATH }} `
           --configuration Release `
           --runtime win-x64 `
           --self-contained true `
           --output ./publish `
-          -p:PublishSingleFile=true `
+          -p:PublishSingleFile=false `
           -p:PublishTrimmed=false `
-          -p:PublishReadyToRun=true
+          -p:PublishReadyToRun=false `
+          -p:SelfContained=true `
+          -p:RuntimeIdentifier=win-x64
           
     - name: Create deployment package
       run: |
         Compress-Archive -Path ./publish/* -DestinationPath SCADASMSSystem-${{ github.sha }}.zip
         
     - name: Upload build artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: scada-sms-system-${{ github.sha }}
         path: SCADASMSSystem-${{ github.sha }}.zip
@@ -120,7 +115,7 @@ jobs:
     
     steps:
     - name: Download build artifacts
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
         name: scada-sms-system-${{ github.sha }}
         
@@ -150,7 +145,7 @@ jobs:
     
     steps:
     - name: Download build artifacts
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
         name: scada-sms-system-${{ github.sha }}
         
@@ -175,12 +170,12 @@ jobs:
         echo "Production deployment completed successfully!"
         
     - name: Create GitHub Release
-      uses: actions/create-release@v1
+      uses: softprops/action-gh-release@v1
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         tag_name: v${{ github.run_number }}
-        release_name: SCADA SMS System v${{ github.run_number }}
+        name: SCADA SMS System v${{ github.run_number }}
         body: |
           ## ?? SCADA SMS System Release v${{ github.run_number }}
           
@@ -192,27 +187,25 @@ jobs:
           
           ### ?? Technical Details
           - **.NET Version**: 9.0
-          - **Runtime**: win-x64 (self-contained)
+          - **Runtime**: win-x64 (self-contained, R2R disabled for air-gap)
           - **Architecture**: ASP.NET Core Razor Pages
           - **Database**: SQL Server (Entity Framework Core 9)
           
           ### ?? Deployment Notes
+          - Air-gap compatible (PublishReadyToRun=false)
           - Requires SQL Server connection
           - Configure SMS API credentials in appsettings.json
           - Service will auto-create database and sample data
-          - Access dashboard at: https://localhost:5001
+          - Access dashboard at: http://localhost:5000
           
-          ### ?? Key Features
+          ### ? Key Features
           - SMS notification system with rate limiting
           - Jewish holiday filtering for work-life balance
           - User and group management
           - Complete audit trails
           - Professional dashboard interface
-          
-          ### ?? Documentation
-          - [Setup Guide](DEVELOPMENT_INSTRUCTIONS.md)
-          - [Technical Overview](PROJECT_DOCUMENTATION.md)
-          - [Progress Tracking](PROGRESS_TRACKING.md)
+          - Windows Service support
           
         draft: false
         prerelease: false
+        files: SCADASMSSystem-${{ github.sha }}.zip

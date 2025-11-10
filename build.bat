@@ -10,7 +10,7 @@ REM           - Service management utilities
 REM           - curl.exe for air-gapped systems
 REM           - Complete documentation
 REM  
-REM  Version: 2.1
+REM  Version: 2.2 - Air-Gap Compatible (R2R Disabled)
 REM  Target: .NET 9 - Windows x64 Self-Contained with Service Support
 REM ============================================================================
 
