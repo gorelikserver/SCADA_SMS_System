@@ -111,9 +111,9 @@ echo      [OK] Packages restored successfully
 echo.
 
 REM ------------------------------------------
-REM Step 4: Build Application (Self-Contained)
+REM Step 4: Build Application (Self-Contained - AIR-GAP COMPATIBLE)
 REM ------------------------------------------
-echo [4/8] Building self-contained application...
+echo [4/8] Building self-contained application (R2R disabled for air-gap)...
 
 dotnet publish ^
     --configuration Release ^
@@ -124,8 +124,10 @@ dotnet publish ^
     -p:PublishSingleFile=false ^
     -p:IncludeNativeLibrariesForSelfExtract=true ^
     -p:PublishTrimmed=false ^
-    -p:PublishReadyToRun=true ^
+    -p:PublishReadyToRun=false ^
     -p:EnvironmentName=Production ^
+    -p:SelfContained=true ^
+    -p:RuntimeIdentifier=win-x64 ^
     > build.log 2>&1
 
 if %ERRORLEVEL% NEQ 0 (
@@ -135,7 +137,14 @@ if %ERRORLEVEL% NEQ 0 (
     exit /b 1
 )
 
-echo      [OK] Build completed successfully
+REM Verify critical assemblies
+if not exist "deployment_package\Application\Microsoft.AspNetCore.Server.Kestrel.Core.dll" (
+    echo      [ERROR] Critical assembly missing after build!
+    pause
+    exit /b 1
+)
+
+echo      [OK] Build completed successfully (air-gap compatible)
 echo.
 
 REM ------------------------------------------
