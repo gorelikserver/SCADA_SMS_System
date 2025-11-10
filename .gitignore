@@ -331,10 +331,17 @@ coverage/
 temp/
 tmp/
 
-# Python projects (not part of this .NET solution)
-pyproject/
-*.pyc
-__pycache__/
+# MockSmsApi build artifacts (keep source, ignore output)
+MockSmsApi/bin/
+MockSmsApi/obj/
+MockSmsApi/publish/
+MockSmsApi/*.log
+MockSmsApi_Clean/bin/
+MockSmsApi_Clean/obj/
+MockSmsApi_Deployment/bin/
+MockSmsApi_Deployment/obj/
+MockSmsApi_AirGapped_Deploy/bin/
+MockSmsApi_AirGapped_Deploy/obj/
 
 # Excessive documentation (keep only essential docs)
 *_FIX.md
@@ -361,3 +368,6 @@ NEW_FILES_*.md
 !README.md
 !LICENSE
 !.github/
+
+# Commit helper scripts (temporary, not needed in repo)
+commit_*.bat
