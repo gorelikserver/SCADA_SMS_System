@@ -11,6 +11,7 @@ using System.Text.Json.Nodes;
 
 namespace SCADASMSSystem.Web.Pages.Test
 {
+    [IgnoreAntiforgeryToken]
     public class SmsModel : PageModel
     {
         private readonly SmsBackgroundService _smsBackgroundService;
@@ -179,7 +180,7 @@ namespace SCADASMSSystem.Web.Pages.Test
                 using var httpClient = _httpClientFactory.CreateClient();
                 var response = await httpClient.GetAsync("http://localhost:5000/api/sms/health");
                 var content = await response.Content.ReadAsStringAsync();
-                
+
                 if (response.IsSuccessStatusCode)
                 {
                     TempData["SuccessMessage"] = $"Health check passed! Response: {content}";
@@ -197,6 +198,122 @@ namespace SCADASMSSystem.Web.Pages.Test
 
             return RedirectToPage();
         }
+
+        public async Task<IActionResult> OnPostFireSoapAsync([FromBody] FireSoapRequest req)
+        {
+            var sw = Stopwatch.StartNew();
+            try
+            {
+                if (string.IsNullOrWhiteSpace(req.Envelope))
+                    return new JsonResult(new { success = false, errorMessage = "Envelope is required" }) { StatusCode = 400 };
+
+                var endpoint = req.TargetMock
+                    ? $"{Request.Scheme}://{Request.Host}/mock/sms/soap"
+                    : req.Endpoint;
+
+                if (!Uri.TryCreate(endpoint, UriKind.Absolute, out _))
+                    return new JsonResult(new { success = false, errorMessage = "Invalid endpoint URL" }) { StatusCode = 400 };
+
+                // Fall back to saved credentials when caller sends empty strings
+                var username = !string.IsNullOrEmpty(req.Username) ? req.Username : Settings.Username;
+                var password = !string.IsNullOrEmpty(req.Password) ? req.Password : Settings.Password;
+
+                var envelope = req.Envelope;
+
+                // Inject WS-Security header if auth type requires it and it's not already present
+                if (req.AuthType.Equals("WSSecurity", StringComparison.OrdinalIgnoreCase) &&
+                    !envelope.Contains("<Security", StringComparison.OrdinalIgnoreCase))
+                {
+                    var wsHeader = BuildWsSecurityHeader(username, password);
+                    envelope = envelope
+                        .Replace("<soapenv:Header/>", wsHeader, StringComparison.Ordinal)
+                        .Replace("<soapenv:Header />", wsHeader, StringComparison.Ordinal);
+                }
+
+                var client = _httpClientFactory.CreateClient("SoapProbe");
+                using var httpReq = new HttpRequestMessage(HttpMethod.Post, endpoint);
+                httpReq.Content = new StringContent(envelope, Encoding.UTF8, "text/xml");
+                httpReq.Headers.TryAddWithoutValidation("SOAPAction", $"\"{req.SoapAction}\"");
+
+                if (req.AuthType.Equals("HttpBasic", StringComparison.OrdinalIgnoreCase))
+                {
+                    var credentials = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{username}:{password}"));
+                    httpReq.Headers.TryAddWithoutValidation("Authorization", $"Basic {credentials}");
+                }
+
+                var httpResp = await client.SendAsync(httpReq);
+                sw.Stop();
+                var body = await httpResp.Content.ReadAsStringAsync();
+
+                var successPattern = Settings.SoapSuccessPattern;
+                var errorPattern = Settings.SoapErrorPattern;
+                var success = string.IsNullOrEmpty(successPattern)
+                    ? httpResp.IsSuccessStatusCode
+                    : body.Contains(successPattern, StringComparison.OrdinalIgnoreCase);
+
+                string? errorMessage = null;
+                if (!success && !string.IsNullOrEmpty(errorPattern))
+                {
+                    var start = body.IndexOf(errorPattern, StringComparison.OrdinalIgnoreCase);
+                    if (start >= 0)
+                    {
+                        start += errorPattern.Length;
+                        var end = body.IndexOf('<', start);
+                        if (end > start) errorMessage = body[start..end].Trim();
+                    }
+                }
+
+                // Redact credentials in echo envelope
+                var echoEnvelope = string.IsNullOrEmpty(password)
+                    ? envelope
+                    : envelope.Replace(XmlEscape(password), "***", StringComparison.Ordinal)
+                              .Replace(password, "***", StringComparison.Ordinal);
+
+                _logger.LogInformation("FireSoap: {StatusCode} from {Endpoint} in {ElapsedMs}ms",
+                    (int)httpResp.StatusCode, endpoint, sw.ElapsedMilliseconds);
+
+                return new JsonResult(new
+                {
+                    statusCode = (int)httpResp.StatusCode,
+                    elapsedMs = sw.ElapsedMilliseconds,
+                    body,
+                    success,
+                    errorMessage,
+                    echoEnvelope
+                });
+            }
+            catch (Exception ex)
+            {
+                sw.Stop();
+                _logger.LogError(ex, "Error in FireSoap handler");
+                return new JsonResult(new
+                {
+                    success = false,
+                    errorMessage = ex.Message,
+                    statusCode = 0,
+                    elapsedMs = sw.ElapsedMilliseconds,
+                    body = (string?)null,
+                    echoEnvelope = (string?)null
+                }) { StatusCode = 500 };
+            }
+        }
+
+        private static string BuildWsSecurityHeader(string username, string password) =>
+            $@"  <soapenv:Header>
+    <Security xmlns=""http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd"">
+      <UsernameToken>
+        <Username>{XmlEscape(username)}</Username>
+        <Password Type=""http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-username-token-profile-1.0#PasswordText"">{XmlEscape(password)}</Password>
+      </UsernameToken>
+    </Security>
+  </soapenv:Header>";
+
+        private static string XmlEscape(string value) =>
+            value.Replace("&", "&amp;")
+                 .Replace("<", "&lt;")
+                 .Replace(">", "&gt;")
+                 .Replace("\"", "&quot;")
+                 .Replace("'", "&apos;");
     }
 
     public class SmsTestModel
@@ -209,5 +326,16 @@ namespace SCADASMSSystem.Web.Pages.Test
         [Required]
         [Display(Name = "Target Group")]
         public int GroupId { get; set; }
+    }
+
+    public class FireSoapRequest
+    {
+        public string Endpoint { get; set; } = string.Empty;
+        public string SoapAction { get; set; } = string.Empty;
+        public string Envelope { get; set; } = string.Empty;
+        public string AuthType { get; set; } = "None";
+        public string Username { get; set; } = string.Empty;
+        public string Password { get; set; } = string.Empty;
+        public bool TargetMock { get; set; }
     }
 }
