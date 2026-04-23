@@ -176,7 +176,7 @@ namespace SCADASMSSystem.Web.Pages.Test
         {
             try
             {
-                using var httpClient = new HttpClient();
+                using var httpClient = _httpClientFactory.CreateClient();
                 var response = await httpClient.GetAsync("http://localhost:5000/api/sms/health");
                 var content = await response.Content.ReadAsStringAsync();
                 
