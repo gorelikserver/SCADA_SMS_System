@@ -506,7 +506,211 @@
     <!-- ═══ SOAP WORKBENCH TAB ═══ -->
     <div class="tab-pane fade @(Model.CurrentProviderType == "SOAP" ? "show active" : "")"
          id="tab-soap-workbench" role="tabpanel">
-        <!-- content added in Task 5 -->
+    @if (Model.CurrentProviderType != "SOAP")
+    {
+        <div class="alert alert-info mt-3">
+            <i class="fas fa-info-circle me-2"></i>
+            Switch provider to <strong>SOAP</strong> in <a href="/Settings">Settings</a> to use the workbench.
+        </div>
+    }
+    else
+    {
+    <div x-data="soapWorkbench()" class="mt-2">
+        <div class="row g-4">
+
+            <!-- ═══ LEFT: Request Builder ═══ -->
+            <div class="col-lg-5">
+
+                <!-- Target toggle -->
+                <div class="card shadow mb-3">
+                    <div class="card-body py-2 px-3">
+                        <div class="d-flex align-items-center gap-3 flex-wrap">
+                            <span class="fw-semibold" style="font-size:.82rem;">Target:</span>
+                            <div class="btn-group btn-group-sm" role="group">
+                                <button type="button" class="btn"
+                                        :class="!targetMock ? 'btn-primary' : 'btn-outline-primary'"
+                                        @@click="targetMock = false">
+                                    <i class="fas fa-server me-1"></i>Real Endpoint
+                                </button>
+                                <button type="button" class="btn"
+                                        :class="targetMock ? 'btn-warning text-dark' : 'btn-outline-warning'"
+                                        @@click="targetMock = true">
+                                    <i class="fas fa-flask me-1"></i>Mock Server
+                                </button>
+                            </div>
+                            <span class="text-muted" style="font-size:.75rem;" x-show="targetMock">
+                                → <code>/mock/sms/soap</code>
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Endpoint + SOAPAction -->
+                <div class="card shadow mb-3">
+                    <div class="card-header card-header-gradient py-2">
+                        <h6 class="m-0 fw-bold" style="font-size:.85rem;">
+                            <i class="fas fa-link me-1"></i>Request
+                        </h6>
+                    </div>
+                    <div class="card-body p-3">
+                        <div class="mb-2">
+                            <label class="form-label fw-semibold" style="font-size:.78rem;text-transform:uppercase;letter-spacing:.4px;">
+                                Endpoint URL
+                            </label>
+                            <input type="url" x-model="endpoint" class="form-control form-control-sm font-monospace"
+                                   placeholder="https://provider/soap" :disabled="targetMock" />
+                            <div x-show="targetMock" class="text-muted mt-1" style="font-size:.74rem;">
+                                Overridden by mock target
+                            </div>
+                        </div>
+                        <div>
+                            <label class="form-label fw-semibold" style="font-size:.78rem;text-transform:uppercase;letter-spacing:.4px;">
+                                SOAPAction
+                            </label>
+                            <input type="text" x-model="soapAction" class="form-control form-control-sm font-monospace"
+                                   placeholder="http://tempuri.org/..." />
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Auth accordion -->
+                <div class="card shadow mb-3">
+                    <div class="card-header card-header-gradient py-2" style="cursor:pointer;"
+                         @@click="showAuth = !showAuth">
+                        <div class="d-flex align-items-center justify-content-between">
+                            <h6 class="m-0 fw-bold" style="font-size:.85rem;">
+                                <i class="fas fa-key me-1"></i>Authentication
+                                <span class="badge bg-secondary ms-2 fw-normal" style="font-size:.65rem;" x-text="authType"></span>
+                            </h6>
+                            <i class="fas" :class="showAuth ? 'fa-chevron-up' : 'fa-chevron-down'" style="font-size:.75rem;"></i>
+                        </div>
+                    </div>
+                    <div class="card-body p-3" x-show="showAuth" x-transition>
+                        <div class="mb-2">
+                            <label class="form-label" style="font-size:.78rem;">Auth Type</label>
+                            <select x-model="authType" class="form-select form-select-sm">
+                                <option value="WSSecurity">WS-Security (UsernameToken)</option>
+                                <option value="HttpBasic">HTTP Basic</option>
+                                <option value="None">None</option>
+                            </select>
+                        </div>
+                        <div x-show="authType !== 'None'" x-transition>
+                            <div class="mb-2">
+                                <label class="form-label" style="font-size:.78rem;">Username</label>
+                                <input type="text" x-model="username" class="form-control form-control-sm"
+                                       placeholder="Username" autocomplete="off" />
+                            </div>
+                            <div>
+                                <label class="form-label" style="font-size:.78rem;">Password</label>
+                                <input type="password" x-model="password" class="form-control form-control-sm"
+                                       placeholder="Leave blank to use saved password" autocomplete="new-password" />
+                                <div class="text-muted mt-1" style="font-size:.72rem;">
+                                    <i class="fas fa-info-circle me-1"></i>Blank = server uses saved settings password
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Envelope editor -->
+                <div class="card shadow mb-3">
+                    <div class="card-header card-header-gradient py-2">
+                        <div class="d-flex align-items-center justify-content-between">
+                            <h6 class="m-0 fw-bold" style="font-size:.85rem;">
+                                <i class="fas fa-code me-1"></i>Envelope
+                            </h6>
+                            <div class="btn-group btn-group-sm">
+                                <button type="button" class="btn btn-sm"
+                                        :class="editorTab==='template' ? 'btn-primary' : 'btn-outline-primary'"
+                                        @@click="switchToTemplate()">Template</button>
+                                <button type="button" class="btn btn-sm"
+                                        :class="editorTab==='raw' ? 'btn-secondary' : 'btn-outline-secondary'"
+                                        @@click="switchToRaw()">Raw XML</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-body p-3">
+
+                        <!-- Template mode -->
+                        <div x-show="editorTab==='template'" x-transition>
+                            <div x-show="!soapBodyTemplate" class="alert alert-warning py-2 mb-2" style="font-size:.78rem;">
+                                <i class="fas fa-exclamation-triangle me-1"></i>
+                                No SOAP Body Template configured. <a href="/Settings">Configure in Settings</a>.
+                            </div>
+                            <template x-if="soapBodyTemplate">
+                                <div>
+                                    <!-- Dynamic input fields for detected tokens -->
+                                    <div class="mb-3">
+                                        <label class="form-label fw-semibold" style="font-size:.78rem;text-transform:uppercase;letter-spacing:.4px;">
+                                            Placeholder Values
+                                        </label>
+                                        <template x-for="token in detectedInputTokens" :key="token">
+                                            <div class="mb-2">
+                                                <label class="form-label" style="font-size:.74rem;"
+                                                       x-text="tokenLabel(token)"></label>
+                                                <input type="text"
+                                                       :value="inputs[tokenKey(token)] ?? ''"
+                                                       @@input="inputs[tokenKey(token)] = $event.target.value"
+                                                       class="form-control form-control-sm"
+                                                       :placeholder="tokenPlaceholder(token)" />
+                                            </div>
+                                        </template>
+                                        <div x-show="detectedInputTokens.length === 0" class="text-muted" style="font-size:.78rem;">
+                                            No dynamic placeholders detected in template.
+                                        </div>
+                                    </div>
+                                    <!-- Live XML preview -->
+                                    <label class="form-label fw-semibold" style="font-size:.78rem;text-transform:uppercase;letter-spacing:.4px;">
+                                        Assembled Envelope Preview
+                                    </label>
+                                    <pre class="m-0 p-2 rounded" style="font-size:.68rem;background:#1e1e1e;color:#d4d4d4;max-height:220px;overflow-y:auto;white-space:pre-wrap;word-break:break-all;"
+                                         x-text="assembledEnvelope"></pre>
+                                </div>
+                            </template>
+                        </div>
+
+                        <!-- Raw XML mode -->
+                        <div x-show="editorTab==='raw'" x-transition>
+                            <div class="d-flex align-items-center justify-content-between mb-1">
+                                <span class="text-muted" style="font-size:.74rem;">Edit full SOAP envelope XML</span>
+                                <button type="button" class="btn btn-sm btn-outline-secondary" style="font-size:.7rem;padding:.1rem .4rem;"
+                                        @@click="switchToTemplate()">
+                                    <i class="fas fa-arrow-left me-1"></i>Back to Template
+                                </button>
+                            </div>
+                            <textarea x-model="rawEnvelope" class="form-control font-monospace"
+                                      rows="12" style="font-size:.7rem;resize:vertical;"></textarea>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Action buttons -->
+                <div class="d-flex gap-2 flex-wrap">
+                    <button type="button" class="btn btn-warning flex-grow-1"
+                            @@click="send()" :disabled="sending">
+                        <span x-show="sending" class="spinner-border spinner-border-sm me-1"></span>
+                        <i class="fas fa-paper-plane me-1" x-show="!sending"></i>
+                        <span x-text="sending ? 'Sending…' : 'Send'"></span>
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary"
+                            @@click="loadFromSettings()" title="Reload from saved settings">
+                        <i class="fas fa-sync-alt"></i>
+                    </button>
+                    <button type="button" class="btn btn-outline-success"
+                            @@click="saveToSettings()" :disabled="saving" title="Save workbench config to settings">
+                        <span x-show="saving" class="spinner-border spinner-border-sm"></span>
+                        <i class="fas fa-save" x-show="!saving"></i>
+                        <span class="ms-1 d-none d-sm-inline" x-text="saving ? 'Saving…' : 'Save to Settings'"></span>
+                    </button>
+                </div>
+
+            </div><!-- /left col -->
+
+            <!-- content added in Task 6 -->
+
+        </div><!-- /row g-4 -->
+    </div><!-- /soapWorkbench x-data -->
+    }
     </div><!-- /tab-soap-workbench -->
 
     </div><!-- /tab-content -->
