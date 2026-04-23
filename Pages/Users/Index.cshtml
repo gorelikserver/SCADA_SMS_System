@@ -4,6 +4,19 @@
     ViewData["Title"] = "Users Management";
 }
 
+@section Breadcrumb {
+<div class="breadcrumb-bar">
+    <div class="container-fluid px-4">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a asp-page="/Index"><i class="fas fa-home me-1"></i>Dashboard</a></li>
+                <li class="breadcrumb-item active">Users</li>
+            </ol>
+        </nav>
+    </div>
+</div>
+}
+
 <div class="container-fluid">
     <!-- Page Heading -->
     <div class="d-sm-flex align-items-center justify-content-between mb-4">
@@ -15,27 +28,20 @@
         </a>
     </div>
 
-    <!-- Alert Messages -->
+    <!-- Toast triggers from server messages -->
     @if (TempData["SuccessMessage"] != null)
     {
-        <div class="alert alert-success alert-dismissible fade show" role="alert">
-            <i class="fas fa-check-circle me-2"></i>@TempData["SuccessMessage"]
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-        </div>
+        <span class="d-none" data-toast-success="@TempData["SuccessMessage"]"></span>
     }
-
     @if (TempData["ErrorMessage"] != null)
     {
-        <div class="alert alert-danger alert-dismissible fade show" role="alert">
-            <i class="fas fa-exclamation-circle me-2"></i>@TempData["ErrorMessage"]
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-        </div>
+        <span class="d-none" data-toast-error="@TempData["ErrorMessage"]"></span>
     }
 
     <!-- Search and Filter Card -->
     <div class="card shadow mb-4">
-        <div class="card-header py-3">
-            <h6 class="m-0 font-weight-bold text-primary">
+        <div class="card-header card-header-gradient py-3">
+            <h6 class="m-0 fw-bold">
                 <i class="fas fa-search me-2"></i>Search and Filter Users
             </h6>
         </div>
@@ -54,7 +60,7 @@
                     </select>
                 </div>
                 <div class="col-md-2 d-flex align-items-end">
-                    <button type="submit" class="btn btn-primary">
+                    <button type="submit" class="btn btn-primary" id="filterBtn">
                         <i class="fas fa-search me-2"></i>Filter
                     </button>
                 </div>
@@ -72,8 +78,8 @@
 
     <!-- Users Data Table -->
     <div class="card shadow mb-4">
-        <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
-            <h6 class="m-0 font-weight-bold text-primary">
+        <div class="card-header card-header-gradient py-3 d-flex flex-row align-items-center justify-content-between">
+            <h6 class="m-0 fw-bold">
                 <i class="fas fa-table me-2"></i>Users (@Model.Users.Count())
             </h6>
             <div class="dropdown no-arrow">
@@ -156,9 +162,9 @@
                                 </td>
                                 <td>
                                     <div class="dropdown">
-                                        <button class="btn btn-sm btn-outline-primary dropdown-toggle" type="button" 
+                                        <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button"
                                                 data-bs-toggle="dropdown" aria-expanded="false">
-                                            <i class="fas fa-cog"></i>
+                                            <i class="fas fa-ellipsis-h"></i>
                                         </button>
                                         <ul class="dropdown-menu">
                                             <li>
@@ -215,20 +221,32 @@
 
 @section Scripts {
     <script>
-        // Export to CSV functionality
+        document.addEventListener('DOMContentLoaded', function () {
+            // Show server-side messages as toasts
+            document.querySelectorAll('[data-toast-success]').forEach(el =>
+                SCADAUtils.showToast('<i class="fas fa-check-circle me-2"></i>' + el.dataset.toastSuccess, 'success'));
+            document.querySelectorAll('[data-toast-error]').forEach(el =>
+                SCADAUtils.showToast('<i class="fas fa-exclamation-circle me-2"></i>' + el.dataset.toastError, 'danger'));
+
+            // Filter button loading state
+            const filterForm = document.querySelector('form[method="get"]');
+            const filterBtn = document.getElementById('filterBtn');
+            if (filterForm && filterBtn) {
+                filterForm.addEventListener('submit', () =>
+                    SCADAUtils.setButtonLoading(filterBtn, true, 'Filtering...'));
+            }
+        });
+
         function exportTableToCSV() {
             const table = document.getElementById('usersTable');
             const rows = Array.from(table.querySelectorAll('tr'));
-            
             const csvContent = rows.map(row => {
                 const cells = Array.from(row.querySelectorAll('th, td'));
                 return cells.map(cell => {
-                    // Clean up cell content for CSV
                     const text = cell.textContent.trim().replace(/\s+/g, ' ');
                     return `"${text.replace(/"/g, '""')}"`;
                 }).join(',');
             }).join('\n');
-            
             const blob = new Blob([csvContent], { type: 'text/csv' });
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
@@ -240,31 +258,21 @@
             window.URL.revokeObjectURL(url);
         }
 
-        // Confirm delete functionality
-        function confirmDelete(userId, userName) {
-            if (confirm(`Are you sure you want to delete user "${userName}"?\n\nThis action cannot be undone and will remove the user from all groups.`)) {
-                // Create and submit delete form
+        async function confirmDelete(userId, userName) {
+            const confirmed = await SCADAUtils.confirmModal(
+                'Delete User',
+                `Delete "${userName}"? This removes them from all groups and cannot be undone.`,
+                'Delete User'
+            );
+            if (confirmed) {
                 const form = document.createElement('form');
                 form.method = 'POST';
                 form.action = `/Users/Delete/${userId}`;
-                
                 const token = document.querySelector('input[name="__RequestVerificationToken"]');
-                if (token) {
-                    form.appendChild(token.cloneNode());
-                }
-                
+                if (token) form.appendChild(token.cloneNode());
                 document.body.appendChild(form);
                 form.submit();
             }
         }
-
-        // Auto-dismiss alerts after 5 seconds
-        setTimeout(function() {
-            const alerts = document.querySelectorAll('.alert-dismissible');
-            alerts.forEach(alert => {
-                const bsAlert = new bootstrap.Alert(alert);
-                bsAlert.close();
-            });
-        }, 5000);
     </script>
 }

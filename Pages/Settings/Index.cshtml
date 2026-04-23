@@ -4,423 +4,1327 @@
     ViewData["Title"] = "System Settings";
 }
 
-<div class="container-fluid">
-    <!-- Page Heading -->
-    <div class="d-sm-flex align-items-center justify-content-between mb-4">
-        <h1 class="h3 mb-0 text-gray-800">
-            <i class="fas fa-cogs me-2"></i>System Settings
-        </h1>
-        <a href="/" class="d-none d-sm-inline-block btn btn-sm btn-secondary shadow-sm">
-            <i class="fas fa-arrow-left fa-sm text-white-50"></i> Back to Dashboard
-        </a>
+<style>
+    .settings-hero {
+        background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+        border-radius: 16px;
+        padding: 2rem;
+        margin-bottom: 2rem;
+        color: white;
+        position: relative;
+        overflow: hidden;
+    }
+    .settings-hero::before {
+        content: '';
+        position: absolute;
+        top: -50%;
+        right: -10%;
+        width: 300px;
+        height: 300px;
+        border-radius: 50%;
+        background: rgba(255,255,255,0.03);
+    }
+    .config-card {
+        border: none;
+        border-radius: 12px;
+        box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+        transition: box-shadow 0.2s;
+    }
+    .config-card:hover {
+        box-shadow: 0 4px 20px rgba(0,0,0,0.13);
+    }
+    .config-card .card-header {
+        border-radius: 12px 12px 0 0 !important;
+        border-bottom: 1px solid rgba(0,0,0,0.06);
+        padding: 1rem 1.25rem;
+        font-weight: 600;
+        font-size: 0.9rem;
+        letter-spacing: 0.3px;
+    }
+    .settings-tabs .nav-link {
+        border-radius: 8px !important;
+        font-size: 0.85rem;
+        font-weight: 500;
+        color: #6c757d;
+        padding: 0.5rem 1rem;
+        margin-bottom: 2px;
+        transition: all 0.15s;
+        border: none;
+    }
+    .settings-tabs .nav-link:hover {
+        background: #f0f4ff;
+        color: #4361ee;
+    }
+    .settings-tabs .nav-link.active {
+        background: linear-gradient(135deg, #4361ee, #3a86ff);
+        color: white !important;
+        box-shadow: 0 2px 8px rgba(67,97,238,0.3);
+    }
+    .settings-tabs .nav-link i {
+        width: 18px;
+        text-align: center;
+    }
+    .form-label {
+        font-size: 0.82rem;
+        font-weight: 600;
+        color: #495057;
+        margin-bottom: 0.35rem;
+        text-transform: uppercase;
+        letter-spacing: 0.4px;
+    }
+    .form-control, .form-select {
+        border-radius: 8px;
+        border-color: #dee2e6;
+        font-size: 0.9rem;
+        transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    .form-control:focus, .form-select:focus {
+        border-color: #4361ee;
+        box-shadow: 0 0 0 3px rgba(67,97,238,0.12);
+    }
+    .badge-provider {
+        font-size: 0.75rem;
+        padding: 0.35em 0.75em;
+        border-radius: 20px;
+    }
+    .section-divider {
+        border: none;
+        height: 1px;
+        background: linear-gradient(to right, transparent, #dee2e6, transparent);
+        margin: 1.5rem 0;
+    }
+    .health-metric {
+        padding: 0.75rem;
+        border-radius: 10px;
+        background: #f8f9ff;
+        border: 1px solid #e8ecff;
+        margin-bottom: 0.5rem;
+    }
+    .health-metric .metric-label { font-size: 0.75rem; color: #6c757d; font-weight: 600; text-transform: uppercase; }
+    .health-metric .metric-value { font-size: 1rem; font-weight: 700; color: #1a1a2e; }
+    .provider-toggle-rest { border-left: 4px solid #3a86ff !important; }
+    .provider-toggle-soap { border-left: 4px solid #f72585 !important; }
+    .input-with-icon { position: relative; }
+    .input-with-icon .form-control { padding-left: 2.5rem; }
+    .input-with-icon .input-icon {
+        position: absolute; left: 0.75rem; top: 50%; transform: translateY(-50%);
+        color: #adb5bd; font-size: 0.9rem; pointer-events: none;
+    }
+    .save-btn {
+        background: linear-gradient(135deg, #4361ee, #3a86ff);
+        border: none;
+        border-radius: 8px;
+        padding: 0.6rem 1.75rem;
+        font-weight: 600;
+        letter-spacing: 0.3px;
+        transition: opacity 0.2s, transform 0.1s;
+    }
+    .save-btn:hover { opacity: 0.92; transform: translateY(-1px); }
+    .info-box {
+        background: #f0f4ff;
+        border: 1px solid #c7d2fe;
+        border-radius: 8px;
+        padding: 0.75rem 1rem;
+        font-size: 0.82rem;
+        color: #4338ca;
+    }
+    .warning-box {
+        background: #fffbeb;
+        border: 1px solid #fcd34d;
+        border-radius: 8px;
+        padding: 0.75rem 1rem;
+        font-size: 0.82rem;
+        color: #92400e;
+    }
+
+    /* ── Postman-style provider UI ───────────────────────────────────────── */
+    .pm-provider-toggle { display:flex; border:1px solid #dee2e6; border-radius:8px; overflow:hidden; }
+    .pm-toggle-btn { border:none; background:#f8f9fa; padding:0.4rem 1.2rem; font-size:0.85rem; font-weight:500; color:#6c757d; cursor:pointer; transition:background .15s,color .15s; }
+    .pm-toggle-btn:hover { background:#e9ecef; }
+    .pm-toggle-btn.active { background:#4361ee; color:#fff; }
+
+    .pm-request-line { display:flex; border:1.5px solid #dee2e6; border-radius:8px; overflow:hidden; background:#fff; }
+    .pm-method-select { border:none; border-right:1.5px solid #dee2e6; padding:.45rem .75rem; font-size:.85rem; font-weight:700; background:#f8f9fa; min-width:86px; cursor:pointer; outline:none; border-radius:0; }
+    .pm-method-select:focus { box-shadow:none; }
+    .pm-method-get  { color:#49cc90; } .pm-method-post { color:#fca130; }
+    .pm-method-put  { color:#0d6efd; } .pm-method-patch{ color:#9013fe; }
+    .pm-method-soap { color:#f72585; background:#f8f9fa; font-size:.82rem; display:flex; align-items:center; padding:.45rem .75rem; border-right:1.5px solid #dee2e6; font-weight:700; white-space:nowrap; min-width:86px; }
+    .pm-url-input { flex:1; border:none; padding:.45rem .75rem; font-size:.85rem; outline:none; min-width:0; }
+    .pm-url-input:focus { box-shadow:none; }
+
+    .pm-inner-tabs { display:flex; gap:0; border-bottom:1.5px solid #dee2e6; margin-bottom:0; }
+    .pm-inner-tab { border:none; background:none; padding:.42rem .9rem; font-size:.8rem; font-weight:500; color:#6c757d; cursor:pointer; border-bottom:2px solid transparent; margin-bottom:-1.5px; transition:color .15s,border-color .15s; }
+    .pm-inner-tab:hover { color:#495057; }
+    .pm-inner-tab.active { color:#ef5c00; border-bottom-color:#ef5c00; font-weight:600; }
+    .pm-tab-badge { display:inline-block; background:#e8ecff; color:#4361ee; border-radius:10px; font-size:.63rem; padding:0 5px; margin-left:4px; min-width:15px; text-align:center; }
+
+    .pm-kv-table { border:1px solid #e9ecef; border-radius:8px; overflow:hidden; margin-bottom:.5rem; }
+    .pm-kv-header { display:grid; grid-template-columns:28px 1fr 1.5fr 30px; background:#f8f9fa; padding:.28rem .5rem; font-size:.7rem; font-weight:600; color:#6c757d; text-transform:uppercase; letter-spacing:.3px; gap:4px; }
+    .pm-kv-row { display:grid; grid-template-columns:28px 1fr 1.5fr 30px; border-top:1px solid #f0f0f0; align-items:center; padding:.18rem .5rem; transition:background .1s; gap:4px; }
+    .pm-kv-row:hover { background:#fafbff; }
+    .pm-row-disabled { opacity:.45; }
+    .pm-row-check { accent-color:#4361ee; margin:0; }
+    .pm-kv-key,.pm-kv-val-input { border:none; background:transparent; font-size:.82rem; padding:.28rem .25rem; outline:none; width:100%; color:#212529; }
+    .pm-kv-key:focus,.pm-kv-val-input:focus { background:#f0f4ff; border-radius:4px; }
+    .pm-kv-val-select-sm { font-size:.78rem; border:1px solid #dee2e6; border-radius:4px; padding:.18rem .35rem; color:#495057; background:#fff; flex-shrink:0; }
+    .pm-kv-dyn-picker { font-size:.78rem; border:1px solid #c8d0e7; border-radius:4px; padding:.18rem .2rem; color:#4361ee; background:#f0f4ff; width:36px; flex-shrink:0; cursor:pointer; }
+    .pm-row-del { border:none; background:transparent; color:#adb5bd; font-size:.78rem; padding:.18rem; cursor:pointer; border-radius:4px; line-height:1; }
+    .pm-row-del:hover { color:#dc3545; background:#fff5f5; }
+    .pm-value-cell { display:flex; align-items:center; gap:3px; overflow:hidden; min-width:0; }
+    .pm-dynamic-pill { background:#fff3cd; color:#7c4d00; border:1px solid #ffc107; border-radius:12px; font-size:.73rem; padding:1px 7px; white-space:nowrap; font-weight:600; font-family:monospace; flex-shrink:0; }
+    .pm-add-row-btn { border:1px dashed #ced4da; background:transparent; color:#6c757d; font-size:.79rem; padding:.28rem .75rem; border-radius:6px; cursor:pointer; transition:all .15s; width:100%; margin-top:2px; }
+    .pm-add-row-btn:hover { border-color:#4361ee; color:#4361ee; background:#f0f4ff; }
+
+    .pm-token { background:#fff3cd; color:#7c4d00; border:1px solid #ffc107; border-radius:3px; padding:0 3px; font-size:.82em; white-space:nowrap; }
+
+    .pm-preview-panel { border:1px solid #2d2d44; border-radius:10px; overflow:hidden; display:flex; flex-direction:column; background:#1e1e2e; min-height:340px; }
+    .pm-preview-header { background:#2a2a3d; padding:.45rem .85rem; font-size:.76rem; font-weight:600; color:#adb5bd; display:flex; align-items:center; gap:6px; border-bottom:1px solid rgba(255,255,255,.06); flex-shrink:0; }
+    .pm-preview-body { flex:1; margin:0; padding:.8rem; font-size:.74rem; font-family:'Courier New',monospace; color:#e2e8f0; overflow:auto; white-space:pre; background:transparent; line-height:1.55; }
+    .pm-preview-body .pm-token { background:rgba(255,193,7,.2); color:#ffc107; border-color:#ffc107; }
+
+    .pm-chip-bar { display:flex; flex-wrap:wrap; gap:4px; margin-bottom:.4rem; }
+    .pm-chip { background:#f3e8ff; color:#7c3aed; border:1px solid #c4b5fd; border-radius:12px; font-size:.7rem; padding:1px 8px; cursor:pointer; font-family:monospace; transition:background .1s; }
+    .pm-chip:hover { background:#ede9fe; border-color:#7c3aed; }
+    .pm-soap-textarea { font-size:.77rem; line-height:1.6; border-radius:8px; resize:vertical; }
+
+    .pm-body-preview { border:1px solid #e9ecef; border-radius:8px; overflow:hidden; }
+    .pm-preview-label { background:#f8f9fa; padding:.28rem .75rem; font-size:.7rem; color:#6c757d; font-weight:600; text-transform:uppercase; letter-spacing:.3px; border-bottom:1px solid #e9ecef; }
+    .pm-preview-code { margin:0; padding:.65rem; font-size:.76rem; background:#fff; color:#495057; max-height:200px; overflow:auto; white-space:pre-wrap; word-break:break-all; }
+    .pm-radio-label { font-size:.82rem; color:#495057; cursor:pointer; }
+    .pm-radio-label input { margin-right:4px; accent-color:#4361ee; }
+    .pm-tab-content { padding:.75rem 0 0; }
+
+    /* ── Param type selector ── */
+    .pm-kv-header { grid-template-columns: 28px 1fr 1.5fr 80px 30px !important; }
+    .pm-kv-row    { grid-template-columns: 28px 1fr 1.5fr 80px 30px !important; }
+    .pm-type-select { font-size:.7rem; border:1px solid #dee2e6; border-radius:4px; padding:.15rem .25rem; width:100%; cursor:pointer; }
+    .pm-type-select.pm-type-dynamic  { color:#7c3aed; background:#f3e8ff; border-color:#c4b5fd; font-weight:600; }
+    .pm-type-select.pm-type-static   { color:#0369a1; background:#e0f2fe; border-color:#bae6fd; }
+    .pm-type-select.pm-type-default  { color:#6b7280; background:#f9fafb; border-color:#d1d5db; }
+    .pm-row-default { opacity:.72; }
+    .pm-row-default .pm-kv-key { color:#9ca3af; }
+    .pm-param-legend { font-size:.68rem; color:#9ca3af; display:flex; gap:12px; margin-top:4px; margin-bottom:2px; }
+    .pm-param-legend span { display:flex; align-items:center; gap:3px; }
+    .pm-legend-dot-dynamic { width:7px;height:7px;border-radius:50%;background:#7c3aed;flex-shrink:0; }
+    .pm-legend-dot-static  { width:7px;height:7px;border-radius:50%;background:#0369a1;flex-shrink:0; }
+    .pm-legend-dot-default { width:7px;height:7px;border-radius:50%;background:#9ca3af;flex-shrink:0; }
+
+    /* ── SOAP chip categories ── */
+    .pm-chip-group-label { font-size:.62rem; font-weight:700; text-transform:uppercase; color:#9ca3af; letter-spacing:.05em; white-space:nowrap; }
+    .pm-chip-dynamic    { background:#f3e8ff; color:#7c3aed; border-color:#c4b5fd; }
+    .pm-chip-dynamic:hover { background:#ede9fe; }
+    .pm-chip-credential { background:#fff3cd; color:#7c4d00; border-color:#ffc107; }
+    .pm-chip-credential:hover { background:#fff0a8; }
+    .pm-chip-config     { background:#e0f2fe; color:#0369a1; border-color:#bae6fd; }
+    .pm-chip-config:hover { background:#cce8f8; }
+</style>
+
+<div id="settings-top" class="container-fluid px-4">
+
+    <!-- Hero Header -->
+    <div class="settings-hero mb-4">
+        <div class="row align-items-center">
+            <div class="col">
+                <h4 class="mb-1 fw-bold"><i class="fas fa-cogs me-2"></i>System Settings</h4>
+                <p class="mb-0 opacity-75" style="font-size:0.88rem;">Configure SMS provider, rate limits, and SCADA integration</p>
+            </div>
+            <div class="col-auto">
+                <a href="/" class="btn btn-sm btn-outline-light rounded-pill">
+                    <i class="fas fa-arrow-left me-1"></i> Dashboard
+                </a>
+            </div>
+        </div>
     </div>
 
-    <!-- Alert Messages -->
+    <!-- Alerts -->
     @if (TempData["SuccessMessage"] != null)
     {
-        <div class="alert alert-success alert-dismissible fade show" role="alert">
+        <div class="alert alert-success alert-dismissible fade show rounded-3 border-0 shadow-sm mb-4" role="alert">
             <i class="fas fa-check-circle me-2"></i>@TempData["SuccessMessage"]
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>
     }
-
     @if (TempData["ErrorMessage"] != null)
     {
-        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        <div class="alert alert-danger alert-dismissible fade show rounded-3 border-0 shadow-sm mb-4" role="alert">
             <i class="fas fa-exclamation-circle me-2"></i>@TempData["ErrorMessage"]
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>
     }
 
-    <div class="row">
-        <!-- System Health Column -->
-        <div class="col-lg-6">
-            <!-- System Health Card -->
-            <div class="card shadow mb-4">
-                <div class="card-header py-3">
-                    <h6 class="m-0 font-weight-bold text-success">
-                        <i class="fas fa-heartbeat me-2"></i>System Health Status
-                    </h6>
-                </div>
-                <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center mb-3">
-                        <span class="font-weight-bold">Overall Health:</span>
-                        <span class="badge @Model.HealthStatus.GetHealthBadgeClass() badge-lg">
-                            @Model.HealthStatus.SystemHealth
-                        </span>
-                    </div>
+    <div class="row g-4">
 
-                    <div class="row">
+        <!-- LEFT: Health + Actions -->
+        <div class="col-xl-3 col-lg-4">
+
+            <!-- Health Card -->
+            <div class="card config-card mb-4">
+                <div class="card-header bg-white">
+                    <i class="fas fa-heartbeat text-success me-2"></i>System Health
+                    <span class="float-end badge @Model.HealthStatus.GetHealthBadgeClass() badge-provider">
+                        @Model.HealthStatus.SystemHealth
+                    </span>
+                </div>
+                <div class="card-body pt-3">
+                    <div class="health-metric">
+                        <div class="metric-label">Database</div>
+                        <div class="metric-value">
+                            @if (Model.HealthStatus.DatabaseConnected)
+                            {
+                                <span class="text-success"><i class="fas fa-check-circle me-1"></i>Connected</span>
+                            }
+                            else
+                            {
+                                <span class="text-danger"><i class="fas fa-times-circle me-1"></i>Disconnected</span>
+                            }
+                        </div>
+                    </div>
+                    <div class="health-metric">
+                        <div class="metric-label">SMS Success (24h)</div>
+                        <div class="metric-value">@Model.HealthStatus.SmsSuccessRate.ToString("F1")%</div>
+                    </div>
+                    <div class="row g-2 mt-1">
                         <div class="col-6">
-                            <div class="border-bottom py-2">
-                                <small class="text-muted">Database</small>
-                                <div class="font-weight-bold">
-                                    @if (Model.HealthStatus.DatabaseConnected)
-                                    {
-                                        <span class="text-success"><i class="fas fa-check-circle"></i> Connected</span>
-                                    }
-                                    else
-                                    {
-                                        <span class="text-danger"><i class="fas fa-times-circle"></i> Disconnected</span>
-                                    }
-                                </div>
+                            <div class="health-metric text-center">
+                                <div class="metric-label">Users</div>
+                                <div class="metric-value">@Model.HealthStatus.ActiveUsers<small class="text-muted fw-normal">/@Model.HealthStatus.TotalUsers</small></div>
                             </div>
                         </div>
                         <div class="col-6">
-                            <div class="border-bottom py-2">
-                                <small class="text-muted">SMS Success Rate</small>
-                                <div class="font-weight-bold">@Model.HealthStatus.SmsSuccessRate.ToString("F1")%</div>
-                            </div>
-                        </div>
-                        <div class="col-6">
-                            <div class="border-bottom py-2">
-                                <small class="text-muted">Active Users</small>
-                                <div class="font-weight-bold">@Model.HealthStatus.ActiveUsers / @Model.HealthStatus.TotalUsers</div>
-                            </div>
-                        </div>
-                        <div class="col-6">
-                            <div class="border-bottom py-2">
-                                <small class="text-muted">Active Groups</small>
-                                <div class="font-weight-bold">@Model.HealthStatus.ActiveGroups / @Model.HealthStatus.TotalGroups</div>
-                            </div>
-                        </div>
-                        <div class="col-6">
-                            <div class="py-2">
-                                <small class="text-muted">Recent SMS (24h)</small>
-                                <div class="font-weight-bold">@Model.HealthStatus.RecentSmsCount</div>
-                            </div>
-                        </div>
-                        <div class="col-6">
-                            <div class="py-2">
-                                <small class="text-muted">Last SMS</small>
-                                <div class="font-weight-bold">
-                                    @if (Model.HealthStatus.LastSmsTime.HasValue)
-                                    {
-                                        @Model.HealthStatus.LastSmsTime.Value.ToString("MMM dd, HH:mm")
-                                    }
-                                    else
-                                    {
-                                        <span class="text-muted">Never</span>
-                                    }
-                                </div>
+                            <div class="health-metric text-center">
+                                <div class="metric-label">Groups</div>
+                                <div class="metric-value">@Model.HealthStatus.ActiveGroups<small class="text-muted fw-normal">/@Model.HealthStatus.TotalGroups</small></div>
                             </div>
                         </div>
                     </div>
+                    <div class="health-metric">
+                        <div class="metric-label">Recent SMS (24h)</div>
+                        <div class="metric-value">@Model.HealthStatus.RecentSmsCount</div>
+                    </div>
+                    @if (Model.HealthStatus.LastSmsTime.HasValue)
+                    {
+                        <div class="health-metric">
+                            <div class="metric-label">Last SMS</div>
+                            <div class="metric-value" style="font-size:0.88rem;">@Model.HealthStatus.LastSmsTime.Value.ToString("MMM dd, HH:mm")</div>
+                        </div>
+                    }
                 </div>
             </div>
 
-            <!-- System Actions Card -->
-            <div class="card shadow mb-4">
-                <div class="card-header py-3">
-                    <h6 class="m-0 font-weight-bold text-primary">
-                        <i class="fas fa-tools me-2"></i>System Actions
-                    </h6>
+            <!-- System Actions -->
+            <div class="card config-card mb-4">
+                <div class="card-header bg-white">
+                    <i class="fas fa-tools text-primary me-2"></i>System Actions
                 </div>
-                <div class="card-body">
-                    <div class="d-grid gap-2">
-                        <form method="post" asp-page-handler="TestConnection">
-                            <button type="submit" class="btn btn-outline-success btn-block">
-                                <i class="fas fa-database me-2"></i>Test Database Connection
+                <div class="card-body d-grid gap-2 pt-3">
+                    <form method="post" asp-page-handler="TestConnection">
+                        <button type="submit" class="btn btn-outline-success btn-sm w-100">
+                            <i class="fas fa-database me-1"></i>Test DB Connection
+                        </button>
+                    </form>
+                    <form method="post" asp-page-handler="CleanupData">
+                        <button type="submit" class="btn btn-outline-warning btn-sm w-100"
+                                onclick="return confirm('Delete audit records older than 90 days?')">
+                            <i class="fas fa-broom me-1"></i>Cleanup Old Data
+                        </button>
+                    </form>
+                    <a href="/Calendar" class="btn btn-outline-info btn-sm">
+                        <i class="fas fa-calendar-alt me-1"></i>Refresh Calendar
+                    </a>
+                </div>
+            </div>
+
+            <!-- System Info -->
+            <div class="card config-card">
+                <div class="card-header bg-white">
+                    <i class="fas fa-info-circle text-info me-2"></i>System Info
+                </div>
+                <div class="card-body pt-3" style="font-size:0.83rem;">
+                    <table class="table table-sm table-borderless mb-0">
+                        <tr><td class="text-muted">Version</td><td class="fw-semibold">@Model.SystemInformation.Version</td></tr>
+                        <tr>
+                            <td class="text-muted">Env</td>
+                            <td>
+                                <span class="badge @(Model.SystemInformation.Environment == "Development" ? "bg-warning text-dark" : "bg-success")">
+                                    @Model.SystemInformation.Environment
+                                </span>
+                            </td>
+                        </tr>
+                        <tr><td class="text-muted">Machine</td><td class="fw-semibold">@Model.SystemInformation.MachineName</td></tr>
+                        <tr><td class="text-muted">Uptime</td><td class="fw-semibold">@Model.SystemInformation.Uptime.ToString(@"dd\.hh\:mm")</td></tr>
+                        <tr><td class="text-muted">CPU cores</td><td class="fw-semibold">@Model.SystemInformation.ProcessorCount</td></tr>
+                        <tr><td class="text-muted">Memory</td><td class="fw-semibold">@Model.SystemInformation.WorkingSetMemory MB</td></tr>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- RIGHT: Editable Settings Form -->
+        <div class="col-xl-9 col-lg-8">
+            <form method="post" asp-page-handler="SaveSettings" id="settingsForm" x-data="settingsApp()" @@submit="serializeToHiddenInputs()">
+                @Html.AntiForgeryToken()
+                <!-- Hidden binding targets — Alpine writes to these on submit -->
+                <input type="hidden" asp-for="SmsSettingsInput.ProviderType" />
+                <input type="hidden" asp-for="SmsSettingsInput.ApiEndpoint" />
+                <input type="hidden" asp-for="SmsSettingsInput.HttpMethod" />
+                <input type="hidden" asp-for="SmsSettingsInput.ContentType" />
+                <input type="hidden" asp-for="SmsSettingsInput.ApiParams" />
+                <input type="hidden" asp-for="SmsSettingsInput.ApiHeaders" />
+                <input type="hidden" asp-for="SmsSettingsInput.SoapAction" />
+                <input type="hidden" asp-for="SmsSettingsInput.SoapAuthType" />
+                <textarea style="display:none" asp-for="SmsSettingsInput.SoapBodyTemplate"></textarea>
+                <input type="hidden" asp-for="SmsSettingsInput.SoapEnvelopeNamespaces" />
+                <input type="hidden" asp-for="SmsSettingsInput.SoapMessageType" />
+                <input type="hidden" asp-for="SmsSettingsInput.SoapSendingSystem" />
+                <input type="hidden" asp-for="SmsSettingsInput.RestSuccessPattern" />
+                <input type="hidden" asp-for="SmsSettingsInput.RestFailurePattern" />
+                <input type="hidden" asp-for="SmsSettingsInput.SoapSuccessPattern" />
+                <input type="hidden" asp-for="SmsSettingsInput.SoapErrorPattern" />
+                <input type="hidden" asp-for="SmsSettingsInput.SoapParams" />
+
+                <!-- Tab navigation -->
+                <div class="card config-card mb-0" style="border-radius:12px 12px 0 0; border-bottom:none;">
+                    <div class="card-body pb-0 pt-3 px-3">
+                        <ul class="nav settings-tabs" id="settingsTabs" role="tablist">
+                            <li class="nav-item">
+                                <a class="nav-link active" id="tab-provider" data-bs-toggle="tab" href="#pane-provider" role="tab">
+                                    <i class="fas fa-plug me-1"></i>Provider
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" id="tab-rate" data-bs-toggle="tab" href="#pane-rate" role="tab">
+                                    <i class="fas fa-tachometer-alt me-1"></i>Rate &amp; Limits
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" id="tab-scada" data-bs-toggle="tab" href="#pane-scada" role="tab">
+                                    <i class="fas fa-project-diagram me-1"></i>SCADA
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link @(Model.SmsSettingsInput.TestMode ? "text-warning fw-bold" : "")"
+                                   id="tab-testmode" data-bs-toggle="tab" href="#pane-testmode" role="tab">
+                                    <i class="fas fa-flask me-1"></i>Test Mode
+                                    @if (Model.SmsSettingsInput.TestMode)
+                                    {
+                                        <span class="badge bg-warning text-dark ms-1" style="font-size:0.6rem;">ON</span>
+                                    }
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Tab panes -->
+                <div class="card config-card" style="border-radius:0 0 12px 12px;">
+                    <div class="card-body p-4">
+                        <div class="tab-content">
+
+                            <!-- PROVIDER TAB -->
+                            <div class="tab-pane fade show active" id="pane-provider" role="tabpanel">
+
+                                <!-- Provider toggle buttons -->
+                                <div class="d-flex align-items-center gap-3 mb-4">
+                                    <div class="pm-provider-toggle">
+                                        <button type="button" class="pm-toggle-btn"
+                                                :class="providerType==='REST'?'active':''"
+                                                @@click="providerType='REST'">
+                                            <i class="fas fa-code me-1"></i>REST
+                                        </button>
+                                        <button type="button" class="pm-toggle-btn"
+                                                :class="providerType==='SOAP'?'active':''"
+                                                @@click="providerType='SOAP'">
+                                            <i class="fas fa-file-code me-1"></i>SOAP
+                                        </button>
+                                    </div>
+                                    <span class="badge fs-6"
+                                          :class="providerType==='REST'?'bg-primary':'bg-warning text-dark'"
+                                          x-text="providerType==='REST'?'REST / HTTP':'SOAP / XML-RPC'"></span>
+                                </div>
+
+                                <!-- ═══ REST SECTION ═══ -->
+                                <div x-show="providerType==='REST'" x-transition>
+                                    <div class="row g-3">
+                                        <!-- LEFT: editor -->
+                                        <div class="col-xl-6">
+
+                                            <!-- Request line -->
+                                            <div class="pm-request-line mb-3">
+                                                <select x-model="httpMethod" class="pm-method-select"
+                                                        :class="'pm-method-'+httpMethod.toLowerCase()">
+                                                    <option>GET</option>
+                                                    <option>POST</option>
+                                                    <option>PUT</option>
+                                                    <option>PATCH</option>
+                                                </select>
+                                                <input type="text" x-model="endpoint" class="pm-url-input"
+                                                       placeholder="https://your-sms-provider.com/api/send" />
+                                            </div>
+
+                                            <!-- Inner tab strip -->
+                                            <div class="pm-inner-tabs">
+                                                <button type="button" class="pm-inner-tab"
+                                                        :class="restTab==='params'?'active':''"
+                                                        @@click="restTab='params'">
+                                                    Params
+                                                    <span class="pm-tab-badge"
+                                                          x-text="paramRows.filter(r=>r.enabled&&r.key.trim()).length"></span>
+                                                </button>
+                                                <button type="button" class="pm-inner-tab"
+                                                        :class="restTab==='headers'?'active':''"
+                                                        @@click="restTab='headers'">
+                                                    Headers
+                                                    <span class="pm-tab-badge"
+                                                          x-text="headerRows.filter(r=>r.enabled&&r.key.trim()).length"></span>
+                                                </button>
+                                                <button type="button" class="pm-inner-tab"
+                                                        :class="restTab==='body'?'active':''"
+                                                        @@click="restTab='body'">
+                                                    Body
+                                                </button>
+                                                <button type="button" class="pm-inner-tab"
+                                                        :class="restTab==='advanced'?'active':''"
+                                                        @@click="restTab='advanced'">
+                                                    Advanced
+                                                </button>
+                                            </div>
+
+                                            <div class="pm-tab-content">
+
+                                                <!-- PARAMS tab -->
+                                                <div x-show="restTab==='params'">
+                                                    <div class="pm-kv-table">
+                                                        <div class="pm-kv-header">
+                                                            <span></span><span>Key</span>
+                                                            <span>Value</span><span>Type</span><span></span>
+                                                        </div>
+                                                        <template x-for="(row, i) in paramRows" :key="i">
+                                                            <div class="pm-kv-row" :class="(!row.enabled?'pm-row-disabled ':'')+(!row.enabled||row.paramType==='default'?'pm-row-default':'')">
+                                                                <input type="checkbox" x-model="row.enabled" class="pm-row-check" />
+                                                                <input type="text" x-model="row.key" class="pm-kv-key" placeholder="key" />
+                                                                <div class="pm-value-cell">
+                                                                    <template x-if="row.isDynamic">
+                                                                        <div class="d-flex align-items-center gap-1 w-100">
+                                                                            <span class="pm-dynamic-pill"><i class="fas fa-bolt me-1" style="font-size:.65em;"></i><span x-text="'{'+row.value+'}'"></span></span>
+                                                                            <select x-model="row.value" @@change="onValueChange(row)" class="pm-kv-val-select-sm">
+                                                                                <option value="">↩ literal</option>
+                                                                                <option value="message">message</option>
+                                                                                <option value="phone">phone</option>
+                                                                                <option value="username">username</option>
+                                                                                <option value="password">password</option>
+                                                                                <option value="sender_name">sender_name</option>
+                                                                            </select>
+                                                                        </div>
+                                                                    </template>
+                                                                    <template x-if="!row.isDynamic">
+                                                                        <div class="d-flex align-items-center gap-1 w-100">
+                                                                            <input type="text" x-model="row.value" @@input="onValueChange(row)"
+                                                                                   class="pm-kv-val-input" placeholder="value" />
+                                                                            <select @@change="row.value=$event.target.value;onValueChange(row);$event.target.value=''"
+                                                                                    class="pm-kv-dyn-picker" title="Insert dynamic variable">
+                                                                                <option value="">⚡</option>
+                                                                                <option value="message">message</option>
+                                                                                <option value="phone">phone</option>
+                                                                                <option value="username">username</option>
+                                                                                <option value="password">password</option>
+                                                                                <option value="sender_name">sender_name</option>
+                                                                            </select>
+                                                                        </div>
+                                                                    </template>
+                                                                </div>
+                                                                <div>
+                                                                    <select x-model="row.paramType"
+                                                                            class="pm-type-select"
+                                                                            :class="'pm-type-'+(row.paramType||'static')"
+                                                                            :title="row.paramType==='dynamic'?'Resolved from SCADA at send time':row.paramType==='static'?'Fixed literal value':'Placeholder — sent as-is'">
+                                                                        <option value="dynamic" :disabled="!row.isDynamic">Dynamic</option>
+                                                                        <option value="static">Static</option>
+                                                                        <option value="default">Default</option>
+                                                                    </select>
+                                                                </div>
+                                                                <button type="button" class="pm-row-del" @@click="removeParamRow(i)" title="Remove">
+                                                                    <i class="fas fa-times"></i>
+                                                                </button>
+                                                            </div>
+                                                        </template>
+                                                    </div>
+                                                    <!-- Type legend -->
+                                                    <div class="pm-param-legend">
+                                                        <span><span class="pm-legend-dot-dynamic"></span>Dynamic — resolved from SCADA at send time</span>
+                                                        <span><span class="pm-legend-dot-static"></span>Static — fixed literal value</span>
+                                                        <span><span class="pm-legend-dot-default"></span>Default — placeholder, sent as-is</span>
+                                                        <span class="ms-auto"><i class="fas fa-info-circle me-1"></i>Uncheck row to exclude from request</span>
+                                                    </div>
+                                                    <button type="button" class="pm-add-row-btn" @@click="addParamRow()">
+                                                        <i class="fas fa-plus me-1"></i>Add Parameter
+                                                    </button>
+                                                </div>
+
+                                                <!-- HEADERS tab -->
+                                                <div x-show="restTab==='headers'">
+                                                    <div class="pm-kv-table">
+                                                        <div class="pm-kv-header">
+                                                            <span></span><span>Header Name</span><span>Value</span><span></span>
+                                                        </div>
+                                                        <template x-for="(row, i) in headerRows" :key="i">
+                                                            <div class="pm-kv-row" :class="!row.enabled?'pm-row-disabled':''">
+                                                                <input type="checkbox" x-model="row.enabled" class="pm-row-check" />
+                                                                <input type="text" x-model="row.key" class="pm-kv-key" placeholder="Header-Name" />
+                                                                <div class="pm-value-cell">
+                                                                    <input type="text" x-model="row.value" class="pm-kv-val-input" placeholder="value" />
+                                                                </div>
+                                                                <button type="button" class="pm-row-del" @@click="removeHeaderRow(i)" title="Remove">
+                                                                    <i class="fas fa-times"></i>
+                                                                </button>
+                                                            </div>
+                                                        </template>
+                                                    </div>
+                                                    <button type="button" class="pm-add-row-btn" @@click="addHeaderRow()">
+                                                        <i class="fas fa-plus me-1"></i>Add Header
+                                                    </button>
+                                                </div>
+
+                                                <!-- BODY tab -->
+                                                <div x-show="restTab==='body'">
+                                                    <div class="d-flex align-items-center gap-4 mb-2 mt-1">
+                                                        <label class="form-label mb-0 text-muted" style="font-size:.78rem;white-space:nowrap;">Content-Type</label>
+                                                        <label class="pm-radio-label">
+                                                            <input type="radio" x-model="contentType" value="application/x-www-form-urlencoded" />
+                                                            form-urlencoded
+                                                        </label>
+                                                        <label class="pm-radio-label">
+                                                            <input type="radio" x-model="contentType" value="application/json" />
+                                                            JSON
+                                                        </label>
+                                                    </div>
+                                                    <div class="pm-body-preview">
+                                                        <div class="pm-preview-label">Body Preview</div>
+                                                        <pre class="pm-preview-code" x-html="bodyPreviewHtml"></pre>
+                                                    </div>
+                                                </div>
+
+                                                <!-- ADVANCED tab -->
+                                                <div x-show="restTab==='advanced'">
+                                                    <div class="row g-2 mt-1">
+                                                        <div class="col-12">
+                                                            <label class="form-label" style="font-size:.78rem;">Success Pattern <span class="text-muted fw-normal">(optional)</span></label>
+                                                            <input type="text" x-model="successPattern" class="form-control form-control-sm font-monospace"
+                                                                   placeholder='"success":true' />
+                                                            <small class="text-muted">Response body must contain this text. Empty = any 2xx = success.</small>
+                                                        </div>
+                                                        <div class="col-12">
+                                                            <label class="form-label" style="font-size:.78rem;">Failure Pattern <span class="text-muted fw-normal">(optional)</span></label>
+                                                            <input type="text" x-model="failurePattern" class="form-control form-control-sm font-monospace"
+                                                                   placeholder="error" />
+                                                            <small class="text-muted">If response contains this text, treat as failure even on 2xx.</small>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                            </div><!-- /pm-tab-content -->
+                                        </div><!-- /editor col -->
+
+                                        <!-- RIGHT: live preview -->
+                                        <div class="col-xl-6">
+                                            <div class="pm-preview-panel">
+                                                <div class="pm-preview-header">
+                                                    <i class="fas fa-eye text-muted"></i>
+                                                    <span>Live Request Preview</span>
+                                                    <span class="ms-auto badge"
+                                                          :class="httpMethod==='GET'?'bg-success':'bg-primary'"
+                                                          x-text="httpMethod"></span>
+                                                </div>
+                                                <pre class="pm-preview-body" x-html="activePreviewHtml"></pre>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div><!-- /REST section -->
+
+                                <!-- ═══ SOAP SECTION ═══ -->
+                                <div x-show="providerType==='SOAP'" x-transition>
+                                    <div class="row g-3">
+                                        <!-- LEFT: editor -->
+                                        <div class="col-xl-6">
+
+                                            <!-- Endpoint -->
+                                            <div class="mb-3">
+                                                <label class="form-label" style="font-size:.78rem;">Endpoint URL</label>
+                                                <div class="pm-request-line">
+                                                    <span class="pm-method-soap">POST</span>
+                                                    <input type="text" x-model="endpoint" class="pm-url-input"
+                                                           placeholder="http://your-soap-service.com/service.asmx" />
+                                                </div>
+                                            </div>
+
+                                            <!-- SOAPAction + Auth -->
+                                            <div class="row g-2 mb-3">
+                                                <div class="col-md-7">
+                                                    <label class="form-label" style="font-size:.78rem;">SOAPAction Header</label>
+                                                    <input type="text" x-model="soapAction" class="form-control form-control-sm font-monospace"
+                                                           placeholder="http://your-provider.com/SendSMS" />
+                                                </div>
+                                                <div class="col-md-5">
+                                                    <label class="form-label" style="font-size:.78rem;">Auth Type</label>
+                                                    <select x-model="soapAuthType" class="form-select form-select-sm">
+                                                        <option value="WSSecurity">WS-Security</option>
+                                                        <option value="HttpBasic">HTTP Basic</option>
+                                                        <option value="None">None</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+
+                                            <!-- Credentials — shown when auth type is not None -->
+                                            <div class="row g-2 mb-3" x-show="soapAuthType !== 'None'">
+                                                <div class="col-md-5">
+                                                    <label class="form-label" style="font-size:.78rem;">Username</label>
+                                                    <input asp-for="SmsSettingsInput.Username" class="form-control form-control-sm"
+                                                           placeholder="api_username" autocomplete="off" />
+                                                </div>
+                                                <div class="col-md-5">
+                                                    <label class="form-label" style="font-size:.78rem;">Password</label>
+                                                    <div class="input-group input-group-sm">
+                                                        <input asp-for="SmsSettingsInput.Password" class="form-control"
+                                                               id="passwordField" type="password"
+                                                               placeholder="••••••••" autocomplete="new-password" />
+                                                        <button class="btn btn-outline-secondary" type="button"
+                                                                onclick="togglePassword()" id="togglePwBtn">
+                                                            <i class="fas fa-eye" id="togglePwIcon"></i>
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                                <div class="col-md-4">
+                                                    <label class="form-label" style="font-size:.78rem;">Sender Name</label>
+                                                    <input asp-for="SmsSettingsInput.SenderName" class="form-control form-control-sm"
+                                                           placeholder="SCADA" maxlength="11" />
+                                                </div>
+                                            </div>
+
+                                            <!-- MessageType + SendingSystem -->
+                                            <div class="row g-2 mb-3">
+                                                <div class="col-md-6">
+                                                    <label class="form-label" style="font-size:.78rem;">MessageType</label>
+                                                    <input type="text" x-model="soapMsgType" class="form-control form-control-sm"
+                                                           placeholder="SmsType1" />
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <label class="form-label" style="font-size:.78rem;">SendingSystem</label>
+                                                    <input type="text" x-model="soapSendingSys" class="form-control form-control-sm"
+                                                           placeholder="SCADA" />
+                                                </div>
+                                            </div>
+
+                                            <!-- SOAP Placeholder Parameters (KV table, same pattern as REST) -->
+                                            <div class="mb-3">
+                                                <label class="form-label" style="font-size:.78rem;">
+                                                    Body Parameters
+                                                    <span class="text-muted fw-normal">(map template placeholders to values)</span>
+                                                </label>
+                                                <div class="pm-kv-table">
+                                                    <div class="pm-kv-header">
+                                                        <span></span><span>Placeholder</span>
+                                                        <span>Value / Keyword</span><span>Type</span><span></span>
+                                                    </div>
+                                                    <template x-for="(row, i) in soapParamRows" :key="i">
+                                                        <div class="pm-kv-row" :class="(!row.enabled?'pm-row-disabled ':'')">
+                                                            <input type="checkbox" x-model="row.enabled" class="pm-row-check" />
+                                                            <input type="text" x-model="row.key" class="pm-kv-key" placeholder="{Token}" />
+                                                            <div class="pm-value-cell">
+                                                                <template x-if="row.isDynamic">
+                                                                    <div class="d-flex align-items-center gap-1 w-100">
+                                                                        <span class="pm-dynamic-pill"><i class="fas fa-bolt me-1" style="font-size:.65em;"></i><span x-text="row.value"></span></span>
+                                                                        <select x-model="row.value" @@change="onValueChange(row)" class="pm-kv-val-select-sm">
+                                                                            <option value="">↩ literal</option>
+                                                                            <option value="message">message</option>
+                                                                            <option value="phone">phone</option>
+                                                                            <option value="tz">tz</option>
+                                                                            <option value="firstName">firstName</option>
+                                                                            <option value="lastName">lastName</option>
+                                                                            <option value="username">username</option>
+                                                                            <option value="password">password</option>
+                                                                            <option value="sender_name">sender_name</option>
+                                                                            <option value="sendingSystem">sendingSystem</option>
+                                                                            <option value="messageType">messageType</option>
+                                                                        </select>
+                                                                    </div>
+                                                                </template>
+                                                                <template x-if="!row.isDynamic">
+                                                                    <div class="d-flex align-items-center gap-1 w-100">
+                                                                        <input type="text" x-model="row.value" @@input="onValueChange(row)"
+                                                                               class="pm-kv-val-input" placeholder="value or keyword" />
+                                                                        <select @@change="row.value=$event.target.value;onValueChange(row);$event.target.value=''"
+                                                                                class="pm-kv-dyn-picker" title="Insert dynamic variable">
+                                                                            <option value="">⚡</option>
+                                                                            <option value="message">message</option>
+                                                                            <option value="phone">phone</option>
+                                                                            <option value="tz">tz</option>
+                                                                            <option value="firstName">firstName</option>
+                                                                            <option value="lastName">lastName</option>
+                                                                            <option value="username">username</option>
+                                                                            <option value="password">password</option>
+                                                                            <option value="sender_name">sender_name</option>
+                                                                            <option value="sendingSystem">sendingSystem</option>
+                                                                            <option value="messageType">messageType</option>
+                                                                        </select>
+                                                                    </div>
+                                                                </template>
+                                                            </div>
+                                                            <div>
+                                                                <select x-model="row.paramType"
+                                                                        class="pm-type-select"
+                                                                        :class="'pm-type-'+(row.paramType||'static')">
+                                                                    <option value="dynamic" :disabled="!row.isDynamic">Dynamic</option>
+                                                                    <option value="static">Static</option>
+                                                                </select>
+                                                            </div>
+                                                            <button type="button" class="pm-row-del" @@click="removeSoapParamRow(i)" title="Remove">
+                                                                <i class="fas fa-times"></i>
+                                                            </button>
+                                                        </div>
+                                                    </template>
+                                                </div>
+                                                <div class="pm-param-legend">
+                                                    <span><span class="pm-legend-dot-dynamic"></span>Dynamic — resolved from SCADA at send time</span>
+                                                    <span><span class="pm-legend-dot-static"></span>Static — literal value injected into template</span>
+                                                </div>
+                                                <button type="button" class="pm-add-row-btn" @@click="addSoapParamRow()">
+                                                    <i class="fas fa-plus me-1"></i>Add Placeholder
+                                                </button>
+                                            </div>
+
+                                            <!-- Body template -->
+                                            <div class="mb-2">
+                                                <label class="form-label" style="font-size:.78rem;">
+                                                    Body Template <span class="text-danger">*</span>
+                                                </label>
+                                                <div x-show="providerType==='SOAP' && !soapTemplate.trim()" class="warning-box mb-2" style="font-size:.8rem;">
+                                                    <i class="fas fa-exclamation-triangle me-1"></i>
+                                                    <strong>Body template required.</strong> Use the chips below to insert dynamic placeholders. Each SMS provider has a different XML structure &mdash; consult your provider's API docs.
+                                                </div>
+                                                <!-- Grouped chip bar -->
+                                                <div class="mb-1 d-flex align-items-center flex-wrap gap-1" style="font-size:.7rem;">
+                                                    <span class="pm-chip-group-label">SCADA Data:</span>
+                                                    <button type="button" class="pm-chip pm-chip-dynamic" @@click="insertPlaceholder('{Message}')"><i class="fas fa-bolt me-1 opacity-50"></i>{Message}</button>
+                                                    <button type="button" class="pm-chip pm-chip-dynamic" @@click="insertPlaceholder('{Phone}')"><i class="fas fa-bolt me-1 opacity-50"></i>{Phone}</button>
+                                                    <button type="button" class="pm-chip pm-chip-dynamic" @@click="insertPlaceholder('{FirstName}')">{FirstName}</button>
+                                                    <button type="button" class="pm-chip pm-chip-dynamic" @@click="insertPlaceholder('{LastName}')">{LastName}</button>
+                                                    <button type="button" class="pm-chip pm-chip-dynamic" @@click="insertPlaceholder('{TZ}')">{TZ}</button>
+                                                </div>
+                                                <div class="mb-1 d-flex align-items-center flex-wrap gap-1" style="font-size:.7rem;">
+                                                    <span class="pm-chip-group-label">Credentials:</span>
+                                                    <button type="button" class="pm-chip pm-chip-credential" @@click="insertPlaceholder('{Username}')"><i class="fas fa-key me-1 opacity-50"></i>{Username}</button>
+                                                    <button type="button" class="pm-chip pm-chip-credential" @@click="insertPlaceholder('{Password}')">{Password}</button>
+                                                    <button type="button" class="pm-chip pm-chip-credential" @@click="insertPlaceholder('{SenderName}')">{SenderName}</button>
+                                                </div>
+                                                <div class="mb-2 d-flex align-items-center flex-wrap gap-1" style="font-size:.7rem;">
+                                                    <span class="pm-chip-group-label">Config:</span>
+                                                    <button type="button" class="pm-chip pm-chip-config" @@click="insertPlaceholder('{SendingSystem}')">{SendingSystem}</button>
+                                                    <button type="button" class="pm-chip pm-chip-config" @@click="insertPlaceholder('{MessageType}')">{MessageType}</button>
+                                                </div>
+                                                <textarea x-model="soapTemplate" id="soapTemplateArea"
+                                                          class="form-control font-monospace pm-soap-textarea" rows="7"
+                                                          placeholder="&lt;!-- customize for your provider --&gt;&#10;&lt;YourAction&gt;&#10;  &lt;Phone&gt;{Phone}&lt;/Phone&gt;&#10;  &lt;Message&gt;{Message}&lt;/Message&gt;&#10;&lt;/YourAction&gt;"></textarea>
+                                            </div>
+
+                                            <!-- Extra namespaces -->
+                                            <div class="mb-2">
+                                                <label class="form-label" style="font-size:.78rem;">Extra Envelope Namespaces <span class="text-muted fw-normal">(optional)</span></label>
+                                                <input type="text" x-model="soapNamespaces" class="form-control form-control-sm font-monospace"
+                                                       placeholder='xmlns:ns1="http://myprovider.com"' />
+                                            </div>
+
+                                            <!-- Patterns -->
+                                            <div class="row g-2">
+                                                <div class="col-6">
+                                                    <label class="form-label" style="font-size:.78rem;">Success Pattern</label>
+                                                    <input type="text" x-model="soapSuccessPattern" class="form-control form-control-sm font-monospace"
+                                                           placeholder="&lt;Success&gt;true&lt;/Success&gt;" />
+                                                </div>
+                                                <div class="col-6">
+                                                    <label class="form-label" style="font-size:.78rem;">Error Tag</label>
+                                                    <input type="text" x-model="soapErrorPattern" class="form-control form-control-sm font-monospace"
+                                                           placeholder="&lt;ErrorMessage&gt;" />
+                                                </div>
+                                            </div>
+
+                                        </div><!-- /SOAP editor col -->
+
+                                        <!-- RIGHT: live preview -->
+                                        <div class="col-xl-6">
+                                            <div class="pm-preview-panel">
+                                                <div class="pm-preview-header">
+                                                    <i class="fas fa-file-code" style="color:#ffc107;"></i>
+                                                    <span>SOAP Envelope Preview</span>
+                                                    <span class="ms-auto badge bg-warning text-dark">SOAP</span>
+                                                </div>
+                                                <pre class="pm-preview-body" x-html="activePreviewHtml"></pre>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div><!-- /SOAP section -->
+
+                            </div>
+
+
+                            <!-- RATE & LIMITS TAB -->
+                            <div class="tab-pane fade" id="pane-rate" role="tabpanel">
+                                <h6 class="fw-bold text-muted mb-3" style="font-size:0.8rem; text-transform:uppercase; letter-spacing:0.5px;">
+                                    <i class="fas fa-sliders-h me-1"></i>Rate Limiting
+                                </h6>
+                                <div class="row g-3 mb-4">
+                                    <div class="col-md-3">
+                                        <label class="form-label">Rate Limit</label>
+                                        <div class="input-group">
+                                            <input asp-for="SmsSettingsInput.RateLimit" class="form-control" type="number" min="1" max="1000" />
+                                            <span class="input-group-text text-muted" style="font-size:0.8rem;">SMS</span>
+                                        </div>
+                                        <small class="text-muted">Max messages per rate window</small>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label">Rate Window</label>
+                                        <div class="input-group">
+                                            <input asp-for="SmsSettingsInput.RateWindow" class="form-control" type="number" min="1" />
+                                            <span class="input-group-text text-muted" style="font-size:0.8rem;">sec</span>
+                                        </div>
+                                        <small class="text-muted">Window duration in seconds</small>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label">Duplicate Window</label>
+                                        <div class="input-group">
+                                            <input asp-for="SmsSettingsInput.DuplicateWindow" class="form-control" type="number" min="0" />
+                                            <span class="input-group-text text-muted" style="font-size:0.8rem;">min</span>
+                                        </div>
+                                        <small class="text-muted">Block identical messages within this period</small>
+                                    </div>
+                                </div>
+                                <hr class="section-divider">
+                                <h6 class="fw-bold text-muted mb-3" style="font-size:0.8rem; text-transform:uppercase; letter-spacing:0.5px;">
+                                    <i class="fas fa-network-wired me-1"></i>Connection
+                                </h6>
+                                <div class="row g-3">
+                                    <div class="col-md-3">
+                                        <label class="form-label">Timeout</label>
+                                        <div class="input-group">
+                                            <input asp-for="SmsSettingsInput.TimeoutSeconds" class="form-control" type="number" min="5" max="300" />
+                                            <span class="input-group-text text-muted" style="font-size:0.8rem;">sec</span>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label">Retry Attempts</label>
+                                        <div class="input-group">
+                                            <input asp-for="SmsSettingsInput.RetryAttempts" class="form-control" type="number" min="0" max="10" />
+                                            <span class="input-group-text text-muted" style="font-size:0.8rem;">×</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="info-box mt-3">
+                                    <i class="fas fa-info-circle me-1"></i>
+                                    Rate: <strong x-text="'@Model.SmsSettingsInput.RateLimit SMS / @Model.SmsSettingsInput.RateWindow sec'"></strong>.
+                                    Duplicate protection blocks same message to same recipient within the window.
+                                </div>
+                            </div>
+
+                            <!-- SCADA TAB -->
+                            <div class="tab-pane fade" id="pane-scada" role="tabpanel">
+                                <h6 class="fw-bold text-muted mb-3" style="font-size:0.8rem; text-transform:uppercase; letter-spacing:0.5px;">
+                                    <i class="fas fa-microchip me-1"></i>SCADA / WinCC OA Integration
+                                </h6>
+                                <div class="row g-3 mb-3">
+                                    <div class="col-md-3">
+                                        <label class="form-label">
+                                            PCIM Object ID
+                                            <span class="badge bg-warning text-dark ms-1" style="font-size:0.65rem;" data-bs-toggle="tooltip"
+                                                  title="Deployment-specific. Check WinCC OA panel for the correct value.">deployment-specific</span>
+                                        </label>
+                                        <input asp-for="SmsSettingsInput.ScadaPcimObjectId" class="form-control font-monospace" type="number" />
+                                        <small class="text-muted">Used in alarm action commands</small>
+                                    </div>
+                                </div>
+                                <div class="mt-2">
+                                    <label class="form-label">Generated Alarm Command</label>
+                                    <pre class="bg-dark text-success rounded-3 p-3" style="font-size:0.75rem; white-space:pre-wrap; word-break:break-all;">'Run '+getalias('PCIMUTIL')+'Scada_sms.bat'+' "+'"+GetValue(PFWALARMNG|PCIM!<span class="text-warning">@Model.SmsSettingsInput.ScadaPcimObjectId</span>:(ThisObject).DESCRIPTION)+'"'+<span class="text-info">[GROUP_ID]</span>+' "+GetValue(PFWALARMNG|PCIM!<span class="text-warning">@Model.SmsSettingsInput.ScadaPcimObjectId</span>:(ThisObject).ALM_VALUE)+'"'</pre>
+                                </div>
+                                <div class="warning-box mt-2">
+                                    <i class="fas fa-exclamation-triangle me-1"></i>
+                                    After changing <strong>PCIM Object ID</strong>, update all alarm action scripts in WinCC OA to use the new ID.
+                                </div>
+                            </div>
+
+                            <!-- TEST MODE TAB -->
+                            <div class="tab-pane fade" id="pane-testmode" role="tabpanel">
+                                <h6 class="fw-bold text-muted mb-3" style="font-size:0.8rem; text-transform:uppercase; letter-spacing:0.5px;">
+                                    <i class="fas fa-flask me-1"></i>Test Mode — In-Process Mock SMS Server
+                                </h6>
+
+                                <div class="row g-3 mb-3">
+                                    <div class="col-12">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" role="switch"
+                                                   asp-for="SmsSettingsInput.TestMode" id="testModeSwitch"
+                                                   style="width:3em; height:1.5em;" />
+                                            <label class="form-check-label ms-2 fw-semibold" for="testModeSwitch">
+                                                Enable Test Mode
+                                            </label>
+                                        </div>
+                                        <small class="text-muted d-block mt-1">
+                                            When enabled, all SMS calls are intercepted by the in-process mock — no real messages are sent.
+                                            The mock simulates a ~3% failure rate.
+                                        </small>
+                                    </div>
+                                </div>
+
+                                @if (Model.SmsSettingsInput.TestMode)
+                                {
+                                    <div class="alert alert-warning border-0 rounded-3 d-flex align-items-center gap-3 mb-3">
+                                        <i class="fas fa-exclamation-triangle fa-lg"></i>
+                                        <div>
+                                            <strong>Test Mode is ACTIVE.</strong>
+                                            SMS calls go to the in-process mock, not the real provider.
+                                            <a href="/mock/sms/status" target="_blank" class="alert-link ms-2">
+                                                <i class="fas fa-external-link-alt me-1"></i>View mock log →
+                                            </a>
+                                        </div>
+                                    </div>
+                                }
+
+                                <div class="info-box mb-3">
+                                    <i class="fas fa-info-circle me-1"></i>
+                                    Mock endpoints (active only in Test Mode):
+                                    <ul class="mb-0 mt-1" style="font-size:0.85em;">
+                                        <li><code>GET/POST /mock/sms/rest</code> — simulated REST response</li>
+                                        <li><code>POST /mock/sms/soap</code> — simulated SOAP response</li>
+                                        <li><code>GET /mock/sms/status</code> — intercepted message log (JSON)</li>
+                                        <li><code>POST /mock/sms/reset</code> — reset mock counters</li>
+                                    </ul>
+                                </div>
+
+                                @if (Model.SmsSettingsInput.TestMode)
+                                {
+                                    <div class="d-flex align-items-center gap-2 mt-2">
+                                        <span class="badge bg-success px-3 py-2 fs-6">
+                                            <i class="fas fa-check-circle me-1"></i>Mock server ACTIVE (REST + SOAP)
+                                        </span>
+                                    </div>
+                                    <div class="row g-2 mt-2">
+                                        <div class="col-auto">
+                                            <a href="/Test/Sms#mock-tester" class="btn btn-sm btn-primary">
+                                                <i class="fas fa-flask me-1"></i>Open Mock Tester
+                                            </a>
+                                        </div>
+                                        <div class="col-auto">
+                                            <a href="/mock/sms/status" target="_blank" class="btn btn-sm btn-outline-secondary">
+                                                <i class="fas fa-list me-1"></i>View Log (JSON)
+                                            </a>
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+
+                        </div><!-- /tab-content -->
+
+                        <hr class="section-divider">
+
+                        <!-- Save row -->
+                        <div class="d-flex align-items-center justify-content-between">
+                            <span class="text-muted" style="font-size:0.8rem;">
+                                <i class="fas fa-file-code me-1"></i>
+                                Saves to <code>appsettings.json</code> — restart app to fully apply.
+                            </span>
+                            <button type="submit" class="btn btn-primary save-btn" id="saveBtn">
+                                <i class="fas fa-save me-2"></i>Save Settings
                             </button>
-                        </form>
-                        <form method="post" asp-page-handler="CleanupData">
-                            <button type="submit" class="btn btn-outline-warning btn-block" 
-                                    onclick="return confirm('This will delete audit records older than 90 days. Continue?')">
-                                <i class="fas fa-broom me-2"></i>Cleanup Old Data
-                            </button>
-                        </form>
-                        <a href="/Calendar" class="btn btn-outline-info btn-block">
-                            <i class="fas fa-calendar-alt me-2"></i>Refresh Holiday Calendar
-                        </a>
-                    </div>
-                </div>
-            </div>
-        </div>
+                        </div>
 
-        <!-- System Information Column -->
-        <div class="col-lg-6">
-            <!-- System Information Card -->
-            <div class="card shadow mb-4">
-                <div class="card-header py-3">
-                    <h6 class="m-0 font-weight-bold text-info">
-                        <i class="fas fa-info-circle me-2"></i>System Information
-                    </h6>
-                </div>
-                <div class="card-body">
-                    <div class="row">
-                        <div class="col-6">
-                            <div class="border-bottom py-2">
-                                <small class="text-muted">Version</small>
-                                <div class="font-weight-bold">@Model.SystemInformation.Version</div>
-                            </div>
-                        </div>
-                        <div class="col-6">
-                            <div class="border-bottom py-2">
-                                <small class="text-muted">Environment</small>
-                                <div class="font-weight-bold">
-                                    <span class="badge @(Model.SystemInformation.Environment == "Development" ? "badge-warning" : "badge-success")">
-                                        @Model.SystemInformation.Environment
-                                    </span>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col-6">
-                            <div class="border-bottom py-2">
-                                <small class="text-muted">Build Date</small>
-                                <div class="font-weight-bold">
-                                    @if (Model.SystemInformation.BuildDate != DateTime.MinValue)
-                                    {
-                                        @Model.SystemInformation.BuildDate.ToString("MMM dd, yyyy")
-                                    }
-                                    else
-                                    {
-                                        <span class="text-muted">Unknown</span>
-                                    }
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col-6">
-                            <div class="border-bottom py-2">
-                                <small class="text-muted">Server Time</small>
-                                <div class="font-weight-bold">@Model.SystemInformation.ServerTime.ToString("HH:mm:ss")</div>
-                            </div>
-                        </div>
-                        <div class="col-6">
-                            <div class="border-bottom py-2">
-                                <small class="text-muted">Uptime</small>
-                                <div class="font-weight-bold">@Model.SystemInformation.Uptime.ToString(@"dd\.hh\:mm\:ss")</div>
-                            </div>
-                        </div>
-                        <div class="col-6">
-                            <div class="border-bottom py-2">
-                                <small class="text-muted">Machine</small>
-                                <div class="font-weight-bold">@Model.SystemInformation.MachineName</div>
-                            </div>
-                        </div>
-                        <div class="col-6">
-                            <div class="border-bottom py-2">
-                                <small class="text-muted">Processors</small>
-                                <div class="font-weight-bold">@Model.SystemInformation.ProcessorCount cores</div>
-                            </div>
-                        </div>
-                        <div class="col-6">
-                            <div class="py-2">
-                                <small class="text-muted">Memory Usage</small>
-                                <div class="font-weight-bold">@Model.SystemInformation.WorkingSetMemory MB</div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
+                    </div><!-- /card-body -->
+                </div><!-- /tab panes card -->
 
-            <!-- SMS Configuration Card -->
-            <div class="card shadow mb-4">
-                <div class="card-header py-3">
-                    <h6 class="m-0 font-weight-bold text-warning">
-                        <i class="fas fa-sms me-2"></i>SMS Configuration
-                    </h6>
-                </div>
-                <div class="card-body">
-                    <div class="row">
-                        <div class="col-12">
-                            <div class="border-bottom py-2">
-                                <small class="text-muted">API Endpoint</small>
-                                <div class="font-weight-bold text-truncate">
-                                    @if (!string.IsNullOrEmpty(Model.CurrentSmsSettings.ApiEndpoint))
-                                    {
-                                        @Model.CurrentSmsSettings.ApiEndpoint
-                                    }
-                                    else
-                                    {
-                                        <span class="text-muted">Not configured</span>
-                                    }
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col-6">
-                            <div class="border-bottom py-2">
-                                <small class="text-muted">Rate Limit</small>
-                                <div class="font-weight-bold">@Model.CurrentSmsSettings.RateLimit / minute</div>
-                            </div>
-                        </div>
-                        <div class="col-6">
-                            <div class="border-bottom py-2">
-                                <small class="text-muted">Duplicate Window</small>
-                                <div class="font-weight-bold">@Model.CurrentSmsSettings.DuplicateWindow minutes</div>
-                            </div>
-                        </div>
-                        <div class="col-6">
-                            <div class="border-bottom py-2">
-                                <small class="text-muted">Rate Window</small>
-                                <div class="font-weight-bold">@Model.CurrentSmsSettings.RateWindow seconds</div>
-                            </div>
-                        </div>
-                        <div class="col-6">
-                            <div class="py-2">
-                                <small class="text-muted">Sender Name</small>
-                                <div class="font-weight-bold">
-                                    @if (!string.IsNullOrEmpty(Model.CurrentSmsSettings.SenderName))
-                                    {
-                                        @Model.CurrentSmsSettings.SenderName
-                                    }
-                                    else
-                                    {
-                                        <span class="text-muted">Default</span>
-                                    }
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+            </form>
 
-                    <div class="alert alert-info mt-3 mb-0">
-                        <small>
-                            <i class="fas fa-info-circle me-1"></i>
-                            SMS settings are configured in <code>appsettings.json</code>. 
-                            Restart the application after making changes.
-                        </small>
-                    </div>
+            <!-- Quick Links -->
+            <div class="card config-card mt-4">
+                <div class="card-header bg-white">
+                    <i class="fas fa-external-link-alt text-secondary me-2"></i>Quick Links
                 </div>
-            </div>
-
-            <!-- SCADA Configuration Card -->
-            <div class="card shadow mb-4">
-                <div class="card-header py-3">
-                    <h6 class="m-0 font-weight-bold text-danger">
-                        <i class="fas fa-project-diagram me-2"></i>SCADA Configuration
-                    </h6>
-                </div>
-                <div class="card-body">
-                    <div class="row">
-                        <div class="col-12">
-                            <div class="border-bottom py-2">
-                                <small class="text-muted">
-                                    <i class="fas fa-cog me-1"></i>PCIM Object ID
-                                    <span class="badge badge-warning ms-1" data-bs-toggle="tooltip" 
-                                          title="This ID varies by deployment and is used in alarm action commands">
-                                        <i class="fas fa-info-circle"></i>
-                                    </span>
-                                </small>
-                                <div class="font-weight-bold">
-                                    <code class="fs-5">@Model.CurrentSmsSettings.ScadaPcimObjectId</code>
-                                </div>
-                                <small class="text-muted">
-                                    Used in alarm commands as: 
-                                    <code>PFWALARMNG|PCIM!<span class="text-danger">@Model.CurrentSmsSettings.ScadaPcimObjectId</span>:(ThisObject).DESCRIPTION</code>
-                                </small>
-                            </div>
-                        </div>
-                        <div class="col-12 mt-2">
-                            <div class="py-2">
-                                <small class="text-muted">Alarm Command Syntax</small>
-                                <div class="font-weight-bold">
-                                    <code class="text-wrap" style="font-size: 0.75rem; word-break: break-all;">
-                                        'Run '+getalias('PCIMUTIL')+'Scada_sms.bat'+' "+'"+GetValue(PFWALARMNG|PCIM!<span class="text-danger">@Model.CurrentSmsSettings.ScadaPcimObjectId</span>:(ThisObject).DESCRIPTION)+'"'+<span class="text-primary">[GROUP_ID]</span>+' "+GetValue(PFWALARMNG|PCIM!<span class="text-danger">@Model.CurrentSmsSettings.ScadaPcimObjectId</span>:(ThisObject).ALM_VALUE)+'"'
-                                    </code>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="alert alert-warning mt-3 mb-0">
-                        <small>
-                            <i class="fas fa-exclamation-triangle me-1"></i>
-                            <strong>Important:</strong> The PCIM Object ID is deployment-specific and must be configured correctly in <code>appsettings.json</code> under 
-                            <code>SmsSettings.ScadaPcimObjectId</code>.
-                            <br />
-                            Common values: 1 (default), but may vary by installation.
-                            <br />
-                            <strong>Restart the application after changing this value.</strong>
-                        </small>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Quick Links Row -->
-    <div class="row">
-        <div class="col-12">
-            <div class="card shadow">
-                <div class="card-header py-3">
-                    <h6 class="m-0 font-weight-bold text-secondary">
-                        <i class="fas fa-external-link-alt me-2"></i>Quick Management Links
-                    </h6>
-                </div>
-                <div class="card-body">
-                    <div class="row">
-                        <div class="col-md-3 mb-3">
-                            <a href="/Users" class="btn btn-outline-primary btn-block">
-                                <i class="fas fa-users fa-2x mb-2"></i>
-                                <br><strong>Manage Users</strong>
-                                <br><small class="text-muted">Add, edit, and configure users</small>
+                <div class="card-body pt-3">
+                    <div class="row g-2">
+                        <div class="col-md-3">
+                            <a href="/Users" class="btn btn-outline-primary btn-sm w-100">
+                                <i class="fas fa-users me-1"></i>Users
                             </a>
                         </div>
-                        <div class="col-md-3 mb-3">
-                            <a href="/Groups" class="btn btn-outline-success btn-block">
-                                <i class="fas fa-layer-group fa-2x mb-2"></i>
-                                <br><strong>Manage Groups</strong>
-                                <br><small class="text-muted">Create and manage notification groups</small>
+                        <div class="col-md-3">
+                            <a href="/Groups" class="btn btn-outline-success btn-sm w-100">
+                                <i class="fas fa-layer-group me-1"></i>Groups
                             </a>
                         </div>
-                        <div class="col-md-3 mb-3">
-                            <a href="/Audit" class="btn btn-outline-info btn-block">
-                                <i class="fas fa-history fa-2x mb-2"></i>
-                                <br><strong>SMS Audit</strong>
-                                <br><small class="text-muted">View SMS delivery history</small>
+                        <div class="col-md-3">
+                            <a href="/Audit" class="btn btn-outline-info btn-sm w-100">
+                                <i class="fas fa-history me-1"></i>Audit
                             </a>
                         </div>
-                        <div class="col-md-3 mb-3">
-                            <a href="/Calendar" class="btn btn-outline-warning btn-block">
-                                <i class="fas fa-calendar-alt fa-2x mb-2"></i>
-                                <br><strong>Holiday Calendar</strong>
-                                <br><small class="text-muted">Manage Jewish holidays</small>
+                        <div class="col-md-3">
+                            <a href="/Test/Sms" class="btn btn-outline-warning btn-sm w-100">
+                                <i class="fas fa-paper-plane me-1"></i>Test SMS
                             </a>
                         </div>
                     </div>
                 </div>
             </div>
-        </div>
-    </div>
+
+        </div><!-- /right col -->
+    </div><!-- /row -->
 </div>
 
 @section Scripts {
-    <script>
-        // Auto-dismiss alerts after 5 seconds
-        setTimeout(function() {
-            const alerts = document.querySelectorAll('.alert-dismissible');
-            alerts.forEach(alert => {
-                const bsAlert = new bootstrap.Alert(alert);
-                bsAlert.close();
-            });
-        }, 5000);
+<script src="~/js/alpine.min.js" defer></script>
+<script>
+    function settingsApp() {
+        const DYNAMIC_KEYWORDS = [
+            'message','msg','text','body',
+            'phone','phonenumber','mobile','number',
+            'username','user','userid',
+            'password','pass',
+            'sender_name','sendername','sender','from',
+            'tz','firstname','lastname',
+            'sendingsystem','messagetype'
+        ];
 
-        // Auto-refresh server time every second
-        function updateServerTime() {
-            const serverTimeElements = document.querySelectorAll('.server-time');
-            const now = new Date();
-            const timeString = now.toLocaleTimeString('en-US', { hour12: false });
-            
-            serverTimeElements.forEach(element => {
-                element.textContent = timeString;
-            });
+        function detectType(value) {
+            const v = String(value).toLowerCase().trim();
+            if (DYNAMIC_KEYWORDS.includes(v)) return 'dynamic';
+            if (value.trim() === '') return 'default';
+            return 'static';
         }
 
-        // Update server time display every second
-        setInterval(updateServerTime, 1000);
+        function parseJsonToRows(jsonStr) {
+            if (!jsonStr || jsonStr.trim() === '' || jsonStr.trim() === '{}') return [];
+            try {
+                const obj = JSON.parse(jsonStr);
+                return Object.entries(obj).map(([k, v]) => {
+                    const isDyn = DYNAMIC_KEYWORDS.includes(String(v).toLowerCase().trim());
+                    return {
+                        enabled: true,
+                        key: k,
+                        value: String(v),
+                        isDynamic: isDyn,
+                        paramType: detectType(v)
+                    };
+                });
+            } catch { return []; }
+        }
 
-        // Add loading states to action buttons
-        document.querySelectorAll('form button[type="submit"]').forEach(button => {
-            button.addEventListener('click', function() {
-                const originalText = this.innerHTML;
-                this.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Processing...';
-                this.disabled = true;
-                
-                // Re-enable after 5 seconds as fallback
-                setTimeout(() => {
-                    this.innerHTML = originalText;
-                    this.disabled = false;
-                }, 5000);
+        function rowsToJson(rows) {
+            const obj = {};
+            rows.forEach(r => {
+                if (r.enabled && r.key.trim() !== '') obj[r.key.trim()] = r.value;
             });
+            return JSON.stringify(obj);
+        }
+
+        function makeRow() {
+            return { enabled: true, key: '', value: '', isDynamic: false, paramType: 'static' };
+        }
+
+        function q(name) { return document.querySelector('[name="' + name + '"]'); }
+
+        return {
+            providerType: 'REST',
+            httpMethod: 'POST',
+            endpoint: '',
+            contentType: 'application/x-www-form-urlencoded',
+            paramRows: [],
+            headerRows: [],
+            soapParamRows: [],
+            soapAction: '',
+            soapAuthType: 'WSSecurity',
+            soapTemplate: '',
+            soapNamespaces: '',
+            soapMsgType: '',
+            soapSendingSys: '',
+            successPattern: '',
+            failurePattern: '',
+            soapSuccessPattern: '',
+            soapErrorPattern: '',
+            restTab: 'params',
+
+            init() {
+                this.providerType  = q('SmsSettingsInput.ProviderType')?.value  || 'REST';
+                this.httpMethod    = q('SmsSettingsInput.HttpMethod')?.value    || 'POST';
+                this.endpoint      = q('SmsSettingsInput.ApiEndpoint')?.value   || '';
+                this.contentType   = q('SmsSettingsInput.ContentType')?.value   || 'application/x-www-form-urlencoded';
+                this.soapAction    = q('SmsSettingsInput.SoapAction')?.value    || '';
+                this.soapAuthType  = q('SmsSettingsInput.SoapAuthType')?.value  || 'WSSecurity';
+                this.soapTemplate  = q('SmsSettingsInput.SoapBodyTemplate')?.value || '';
+                this.soapNamespaces= q('SmsSettingsInput.SoapEnvelopeNamespaces')?.value || '';
+                this.soapMsgType   = q('SmsSettingsInput.SoapMessageType')?.value    || '';
+                this.soapSendingSys= q('SmsSettingsInput.SoapSendingSystem')?.value  || '';
+                this.successPattern= q('SmsSettingsInput.RestSuccessPattern')?.value || '';
+                this.failurePattern= q('SmsSettingsInput.RestFailurePattern')?.value || '';
+                this.soapSuccessPattern = q('SmsSettingsInput.SoapSuccessPattern')?.value || '';
+                this.soapErrorPattern   = q('SmsSettingsInput.SoapErrorPattern')?.value   || '';
+
+                this.paramRows     = parseJsonToRows(q('SmsSettingsInput.ApiParams')?.value  || '');
+                this.headerRows    = parseJsonToRows(q('SmsSettingsInput.ApiHeaders')?.value || '');
+                this.soapParamRows = parseJsonToRows(q('SmsSettingsInput.SoapParams')?.value || '');
+                if (!this.paramRows.length)  this.paramRows.push(makeRow());
+                if (!this.headerRows.length) this.headerRows.push(makeRow());
+                if (!this.soapParamRows.length) {
+                    // Default SOAP placeholder set — user can adjust as needed
+                    this.soapParamRows = [
+                        { enabled: true,  key: 'Message',   value: 'message',     isDynamic: true, paramType: 'dynamic' },
+                        { enabled: true,  key: 'Phone',     value: 'phone',       isDynamic: true, paramType: 'dynamic' },
+                        { enabled: false, key: 'TZ',        value: 'tz',          isDynamic: true, paramType: 'dynamic' },
+                        { enabled: false, key: 'FirstName', value: 'firstName',   isDynamic: true, paramType: 'dynamic' },
+                        { enabled: false, key: 'LastName',  value: 'lastName',    isDynamic: true, paramType: 'dynamic' },
+                        { enabled: false, key: 'Username',  value: 'username',    isDynamic: true, paramType: 'dynamic' },
+                        { enabled: false, key: 'SenderName',value: 'sender_name', isDynamic: true, paramType: 'dynamic' },
+                    ];
+                }
+            },
+
+            addParamRow()  { this.paramRows.push(makeRow()); },
+            removeParamRow(i)  { this.paramRows.splice(i, 1); if (!this.paramRows.length) this.addParamRow(); },
+            addHeaderRow() { this.headerRows.push(makeRow()); },
+            removeHeaderRow(i) { this.headerRows.splice(i, 1); if (!this.headerRows.length) this.addHeaderRow(); },
+            addSoapParamRow()  { this.soapParamRows.push(makeRow()); },
+            removeSoapParamRow(i) { this.soapParamRows.splice(i, 1); if (!this.soapParamRows.length) this.addSoapParamRow(); },
+
+            onValueChange(row) {
+                row.isDynamic = DYNAMIC_KEYWORDS.includes(String(row.value).toLowerCase().trim());
+                // Auto-update type when value changes
+                const auto = detectType(row.value);
+                if (auto === 'dynamic') row.paramType = 'dynamic';
+                else if (row.paramType === 'dynamic') row.paramType = 'static'; // was dynamic, now literal
+            },
+
+            insertPlaceholder(ph) {
+                const ta = document.getElementById('soapTemplateArea');
+                if (!ta) return;
+                const s = ta.selectionStart, e = ta.selectionEnd;
+                this.soapTemplate = this.soapTemplate.substring(0, s) + ph + this.soapTemplate.substring(e);
+                this.$nextTick(() => { ta.selectionStart = ta.selectionEnd = s + ph.length; ta.focus(); });
+            },
+
+            serializeToHiddenInputs() {
+                const provider = this.providerType;
+                const testMode = q('SmsSettingsInput.TestMode')?.checked;
+                const confirmMsg = `Save settings?\n\nProvider: ${provider}${testMode ? '\nTest Mode: ON' : ''}`;
+                if (!confirm(confirmMsg)) return false;
+
+                function sync(name, val) { const el = q(name); if (el) el.value = val; }
+                sync('SmsSettingsInput.ApiParams',              rowsToJson(this.paramRows));
+                sync('SmsSettingsInput.ApiHeaders',             rowsToJson(this.headerRows));
+                sync('SmsSettingsInput.SoapParams',             rowsToJson(this.soapParamRows));
+                sync('SmsSettingsInput.ProviderType',           this.providerType);
+                sync('SmsSettingsInput.ApiEndpoint',            this.endpoint);
+                sync('SmsSettingsInput.HttpMethod',             this.httpMethod);
+                sync('SmsSettingsInput.ContentType',            this.contentType);
+                sync('SmsSettingsInput.SoapAction',             this.soapAction);
+                sync('SmsSettingsInput.SoapAuthType',           this.soapAuthType);
+                sync('SmsSettingsInput.SoapBodyTemplate',       this.soapTemplate);
+                sync('SmsSettingsInput.SoapEnvelopeNamespaces', this.soapNamespaces);
+                sync('SmsSettingsInput.SoapMessageType',        this.soapMsgType);
+                sync('SmsSettingsInput.SoapSendingSystem',      this.soapSendingSys);
+                sync('SmsSettingsInput.RestSuccessPattern',     this.successPattern);
+                sync('SmsSettingsInput.RestFailurePattern',     this.failurePattern);
+                sync('SmsSettingsInput.SoapSuccessPattern',     this.soapSuccessPattern);
+                sync('SmsSettingsInput.SoapErrorPattern',       this.soapErrorPattern);
+            },
+
+            get restPreview() {
+                const enabled = this.paramRows.filter(r => r.enabled && r.key.trim());
+                const url = this.endpoint || 'https://…';
+                if (this.httpMethod === 'GET') {
+                    const qs = enabled.map(r => {
+                        const k = encodeURIComponent(r.key.trim());
+                        const v = r.isDynamic ? '{' + r.value + '}' : encodeURIComponent(r.value);
+                        return k + '=' + v;
+                    }).join('&');
+                    return url + (qs ? '?' + qs : '');
+                }
+                const hLines = this.headerRows.filter(r => r.enabled && r.key.trim())
+                    .map(r => r.key.trim() + ': ' + r.value).join('\n');
+                let body = '';
+                if (this.contentType === 'application/json') {
+                    const obj = {};
+                    enabled.forEach(r => { obj[r.key.trim()] = r.isDynamic ? '{' + r.value + '}' : r.value; });
+                    body = JSON.stringify(obj, null, 2);
+                } else {
+                    body = enabled.map(r => {
+                        const k = encodeURIComponent(r.key.trim());
+                        const v = r.isDynamic ? '{' + r.value + '}' : encodeURIComponent(r.value);
+                        return k + '=' + v;
+                    }).join('&');
+                }
+                return this.httpMethod + ' ' + url + ' HTTP/1.1\n'
+                    + 'Content-Type: ' + this.contentType
+                    + (hLines ? '\n' + hLines : '')
+                    + '\n\n' + body;
+            },
+
+            get bodyPreviewHtml() {
+                const raw = this.restPreview;
+                const parts = raw.split('\n\n');
+                const body = parts.slice(1).join('\n\n') || '(configure params first)';
+                return body.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+                    .replace(/\{([^}]+)\}/g,'<span class="pm-token">{$1}</span>');
+            },
+
+            get soapPreview() {
+                const ns = this.soapNamespaces ? '\n    ' + this.soapNamespaces : '';
+                const bodyContent = this.soapTemplate ||
+                    '<ns1:SendSMS xmlns:ns1="http://tempuri.org/">\n  <ns1:Message>{Message}</ns1:Message>\n  <ns1:Phone>{Phone}</ns1:Phone>\n  <ns1:UserName>{Username}</ns1:UserName>\n  <ns1:Password>{Password}</ns1:Password>\n  <ns1:SenderName>{SenderName}</ns1:SenderName>\n  <ns1:MessageType>' + (this.soapMsgType || '{MessageType}') + '</ns1:MessageType>\n  <ns1:SendingSystem>' + (this.soapSendingSys || '{SendingSystem}') + '</ns1:SendingSystem>\n</ns1:SendSMS>';
+
+                let secHeader = '  <soapenv:Header/>\n';
+                if (this.soapAuthType === 'WSSecurity') {
+                    secHeader = '  <soapenv:Header>\n    <wsse:Security xmlns:wsse="http://schemas.xmlsoap.org/ws/2002/07/secext">\n      <wsse:UsernameToken>\n        <wsse:Username>{Username}</wsse:Username>\n        <wsse:Password>{Password}</wsse:Password>\n      </wsse:UsernameToken>\n    </wsse:Security>\n  </soapenv:Header>\n';
+                }
+
+                return 'POST ' + (this.endpoint || '/') + ' HTTP/1.1\n'
+                    + 'SOAPAction: "' + this.soapAction + '"\n'
+                    + 'Content-Type: text/xml; charset=utf-8\n\n'
+                    + '<?xml version="1.0" encoding="utf-8"?>\n'
+                    + '<soapenv:Envelope\n    xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/"' + ns + '>\n'
+                    + secHeader
+                    + '  <soapenv:Body>\n    ' + bodyContent + '\n  </soapenv:Body>\n'
+                    + '</soapenv:Envelope>';
+            },
+
+            get activePreviewHtml() {
+                const raw = this.providerType === 'SOAP' ? this.soapPreview : this.restPreview;
+                return raw
+                    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+                    .replace(/\{([^}]+)\}/g,'<span class="pm-token">{$1}</span>');
+            }
+        };
+    }
+
+    function togglePassword() {
+        const f = document.getElementById('passwordField');
+        const icon = document.getElementById('togglePwIcon');
+        if (f.type === 'password') {
+            f.type = 'text';
+            icon.className = 'fas fa-eye-slash';
+        } else {
+            f.type = 'password';
+            icon.className = 'fas fa-eye';
+        }
+    }
+
+    // Save button loading state
+    document.getElementById('settingsForm').addEventListener('submit', function () {
+        const btn = document.getElementById('saveBtn');
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Saving…';
+        btn.disabled = true;
+    });
+
+    // Auto-dismiss alerts
+    setTimeout(() => {
+        document.querySelectorAll('.alert-dismissible').forEach(el => {
+            new bootstrap.Alert(el).close();
         });
-    </script>
+    }, 6000);
+
+    // Tooltips
+    document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(el => new bootstrap.Tooltip(el));
+</script>
 }

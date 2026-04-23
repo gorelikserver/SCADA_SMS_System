@@ -90,8 +90,8 @@ try
         }
     });
 
-    // Add HTTP Client for SMS service
-    builder.Services.AddHttpClient();
+    // Typed HttpClient for SmsService — framework manages socket lifetime
+    builder.Services.AddHttpClient<SmsService>();
 
     // Add custom services
     builder.Services.AddScoped<ISmsService, SmsService>();
@@ -100,6 +100,12 @@ try
     builder.Services.AddScoped<IHolidayService, HolidayService>();
     builder.Services.AddScoped<IAuditService, AuditService>();
     builder.Services.AddScoped<IAlarmActionService, AlarmActionService>();
+
+    // In-process mock SMS service (singleton — holds test log state)
+    builder.Services.AddSingleton<IMockSmsService, MockSmsService>();
+
+    // In-memory call log for debugging (last 50 SMS API calls, full request/response)
+    builder.Services.AddSingleton<SmsCallLog>();
 
     // Add Background Service for SMS processing
     builder.Services.AddSingleton<SmsBackgroundService>();
@@ -124,70 +130,66 @@ try
         Log.Information("Created log directory: {LogDirectory}", logDirectory);
     }
 
-    // Ensure database is created and seeded (important for deployment)
+    // Apply EF Core migrations on startup (idempotent — only runs unapplied migrations)
     using (var scope = app.Services.CreateScope())
     {
         var context = scope.ServiceProvider.GetRequiredService<SCADADbContext>();
         var startupLogger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
-        
+
         try
         {
-            startupLogger.LogInformation("=== Database Initialization Starting ===");
+            startupLogger.LogInformation("=== Database Migration Starting ===");
 
-            // Use intelligent table-by-table initialization
-            var loggerFactory = scope.ServiceProvider.GetRequiredService<ILoggerFactory>();
-            var dbInitLogger = loggerFactory.CreateLogger<DatabaseInitializationService>();
-            var dbInitService = new DatabaseInitializationService(context, dbInitLogger);
-            var initResult = await dbInitService.InitializeAsync();
+            // Bootstrap shim: if the DB was created before EF migrations were introduced
+            // (by the old DatabaseInitializationService), __EFMigrationsHistory won't exist.
+            // Create it and mark the initial migration as applied so MigrateAsync only
+            // runs the newer migrations that added new columns/tables.
+            using var conn = context.Database.GetDbConnection();
+            await conn.OpenAsync();
+            using var cmd = conn.CreateCommand();
 
-            if (initResult.Success)
+            cmd.CommandText = "SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = '__EFMigrationsHistory'";
+            var historyExists = Convert.ToInt32(await cmd.ExecuteScalarAsync()) > 0;
+
+            if (!historyExists)
             {
-                startupLogger.LogInformation("Database initialization successful");
-                
-                if (initResult.CreatedTables.Any())
-                {
-                    startupLogger.LogInformation("  Created {Count} new table(s): {Tables}", 
-                        initResult.CreatedTables.Count, 
-                        string.Join(", ", initResult.CreatedTables));
-                }
-                else
-                {
-                    startupLogger.LogInformation("  All tables already exist - no changes needed");
-                }
+                startupLogger.LogInformation("No EF migrations history found — bootstrapping from existing schema");
 
-                // Seed initial data if needed
-                await SeedData.InitializeAsync(context, startupLogger);
-                startupLogger.LogInformation("Database seeding completed");
-            }
-            else
-            {
-                startupLogger.LogError("Database initialization failed: {Error}", initResult.ErrorMessage);
-                
-                if (!app.Environment.IsDevelopment())
+                cmd.CommandText = @"
+                    CREATE TABLE [__EFMigrationsHistory] (
+                        [MigrationId] nvarchar(150) NOT NULL,
+                        [ProductVersion] nvarchar(32) NOT NULL,
+                        CONSTRAINT [PK___EFMigrationsHistory] PRIMARY KEY ([MigrationId])
+                    )";
+                await cmd.ExecuteNonQueryAsync();
+
+                // If users or scada_users exists, the initial migration was applied by the
+                // old DatabaseInitializationService — mark it so EF skips re-creating tables.
+                cmd.CommandText = "SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME IN ('users', 'scada_users')";
+                var usersExists = Convert.ToInt32(await cmd.ExecuteScalarAsync()) > 0;
+
+                if (usersExists)
                 {
-                    startupLogger.LogWarning("Continuing startup despite database initialization error (Production mode)");
-                }
-                else
-                {
-                    throw new InvalidOperationException($"Database initialization failed: {initResult.ErrorMessage}");
+                    cmd.CommandText = "INSERT INTO [__EFMigrationsHistory] VALUES ('20250927232936_AddGroupIdToSmsAudit', '8.0.0')";
+                    await cmd.ExecuteNonQueryAsync();
+                    startupLogger.LogInformation("Marked initial migration as applied (tables pre-existed)");
                 }
             }
-            
-            startupLogger.LogInformation("=== Database Initialization Complete ===");
+
+            await context.Database.MigrateAsync();
+            startupLogger.LogInformation("Database migrations applied successfully");
+
+            await SeedData.InitializeAsync(context, startupLogger);
+            startupLogger.LogInformation("=== Database Migration Complete ===");
         }
         catch (Exception ex)
         {
-            startupLogger.LogError(ex, "Critical error during database initialization");
-            
-            // In production, log and continue; in development, fail fast
+            startupLogger.LogError(ex, "Critical error during database migration");
+
             if (!app.Environment.IsDevelopment())
-            {
-                startupLogger.LogWarning("Continuing startup despite database initialization error (Production mode)");
-            }
+                startupLogger.LogWarning("Continuing startup despite migration error (Production mode)");
             else
-            {
                 throw;
-            }
         }
     }
 

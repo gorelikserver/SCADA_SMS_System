@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
+
+  <?include Variables.wxi ?>
+
+  <Fragment>
+    <!-- Base UI set: Welcome → License → InstallDir → VerifyReady → Progress → Exit -->
+    <UI Id="SCADASMSInstallUI">
+      <ui:WixUI Id="WixUI_InstallDir" />
+
+      <!-- Include our custom dialog definitions -->
+      <DialogRef Id="DbConfigDlg" />
+      <DialogRef Id="ServiceConfigDlg" />
+
+      <!--
+        Inject DbConfigDlg between InstallDirDlg and VerifyReadyDlg.
+        WiX v4: condition is a Condition attribute, not inner text.
+        Order=10 fires after the built-in Order=1 NewDialog(VerifyReadyDlg),
+        so DbConfigDlg wins (last NewDialog takes effect in MSI).
+      -->
+      <Publish Dialog="InstallDirDlg" Control="Next"
+               Event="NewDialog" Value="DbConfigDlg"
+               Order="10"
+               Condition="WIXUI_DONTVALIDATEPATH OR WIXUI_INSTALLDIR_VALID = &quot;1&quot;" />
+
+      <!-- DbConfigDlg navigation -->
+      <Publish Dialog="DbConfigDlg" Control="Back"
+               Event="NewDialog" Value="InstallDirDlg"
+               Condition="1" />
+      <Publish Dialog="DbConfigDlg" Control="Next"
+               Event="NewDialog" Value="ServiceConfigDlg"
+               Condition="1" />
+
+      <!-- ServiceConfigDlg navigation -->
+      <Publish Dialog="ServiceConfigDlg" Control="Back"
+               Event="NewDialog" Value="DbConfigDlg"
+               Condition="1" />
+      <Publish Dialog="ServiceConfigDlg" Control="Next"
+               Event="NewDialog" Value="VerifyReadyDlg"
+               Condition="1" />
+
+      <!--
+        Override VerifyReadyDlg Back to go to ServiceConfigDlg.
+        Order=10 overrides the built-in Order=1 Back→InstallDirDlg.
+      -->
+      <Publish Dialog="VerifyReadyDlg" Control="Back"
+               Event="NewDialog" Value="ServiceConfigDlg"
+               Order="10"
+               Condition="NOT Installed" />
+    </UI>
+  </Fragment>
+</Wix>

@@ -36,6 +36,9 @@ namespace SCADASMSSystem.Web.Pages.Users
                 PhoneNumber = user.PhoneNumber,
                 SmsEnabled = user.SmsEnabled,
                 SpecialDaysEnabled = user.SpecialDaysEnabled,
+                TZ = user.TZ,
+                FirstName = user.FirstName,
+                LastName = user.LastName,
                 OriginalEmail = user.Email,
                 OriginalPhoneNumber = user.PhoneNumber
             };
@@ -85,6 +88,9 @@ namespace SCADASMSSystem.Web.Pages.Users
                 existingUser.PhoneNumber = UserInput.PhoneNumber;
                 existingUser.SmsEnabled = UserInput.SmsEnabled;
                 existingUser.SpecialDaysEnabled = UserInput.SpecialDaysEnabled;
+                existingUser.TZ = string.IsNullOrWhiteSpace(UserInput.TZ) ? null : UserInput.TZ;
+                existingUser.FirstName = string.IsNullOrWhiteSpace(UserInput.FirstName) ? null : UserInput.FirstName;
+                existingUser.LastName = string.IsNullOrWhiteSpace(UserInput.LastName) ? null : UserInput.LastName;
 
                 var success = await _userService.UpdateUserAsync(existingUser);
 
@@ -166,6 +172,18 @@ namespace SCADASMSSystem.Web.Pages.Users
 
         [Display(Name = "Available on Special Days/Holidays")]
         public bool SpecialDaysEnabled { get; set; }
+
+        [StringLength(20)]
+        [Display(Name = "ID Number (TZ)")]
+        public string? TZ { get; set; }
+
+        [StringLength(100)]
+        [Display(Name = "First Name")]
+        public string? FirstName { get; set; }
+
+        [StringLength(100)]
+        [Display(Name = "Last Name")]
+        public string? LastName { get; set; }
 
         // Hidden fields for validation
         public string? OriginalEmail { get; set; }

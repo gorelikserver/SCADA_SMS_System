@@ -1,0 +1,171 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:util="http://wixtoolset.org/schemas/v4/wxs/util"
+     xmlns:fire="http://wixtoolset.org/schemas/v4/wxs/firewall">
+
+  <?include Variables.wxi ?>
+
+  <Package
+    Name="$(ProductName)"
+    Version="$(ProductVersion)"
+    Manufacturer="$(Manufacturer)"
+    UpgradeCode="$(UpgradeCode)"
+    Language="1033"
+    Codepage="1252"
+    InstallerVersion="500">
+
+    <SummaryInformation Keywords="Installer"
+      Description="$(ProductName) $(ProductVersion) Setup" />
+
+    <MajorUpgrade
+      DowngradeErrorMessage="A newer version of [ProductName] is already installed."
+      Schedule="afterInstallInitialize" />
+
+    <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
+
+    <!-- ============================================================
+         PROPERTIES
+    ============================================================ -->
+    <Property Id="INSTALLDIR"    Secure="yes" />
+    <Property Id="DB_SERVER"     Value="$(DefaultDbServer)" Secure="yes" />
+    <Property Id="DB_NAME"       Value="$(DefaultDbName)"   Secure="yes" />
+    <Property Id="DB_AUTH"       Value="SQL"                Secure="yes" />
+    <Property Id="DB_USER"       Value="sa"                 Secure="yes" />
+    <Property Id="DB_PASSWORD"   Value="pulse"              Secure="yes" Hidden="yes" />
+    <Property Id="APP_PORT"      Value="$(DefaultPort)"     Secure="yes" />
+    <Property Id="LOG_DIR"       Value="$(DefaultLogDir)"   Secure="yes" />
+    <Property Id="WIXUI_INSTALLDIR" Value="INSTALLDIR" />
+    <WixVariable Id="WixUILicenseRtf" Value="Resources\License.rtf" />
+
+    <!-- ============================================================
+         DIRECTORIES
+    ============================================================ -->
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="ManufacturerFolder" Name="$(Manufacturer)">
+        <Directory Id="INSTALLDIR" Name="$(ProductName)" />
+      </Directory>
+    </StandardDirectory>
+
+    <StandardDirectory Id="CommonAppDataFolder">
+      <Directory Id="SCADADataFolder" Name="SCADA">
+        <Directory Id="LOGDIRFOLDER" Name="Logs" />
+      </Directory>
+    </StandardDirectory>
+
+    <!-- ============================================================
+         COMPONENTS — Main executable + Service + Firewall
+    ============================================================ -->
+    <ComponentGroup Id="AppFiles" Directory="INSTALLDIR">
+
+      <Component Id="AppExeComponent"
+                 Guid="B1E2F3A4-5C6D-7E8F-9A0B-C1D2E3F4A5B6">
+        <File Id="AppExe"
+              Source="$(AppExeFile)"
+              KeyPath="yes" />
+
+        <ServiceInstall
+          Id="SCADASMSServiceInstall"
+          Name="$(ServiceName)"
+          DisplayName="$(ServiceDisplayName)"
+          Type="ownProcess"
+          Start="auto"
+          Account="LocalSystem"
+          ErrorControl="normal"
+          Description="Industrial SCADA SMS notification system for alarm management"
+          Vital="yes" />
+
+        <ServiceControl
+          Id="SCADASMSServiceControl"
+          Name="$(ServiceName)"
+          Start="install"
+          Stop="both"
+          Remove="uninstall"
+          Wait="no" />
+
+        <util:ServiceConfig
+          ServiceName="$(ServiceName)"
+          FirstFailureActionType="restart"
+          SecondFailureActionType="restart"
+          ThirdFailureActionType="restart"
+          RestartServiceDelayInSeconds="60"
+          ResetPeriodInDays="1" />
+
+        <fire:FirewallException
+          Id="SCADASMSFirewall"
+          Name="SCADA SMS System HTTP"
+          Description="Allow inbound HTTP for SCADA SMS System web interface"
+          Protocol="tcp"
+          Port="[APP_PORT]"
+          Scope="any"
+          IgnoreFailure="yes" />
+      </Component>
+
+      <!-- appsettings.json — modified post-install by ConfigureAppSettings CA -->
+      <Component Id="AppSettingsComponent"
+                 Guid="C2D3E4F5-6A7B-8C9D-0E1F-A2B3C4D5E6F7">
+        <File Id="AppSettings"
+              Source="$(AppSettingsFile)"
+              KeyPath="yes" />
+      </Component>
+
+      <!-- Remaining files: harvested by Generate-HarvestedFiles.ps1 (HarvestedAppFiles component group) -->
+      <ComponentGroupRef Id="HarvestedAppFiles" />
+
+    </ComponentGroup>
+
+    <!-- Log directory component -->
+    <ComponentGroup Id="LogDirGroup" Directory="LOGDIRFOLDER">
+      <Component Id="LogDirComp"
+                 Guid="D3E4F5A6-7B8C-9D0E-1F2A-B3C4D5E6F7A8">
+        <CreateFolder />
+      </Component>
+    </ComponentGroup>
+
+    <!-- ============================================================
+         FEATURES
+    ============================================================ -->
+    <Feature Id="Complete" Title="$(ProductName)" Level="1">
+      <Feature Id="MainApp" Title="Application" Level="1">
+        <ComponentGroupRef Id="AppFiles" />
+        <ComponentGroupRef Id="LogDirGroup" />
+      </Feature>
+    </Feature>
+
+    <!-- ============================================================
+         CUSTOM ACTIONS — Inline VBScript (no managed DLL required)
+    ============================================================ -->
+
+    <!-- Pack deferred CA properties -->
+    <SetProperty Id="ConfigureAppSettings"
+      Before="ConfigureAppSettings"
+      Sequence="execute"
+      Value="INSTALLDIR=[INSTALLDIR];DB_SERVER=[DB_SERVER];DB_NAME=[DB_NAME];DB_AUTH=[DB_AUTH];DB_USER=[DB_USER];DB_PASSWORD=[DB_PASSWORD];APP_PORT=[APP_PORT];LOG_DIR=[LOG_DIR]" />
+
+    <!--
+      Deferred VBScript CA: patches appsettings.json with user-supplied DB/port/log settings.
+      Runs after files are on disk, before service starts.
+    -->
+    <CustomAction Id="ConfigureAppSettings"
+      Script="vbscript"
+      ScriptSourceFile="Scripts\ConfigureAppSettings.vbs"
+      Execute="deferred"
+      Impersonate="no"
+      Return="check" />
+
+
+    <!-- ============================================================
+         INSTALL SEQUENCE
+    ============================================================ -->
+    <InstallExecuteSequence>
+      <Custom Action="ConfigureAppSettings"
+        After="InstallFiles"
+        Condition="NOT REMOVE" />
+    </InstallExecuteSequence>
+
+    <!-- ============================================================
+         UI
+    ============================================================ -->
+    <UIRef Id="SCADASMSInstallUI" />
+
+  </Package>
+</Wix>

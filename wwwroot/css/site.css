@@ -29,3 +29,156 @@ body {
 .form-floating > .form-control-plaintext:focus::placeholder, .form-floating > .form-control:focus::placeholder {
   text-align: start;
 }
+
+/* ── Gradient card headers (matches Settings page style) ── */
+.card-header-gradient {
+    background: linear-gradient(135deg, #4361ee 0%, #3a86ff 100%);
+    color: #fff;
+    border-bottom: none;
+}
+.card-header-gradient .card-title,
+.card-header-gradient .card-subtitle,
+.card-header-gradient h5,
+.card-header-gradient h6,
+.card-header-gradient small {
+    color: #fff !important;
+}
+.card-header-gradient .text-muted {
+    color: rgba(255,255,255,0.75) !important;
+}
+.card-header-gradient .btn-outline-light {
+    border-color: rgba(255,255,255,0.5);
+}
+.card-header-gradient .btn-outline-light:hover {
+    background: rgba(255,255,255,0.15);
+}
+
+/* ── Required field asterisk ── */
+.required-field label::after,
+label.required::after {
+    content: ' *';
+    color: #dc3545;
+    font-weight: 700;
+}
+
+/* ── Form validation enhancements ── */
+.form-control.is-invalid,
+.form-select.is-invalid {
+    border-color: #dc3545;
+    background-image: none;
+    box-shadow: 0 0 0 0.15rem rgba(220,53,69,.15);
+}
+.form-control.is-valid,
+.form-select.is-valid {
+    border-color: #198754;
+    background-image: none;
+    box-shadow: 0 0 0 0.15rem rgba(25,135,84,.1);
+}
+.invalid-feedback {
+    display: none;
+    font-size: 0.8rem;
+    color: #dc3545;
+    margin-top: 0.2rem;
+}
+.is-invalid ~ .invalid-feedback,
+.was-validated .form-control:invalid ~ .invalid-feedback {
+    display: block;
+}
+
+/* ── Loading button state ── */
+.btn[disabled] .spinner-border {
+    vertical-align: middle;
+}
+
+/* ── Toast enhancements ── */
+#toastContainer .toast {
+    min-width: 280px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+    border-radius: 0.5rem;
+}
+
+/* ── Confirm modal polish ── */
+#confirmModal .modal-content {
+    border-radius: 0.75rem;
+}
+#confirmModal .modal-header {
+    padding-bottom: 0.25rem;
+}
+
+/* ── Dark code/preview block (matches Settings page preview panels) ── */
+.code-preview {
+    background: #1e2127;
+    color: #abb2bf;
+    font-family: 'Consolas', 'Monaco', monospace;
+    font-size: 0.82rem;
+    border-radius: 0.5rem;
+    padding: 1rem;
+    overflow-x: auto;
+}
+.code-preview .placeholder-var {
+    color: #e5c07b;
+    font-weight: 600;
+}
+.code-preview .placeholder-key {
+    color: #61afef;
+}
+.code-preview .placeholder-value {
+    color: #98c379;
+}
+
+/* ── Section divider label ── */
+.section-label {
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #6c757d;
+    margin-bottom: 0.5rem;
+}
+
+/* ── Info / Warning boxes (global) ── */
+.info-box {
+    background: #f0f4ff;
+    border: 1px solid #c7d2fe;
+    border-radius: 8px;
+    padding: 0.75rem 1rem;
+    font-size: 0.82rem;
+    color: #4338ca;
+}
+.info-box i { opacity: 0.8; }
+
+.warning-box {
+    background: #fffbeb;
+    border: 1px solid #fcd34d;
+    border-radius: 8px;
+    padding: 0.75rem 1rem;
+    font-size: 0.82rem;
+    color: #92400e;
+}
+.warning-box i { opacity: 0.8; }
+
+/* ── Text utilities (Bootstrap 4 compat) ── */
+.text-gray-800 { color: #343a40 !important; }
+.text-gray-600 { color: #6c757d !important; }
+.text-gray-500 { color: #adb5bd !important; }
+.text-gray-400 { color: #ced4da !important; }
+
+/* ── Sortable table headers ── */
+.sortable-header { cursor: pointer; user-select: none; white-space: nowrap; }
+.sortable-header:hover { background: rgba(67,97,238,0.06); }
+.sortable-header .sort-icon { opacity: 0.35; font-size: 0.7em; margin-left: 3px; }
+.sortable-header.asc  .sort-icon::after { content: '▲'; opacity: 1; }
+.sortable-header.desc .sort-icon::after { content: '▼'; opacity: 1; }
+
+/* ── Status delivery badges ── */
+.badge-delivered { background: #198754; color: #fff; }
+.badge-failed    { background: #dc3545; color: #fff; }
+.badge-pending   { background: #ffc107; color: #212529; }
+
+/* ── Border-left stat cards (Bootstrap 4 compat) ── */
+.border-left-primary   { border-left: 4px solid #4361ee !important; }
+.border-left-success   { border-left: 4px solid #198754 !important; }
+.border-left-info      { border-left: 4px solid #0dcaf0 !important; }
+.border-left-warning   { border-left: 4px solid #ffc107 !important; }
+.border-left-danger    { border-left: 4px solid #dc3545 !important; }
+.border-left-secondary { border-left: 4px solid #6c757d !important; }

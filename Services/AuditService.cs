@@ -52,6 +52,25 @@ namespace SCADASMSSystem.Web.Services
             }
         }
 
+        public async Task<IEnumerable<SmsAudit>> GetRecentAuditHistoryAsync(int hours = 24)
+        {
+            try
+            {
+                var cutoff = DateTime.Now.AddHours(-hours);
+                return await _context.SmsAudits
+                    .Include(sa => sa.User)
+                    .Include(sa => sa.Group)
+                    .Where(sa => sa.CreatedAt >= cutoff)
+                    .OrderByDescending(sa => sa.CreatedAt)
+                    .ToListAsync();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting recent audit history for last {Hours} hours", hours);
+                return Enumerable.Empty<SmsAudit>();
+            }
+        }
+
         public async Task<bool> LogSmsAuditAsync(string alarmId, int userId, string phoneNumber, 
             string alarmDescription, string status, string? messageStatus = null, string? response = null, int? groupId = null)
         {
@@ -81,9 +100,9 @@ namespace SCADASMSSystem.Web.Services
                     return false;
                 }
 
-                // Truncate long fields to prevent database errors
-                var truncatedMessageStatus = messageStatus?.Length > 200 ? messageStatus[..197] + "..." : messageStatus;
-                var truncatedResponse = response?.Length > 1000 ? response[..997] + "..." : response;
+                // api_response is nvarchar(max) — no length cap needed
+                var truncatedMessageStatus = messageStatus?.Length > 500 ? messageStatus[..497] + "..." : messageStatus;
+                var truncatedResponse = response; // stored as nvarchar(max), full response preserved
                 var truncatedDescription = alarmDescription.Length > 500 ? alarmDescription[..497] + "..." : alarmDescription;
 
                 var auditEntry = new SmsAudit

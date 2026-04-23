@@ -61,6 +61,9 @@ namespace SCADASMSSystem.Web.Pages.Users
                     PhoneNumber = UserInput.PhoneNumber,
                     SmsEnabled = UserInput.SmsEnabled,
                     SpecialDaysEnabled = UserInput.SpecialDaysEnabled,
+                    TZ = string.IsNullOrWhiteSpace(UserInput.TZ) ? null : UserInput.TZ,
+                    FirstName = string.IsNullOrWhiteSpace(UserInput.FirstName) ? null : UserInput.FirstName,
+                    LastName = string.IsNullOrWhiteSpace(UserInput.LastName) ? null : UserInput.LastName,
                     CreatedAt = DateTime.Now
                 };
 
@@ -111,5 +114,17 @@ namespace SCADASMSSystem.Web.Pages.Users
 
         [Display(Name = "Available on Special Days/Holidays")]
         public bool SpecialDaysEnabled { get; set; } = false;
+
+        [StringLength(20)]
+        [Display(Name = "ID Number (TZ)")]
+        public string? TZ { get; set; }
+
+        [StringLength(100)]
+        [Display(Name = "First Name")]
+        public string? FirstName { get; set; }
+
+        [StringLength(100)]
+        [Display(Name = "Last Name")]
+        public string? LastName { get; set; }
     }
 }

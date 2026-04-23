@@ -3,7 +3,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace SCADASMSSystem.Web.Models
 {
-    [Table("groups")]
+    [Table("scada_groups")]
     public class Group
     {
         [Key]

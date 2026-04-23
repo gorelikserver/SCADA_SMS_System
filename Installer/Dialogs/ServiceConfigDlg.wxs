@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+
+  <Fragment>
+    <UI>
+      <Dialog Id="ServiceConfigDlg" Width="370" Height="270" Title="Service Configuration">
+
+        <!-- Header banner -->
+        <Control Id="BannerBitmap" Type="Bitmap" X="0" Y="0" Width="370" Height="44" TabSkip="no" Text="WixUI_Bmp_Banner" />
+        <Control Id="BannerLine" Type="Line" X="0" Y="44" Width="370" Height="0" />
+
+        <Control Id="Title" Type="Text" X="15" Y="6" Width="200" Height="15" Transparent="yes" NoPrefix="yes">
+          <Text Value="{\WixUI_Font_Title}Service Configuration" />
+        </Control>
+        <Control Id="Description" Type="Text" X="25" Y="23" Width="280" Height="15" Transparent="yes" NoPrefix="yes">
+          <Text Value="Configure the web service port and log directory." />
+        </Control>
+
+        <!-- HTTP port -->
+        <Control Id="PortLabel" Type="Text" X="20" Y="60" Width="200" Height="10" NoPrefix="yes">
+          <Text Value="&amp;HTTP Port (default: 5000):" />
+        </Control>
+        <Control Id="PortEdit" Type="Edit" X="20" Y="72" Width="80" Height="17" Property="APP_PORT" />
+        <Control Id="PortNote" Type="Text" X="110" Y="74" Width="200" Height="10" NoPrefix="yes">
+          <Text Value="Web interface: http://localhost:[APP_PORT]" />
+        </Control>
+
+        <!-- Log directory -->
+        <Control Id="LogDirLabel" Type="Text" X="20" Y="100" Width="200" Height="10" NoPrefix="yes">
+          <Text Value="&amp;Log Directory:" />
+        </Control>
+        <Control Id="LogDirEdit" Type="Edit" X="20" Y="112" Width="240" Height="17" Property="LOG_DIR" />
+        <Control Id="LogDirBrowse" Type="PushButton" X="265" Y="111" Width="56" Height="17" Text="Browse...">
+          <Publish Property="_BrowseLogDir" Value="LOG_DIR" Order="1" Condition="1" />
+          <Publish Event="SpawnDialog"      Value="BrowseDlg" Order="2" Condition="1" />
+        </Control>
+
+        <!-- Service info box -->
+        <Control Id="InfoBox" Type="GroupBox" X="15" Y="140" Width="340" Height="80">
+          <Text Value="Service Information" />
+        </Control>
+        <Control Id="InfoText1" Type="Text" X="25" Y="155" Width="320" Height="10" NoPrefix="yes">
+          <Text Value="Service Name: SCADASMSSystem" />
+        </Control>
+        <Control Id="InfoText2" Type="Text" X="25" Y="168" Width="320" Height="10" NoPrefix="yes">
+          <Text Value="Start Type: Automatic (auto-start on boot)" />
+        </Control>
+        <Control Id="InfoText3" Type="Text" X="25" Y="181" Width="320" Height="10" NoPrefix="yes">
+          <Text Value="Account: Local System" />
+        </Control>
+        <Control Id="InfoText4" Type="Text" X="25" Y="194" Width="320" Height="10" NoPrefix="yes">
+          <Text Value="Recovery: Auto-restart on failure (3 attempts, 1 min delay)" />
+        </Control>
+
+        <!-- Divider and buttons -->
+        <Control Id="BottomLine" Type="Line" X="0" Y="234" Width="370" Height="0" />
+        <Control Id="Back"   Type="PushButton" X="180" Y="243" Width="56" Height="17" Text="&amp;Back" />
+        <Control Id="Next"   Type="PushButton" X="236" Y="243" Width="56" Height="17" Default="yes" Text="&amp;Next" />
+        <Control Id="Cancel" Type="PushButton" X="304" Y="243" Width="56" Height="17" Cancel="yes" Text="Cancel">
+          <Publish Event="SpawnDialog" Value="CancelDlg" Condition="1" />
+        </Control>
+      </Dialog>
+    </UI>
+  </Fragment>
+</Wix>

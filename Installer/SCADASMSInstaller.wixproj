@@ -1,0 +1,44 @@
+﻿<Project Sdk="WixToolset.Sdk/4.0.5">
+  <PropertyGroup>
+    <OutputName>SCADA_SMS_v2.3.9_Setup</OutputName>
+    <ProductVersion>2.3.9</ProductVersion>
+    <Platform>x64</Platform>
+    <Cultures>en-US</Cultures>
+    <SuppressIces>ICE91</SuppressIces>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="WixToolset.UI.wixext"       Version="4.0.5" />
+    <PackageReference Include="WixToolset.Util.wixext"     Version="4.0.5" />
+    <PackageReference Include="WixToolset.Firewall.wixext" Version="4.0.5" />
+  </ItemGroup>
+
+  <!-- Pre-generated harvest file (created by build.bat before dotnet build) -->
+  <ItemGroup>
+    <Compile Include="obj\$(Configuration)\HarvestedFiles.wxs"
+             Condition="Exists('obj\$(Configuration)\HarvestedFiles.wxs')" />
+  </ItemGroup>
+
+</Project>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -34,7 +34,7 @@ window.SCADAUtils = {
     showLoading: function(element) {
         element.classList.add('loading');
         element.disabled = true;
-   ,
+    },
 
     // Hide loading state
     hideLoading: function(element) {
@@ -44,13 +44,12 @@ window.SCADAUtils = {
 
     // Show toast notification
     showToast: function(message, type = 'info') {
-        // Create toast element if it doesn't exist
-        let toastContainer = document.getElementById('toast-container');
+        let toastContainer = document.getElementById('toastContainer') || document.getElementById('toast-container');
         if (!toastContainer) {
             toastContainer = document.createElement('div');
-            toastContainer.id = 'toast-container';
-            toastContainer.className = 'position-fixed top-0 end-0 p-3';
-            toastContainer.style.zIndex = '9999';
+            toastContainer.id = 'toastContainer';
+            toastContainer.className = 'toast-container position-fixed bottom-0 end-0 p-3';
+            toastContainer.style.zIndex = '1100';
             document.body.appendChild(toastContainer);
         }
 
@@ -95,10 +94,52 @@ window.SCADAUtils = {
         return isValid;
     },
 
-    // Confirmation dialog helper
+    // Confirmation dialog helper (legacy — use confirmModal for new code)
     confirmAction: function(message, callback) {
         if (confirm(message)) {
             callback();
+        }
+    },
+
+    // Modal-based confirmation — returns Promise<boolean>
+    confirmModal: function(title, body, okLabel = 'Delete', okClass = 'btn-danger') {
+        return new Promise(resolve => {
+            const titleEl = document.getElementById('confirmModalTitle');
+            const bodyEl = document.getElementById('confirmModalBody');
+            const okBtn = document.getElementById('confirmModalOk');
+            if (!titleEl || !bodyEl || !okBtn) {
+                resolve(window.confirm(body));
+                return;
+            }
+            titleEl.textContent = title;
+            bodyEl.textContent = body;
+            okBtn.textContent = okLabel;
+            okBtn.className = 'btn ' + okClass;
+            const modalEl = document.getElementById('confirmModal');
+            const modal = new bootstrap.Modal(modalEl);
+            let resolved = false;
+            const okHandler = () => { resolved = true; modal.hide(); resolve(true); };
+            okBtn.addEventListener('click', okHandler, { once: true });
+            modalEl.addEventListener('hidden.bs.modal', () => {
+                if (!resolved) resolve(false);
+            }, { once: true });
+            modal.show();
+        });
+    },
+
+    // Button loading state helper
+    setButtonLoading: function(btn, loading, loadingText = null) {
+        if (loading) {
+            btn.dataset.originalHtml = btn.innerHTML;
+            btn.disabled = true;
+            const label = loadingText || 'Processing...';
+            btn.innerHTML = `<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>${label}`;
+        } else {
+            btn.disabled = false;
+            if (btn.dataset.originalHtml) {
+                btn.innerHTML = btn.dataset.originalHtml;
+                delete btn.dataset.originalHtml;
+            }
         }
     },
 

@@ -1,0 +1,42 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Include xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <?define ProductName        = "Scada SMS" ?>
+  <?define ProductVersion     = "2.3.9" ?>
+  <?define Manufacturer       = "Afcon" ?>
+  <?define UpgradeCode        = "A7F3E9B2-4C1D-4A8F-9E6B-2D5F8A3C7E1B" ?>
+  <?define ServiceName        = "SCADASMSSystem" ?>
+  <?define ServiceDisplayName = "Afcon Scada SMS Notification System" ?>
+  <?define DefaultPort        = "5000" ?>
+  <?define DefaultDbServer    = ".\PULSESQLEXPRESS" ?>
+  <?define DefaultDbName      = "bat_yam" ?>
+  <?define DefaultLogDir      = "C:\SCADA\Logs" ?>
+  <?define AppExe             = "SCADASMSSystem.Web.exe" ?>
+
+  <!-- Staged dirs (created by build.bat before MSI build) -->
+  <?define AppExeFile      = "..\deployment_package\InstallerSrc\SCADASMSSystem.Web.exe" ?>
+  <?define AppSettingsFile = "..\deployment_package\InstallerSrc\appsettings.json" ?>
+  <?define AppMainDir      = "..\deployment_package\InstallerSrc\Main" ?>
+</Include>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

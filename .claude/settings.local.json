@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(xargs cat *)",
+      "Bash(find /c/SCADA_CSharp_Clean/Services -type f -name \"*.cs\" -exec grep -l \"SmsApiResponse\\\\|interface\" {} \\\\;)",
+      "Bash(dotnet build *)",
+      "Bash(dotnet tool *)",
+      "Read(//c/SCADA_CSharp_Clean/**)",
+      "Bash(powershell -Command \"Get-Content 'c:/SCADA_CSharp_Clean/Installer/install_log.txt' -Encoding Unicode | Select-String -Pattern 'Return value 3|CustomAction|VBScript|ConfigureApp|Error 1|1603' | Select-Object -First 30\")",
+      "Bash(powershell -ExecutionPolicy Bypass -Command ' *)",
+      "mcp__plugin_atlassian_atlassian__getAccessibleAtlassianResources",
+      "mcp__plugin_atlassian_atlassian__getJiraProjectIssueTypesMetadata",
+      "mcp__plugin_atlassian_atlassian__createJiraIssue"
+    ]
+  }
+}

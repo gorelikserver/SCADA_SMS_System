@@ -1,7 +1,10 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.Extensions.Options;
+using SCADASMSSystem.Web.Models;
 using SCADASMSSystem.Web.Services;
 using System.ComponentModel.DataAnnotations;
+using System.Text.Json;
 
 namespace SCADASMSSystem.Web.Pages.Test
 {
@@ -10,12 +13,17 @@ namespace SCADASMSSystem.Web.Pages.Test
         private readonly SmsBackgroundService _smsBackgroundService;
         private readonly IGroupService _groupService;
         private readonly ILogger<SmsModel> _logger;
+        private readonly IOptionsMonitor<SmsSettings> _smsMonitor;
 
-        public SmsModel(SmsBackgroundService smsBackgroundService, IGroupService groupService, ILogger<SmsModel> logger)
+        private SmsSettings Settings => _smsMonitor.CurrentValue;
+
+        public SmsModel(SmsBackgroundService smsBackgroundService, IGroupService groupService,
+            ILogger<SmsModel> logger, IOptionsMonitor<SmsSettings> smsSettings)
         {
             _smsBackgroundService = smsBackgroundService;
             _groupService = groupService;
             _logger = logger;
+            _smsMonitor = smsSettings;
         }
 
         [BindProperty]
@@ -23,6 +31,9 @@ namespace SCADASMSSystem.Web.Pages.Test
 
         public IEnumerable<Models.Group> AvailableGroups { get; set; } = new List<Models.Group>();
         public SmsServiceStatus ServiceStatus { get; set; } = new();
+        public bool TestModeActive => Settings.TestMode;
+        public string CurrentProviderType => Settings.ProviderType ?? "REST";
+        public string SettingsJson { get; private set; } = "{}";
 
         public async Task OnGetAsync()
         {
@@ -30,12 +41,56 @@ namespace SCADASMSSystem.Web.Pages.Test
             {
                 AvailableGroups = await _groupService.GetAllGroupsAsync();
                 ServiceStatus = _smsBackgroundService.GetServiceStatus();
+                SettingsJson = JsonSerializer.Serialize(new
+                {
+                    providerType = Settings.ProviderType ?? "REST",
+                    apiEndpoint = Settings.ApiEndpoint ?? "",
+                    httpMethod = Settings.HttpMethod ?? "POST",
+                    contentType = Settings.ContentType ?? "application/x-www-form-urlencoded",
+                    apiParams = Settings.ApiParams ?? "",
+                    apiHeaders = Settings.ApiHeaders ?? "",
+                    soapAction = Settings.SoapAction ?? "",
+                    soapBodyTemplate = Settings.SoapBodyTemplate ?? "",
+                    soapParams = Settings.SoapParams ?? "",
+                    soapSendingSystem = Settings.SoapSendingSystem ?? "SCADA",
+                    soapMessageType = Settings.SoapMessageType ?? "SmsType1",
+                    senderName = Settings.SenderName ?? "",
+                    testMode = Settings.TestMode
+                }, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error loading SMS test page");
                 TempData["ErrorMessage"] = "Error loading page data.";
             }
+        }
+
+        public async Task<IActionResult> OnGetGroupMembersAsync(int groupId)
+        {
+            try
+            {
+                var members = await _groupService.GetGroupMembersAsync(groupId);
+                var result = members.Select(u => new
+                {
+                    name = $"{u.FirstName} {u.LastName}".Trim().Length > 0
+                        ? $"{u.FirstName} {u.LastName}".Trim()
+                        : u.UserName,
+                    maskedPhone = MaskPhone(u.PhoneNumber),
+                    smsEnabled = u.SmsEnabled
+                });
+                return new JsonResult(result);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error fetching group members for preview");
+                return new JsonResult(Array.Empty<object>());
+            }
+        }
+
+        private static string MaskPhone(string? phone)
+        {
+            if (string.IsNullOrEmpty(phone) || phone.Length <= 4) return phone ?? "—";
+            return new string('*', phone.Length - 4) + phone[^4..];
         }
 
         public async Task<IActionResult> OnPostSendTestAsync()

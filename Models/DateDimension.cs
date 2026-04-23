@@ -3,7 +3,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace SCADASMSSystem.Web.Models
 {
-    [Table("date_dimension")]
+    [Table("scada_date_dimension")]
     public class DateDimension
     {
         [Key]

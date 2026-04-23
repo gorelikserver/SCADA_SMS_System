@@ -22,6 +22,128 @@ namespace SCADASMSSystem.Web.Migrations
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
+            modelBuilder.Entity("SCADASMSSystem.Web.Models.AlarmAction", b =>
+                {
+                    b.Property<int>("BlockId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasColumnName("BLOCK_INDEX");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("BlockId"));
+
+                    b.Property<string>("Action")
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("ACTIONS_ON_ACTIVE");
+
+                    b.Property<string>("AlarmConditionName")
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("ALARM_CONDITION_NAME");
+
+                    b.Property<string>("AlarmDescription")
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("DESCRIPTION");
+
+                    b.Property<int?>("AlarmIdInt")
+                        .HasColumnType("int")
+                        .HasColumnName("ALARM_ID");
+
+                    b.Property<int>("Deleted")
+                        .HasColumnType("int")
+                        .HasColumnName("DELETED");
+
+                    b.HasKey("BlockId");
+
+                    b.HasIndex("AlarmIdInt");
+
+                    b.HasIndex("Deleted");
+
+                    b.ToTable("AlarmConditions");
+                });
+
+            modelBuilder.Entity("SCADASMSSystem.Web.Models.AlarmActionAudit", b =>
+                {
+                    b.Property<int>("AuditId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasColumnName("audit_id");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("AuditId"));
+
+                    b.Property<string>("ActionType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)")
+                        .HasColumnName("action_type");
+
+                    b.Property<int>("BlockId")
+                        .HasColumnType("int")
+                        .HasColumnName("block_index");
+
+                    b.Property<string>("IpAddress")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)")
+                        .HasColumnName("ip_address");
+
+                    b.Property<DateTime>("ModifiedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasColumnName("modified_at")
+                        .HasDefaultValueSql("GETDATE()");
+
+                    b.Property<string>("ModifiedBy")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)")
+                        .HasColumnName("modified_by");
+
+                    b.Property<string>("NewAction")
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("new_action");
+
+                    b.Property<int?>("NewGroupId")
+                        .HasColumnType("int")
+                        .HasColumnName("new_group_id");
+
+                    b.Property<string>("OldAction")
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("old_action");
+
+                    b.Property<int?>("OldGroupId")
+                        .HasColumnType("int")
+                        .HasColumnName("old_group_id");
+
+                    b.HasKey("AuditId");
+
+                    b.HasIndex("ActionType");
+
+                    b.HasIndex("BlockId");
+
+                    b.HasIndex("ModifiedAt");
+
+                    b.ToTable("scada_alarm_action_audit");
+                });
+
+            modelBuilder.Entity("SCADASMSSystem.Web.Models.DBListBlock", b =>
+                {
+                    b.Property<int>("BlockIndex")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasColumnName("BLOCK_INDEX");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("BlockIndex"));
+
+                    b.Property<string>("BlockName")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)")
+                        .HasColumnName("BLOCK_NAME");
+
+                    b.HasKey("BlockIndex");
+
+                    b.HasIndex("BlockName");
+
+                    b.ToTable("DBLIST");
+                });
+
             modelBuilder.Entity("SCADASMSSystem.Web.Models.DateDimension", b =>
                 {
                     b.Property<int>("DateId")
@@ -108,7 +230,7 @@ namespace SCADASMSSystem.Web.Migrations
 
                     b.HasIndex("IsSabbaticalHoliday");
 
-                    b.ToTable("date_dimension");
+                    b.ToTable("scada_date_dimension");
                 });
 
             modelBuilder.Entity("SCADASMSSystem.Web.Models.Group", b =>
@@ -134,7 +256,7 @@ namespace SCADASMSSystem.Web.Migrations
 
                     b.HasKey("GroupId");
 
-                    b.ToTable("groups");
+                    b.ToTable("scada_groups");
                 });
 
             modelBuilder.Entity("SCADASMSSystem.Web.Models.GroupMember", b =>
@@ -167,7 +289,7 @@ namespace SCADASMSSystem.Web.Migrations
                     b.HasIndex("GroupId", "UserId")
                         .IsUnique();
 
-                    b.ToTable("group_members");
+                    b.ToTable("scada_group_members");
                 });
 
             modelBuilder.Entity("SCADASMSSystem.Web.Models.SmsAudit", b =>
@@ -234,7 +356,7 @@ namespace SCADASMSSystem.Web.Migrations
 
                     b.HasIndex("UserId");
 
-                    b.ToTable("sms_audit");
+                    b.ToTable("scada_sms_audit");
                 });
 
             modelBuilder.Entity("SCADASMSSystem.Web.Models.User", b =>
@@ -253,10 +375,19 @@ namespace SCADASMSSystem.Web.Migrations
                         .HasDefaultValueSql("GETDATE()");
 
                     b.Property<string>("Email")
-                        .IsRequired()
                         .HasMaxLength(255)
                         .HasColumnType("nvarchar(255)")
                         .HasColumnName("email");
+
+                    b.Property<string>("FirstName")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)")
+                        .HasColumnName("first_name");
+
+                    b.Property<string>("LastName")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)")
+                        .HasColumnName("last_name");
 
                     b.Property<string>("PhoneNumber")
                         .IsRequired()
@@ -276,6 +407,11 @@ namespace SCADASMSSystem.Web.Migrations
                         .HasDefaultValue(false)
                         .HasColumnName("special_days_enabled");
 
+                    b.Property<string>("TZ")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)")
+                        .HasColumnName("tz");
+
                     b.Property<string>("UserName")
                         .IsRequired()
                         .HasMaxLength(255)
@@ -290,7 +426,7 @@ namespace SCADASMSSystem.Web.Migrations
 
                     b.HasIndex("SpecialDaysEnabled");
 
-                    b.ToTable("users");
+                    b.ToTable("scada_users");
                 });
 
             modelBuilder.Entity("SCADASMSSystem.Web.Models.GroupMember", b =>
