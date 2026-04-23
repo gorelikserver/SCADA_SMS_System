@@ -93,6 +93,12 @@ try
     // Typed HttpClient for SmsService — framework manages socket lifetime
     builder.Services.AddHttpClient<SmsService>();
 
+    // Named HttpClient for SOAP workbench probe — separate from SmsService client
+    builder.Services.AddHttpClient("SoapProbe", client =>
+    {
+        client.Timeout = TimeSpan.FromSeconds(30);
+    });
+
     // Add custom services
     builder.Services.AddScoped<ISmsService, SmsService>();
     builder.Services.AddScoped<IUserService, UserService>();

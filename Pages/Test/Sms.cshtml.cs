@@ -4,7 +4,10 @@ using Microsoft.Extensions.Options;
 using SCADASMSSystem.Web.Models;
 using SCADASMSSystem.Web.Services;
 using System.ComponentModel.DataAnnotations;
+using System.Diagnostics;
+using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 
 namespace SCADASMSSystem.Web.Pages.Test
 {
@@ -14,16 +17,28 @@ namespace SCADASMSSystem.Web.Pages.Test
         private readonly IGroupService _groupService;
         private readonly ILogger<SmsModel> _logger;
         private readonly IOptionsMonitor<SmsSettings> _smsMonitor;
+        private readonly IHttpClientFactory _httpClientFactory;
+        private readonly IWebHostEnvironment _env;
+        private readonly IConfiguration _configuration;
 
         private SmsSettings Settings => _smsMonitor.CurrentValue;
 
-        public SmsModel(SmsBackgroundService smsBackgroundService, IGroupService groupService,
-            ILogger<SmsModel> logger, IOptionsMonitor<SmsSettings> smsSettings)
+        public SmsModel(
+            SmsBackgroundService smsBackgroundService,
+            IGroupService groupService,
+            ILogger<SmsModel> logger,
+            IOptionsMonitor<SmsSettings> smsSettings,
+            IHttpClientFactory httpClientFactory,
+            IWebHostEnvironment env,
+            IConfiguration configuration)
         {
             _smsBackgroundService = smsBackgroundService;
             _groupService = groupService;
             _logger = logger;
             _smsMonitor = smsSettings;
+            _httpClientFactory = httpClientFactory;
+            _env = env;
+            _configuration = configuration;
         }
 
         [BindProperty]
@@ -49,12 +64,19 @@ namespace SCADASMSSystem.Web.Pages.Test
                     contentType = Settings.ContentType ?? "application/x-www-form-urlencoded",
                     apiParams = Settings.ApiParams ?? "",
                     apiHeaders = Settings.ApiHeaders ?? "",
+                    restAuthType = Settings.RestAuthType ?? "None",
+                    restBearerToken = string.IsNullOrEmpty(Settings.RestBearerToken) ? "" : "***",
+                    restApiKeyName = Settings.RestApiKeyName ?? "",
+                    restApiKeyLocation = Settings.RestApiKeyLocation ?? "Header",
                     soapAction = Settings.SoapAction ?? "",
+                    soapAuthType = Settings.SoapAuthType ?? "WSSecurity",
                     soapBodyTemplate = Settings.SoapBodyTemplate ?? "",
                     soapParams = Settings.SoapParams ?? "",
+                    soapEnvelopeNamespaces = Settings.SoapEnvelopeNamespaces ?? "",
                     soapSendingSystem = Settings.SoapSendingSystem ?? "SCADA",
                     soapMessageType = Settings.SoapMessageType ?? "SmsType1",
                     senderName = Settings.SenderName ?? "",
+                    username = Settings.Username ?? "",
                     testMode = Settings.TestMode
                 }, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
             }
