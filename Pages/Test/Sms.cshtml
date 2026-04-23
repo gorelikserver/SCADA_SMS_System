@@ -6,16 +6,57 @@
 
 <div class="container-fluid">
     <!-- Page Heading -->
-    <div class="d-sm-flex align-items-center justify-content-between mb-4">
-        <h1 class="h3 mb-0 text-gray-800">
-            <i class="fas fa-vial me-2"></i>SMS Service Test
-        </h1>
-        <a href="/" class="d-none d-sm-inline-block btn btn-sm btn-secondary shadow-sm">
-            <i class="fas fa-arrow-left fa-sm text-white-50"></i> Back to Dashboard
-        </a>
+    <div class="d-sm-flex align-items-center justify-content-between mb-3">
+        <div class="d-flex align-items-center gap-3">
+            <h1 class="h3 mb-0 text-gray-800">
+                <i class="fas fa-vial me-2"></i>SMS Service Test
+            </h1>
+            <span class="badge fs-6 @(Model.CurrentProviderType == "SOAP" ? "bg-warning text-dark" : "bg-primary")">
+                @Model.CurrentProviderType
+            </span>
+            @if (Model.TestModeActive)
+            {
+                <span class="badge fs-6 bg-warning text-dark"><i class="fas fa-flask me-1"></i>TEST MODE</span>
+            }
+        </div>
+        <div class="d-flex gap-2">
+            <a href="/Settings" class="d-none d-sm-inline-block btn btn-sm btn-outline-secondary shadow-sm">
+                <i class="fas fa-cog fa-sm me-1"></i>Settings
+            </a>
+            <a href="/" class="d-none d-sm-inline-block btn btn-sm btn-secondary shadow-sm">
+                <i class="fas fa-arrow-left fa-sm me-1"></i>Dashboard
+            </a>
+        </div>
     </div>
 
-    <!-- Toast triggers from server messages -->
+    <!-- ═══ Top-level tab bar ═══ -->
+    <ul class="nav nav-tabs mb-3" id="testPageTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link @(Model.CurrentProviderType == "SOAP" ? "" : "active")"
+                    id="tab-sms-test-btn"
+                    data-bs-toggle="tab" data-bs-target="#tab-sms-test"
+                    type="button" role="tab">
+                <i class="fas fa-paper-plane me-1"></i>SMS Test
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link @(Model.CurrentProviderType == "SOAP" ? "active" : "")"
+                    id="tab-soap-workbench-btn"
+                    data-bs-toggle="tab" data-bs-target="#tab-soap-workbench"
+                    type="button" role="tab">
+                <i class="fas fa-soap me-1"></i>SOAP Workbench
+                <span class="badge bg-warning text-dark ms-1" style="font-size:.62rem;">SOAP</span>
+            </button>
+        </li>
+    </ul>
+
+    <div class="tab-content" id="testPageTabsContent">
+
+    <!-- ═══ SMS TEST TAB ═══ -->
+    <div class="tab-pane fade @(Model.CurrentProviderType == "SOAP" ? "" : "show active")"
+         id="tab-sms-test" role="tabpanel">
+
+    <!-- Toast triggers -->
     @if (TempData["SuccessMessage"] != null)
     {
         <span class="d-none" data-toast-success="@TempData["SuccessMessage"]"></span>
@@ -25,57 +66,59 @@
         <span class="d-none" data-toast-error="@TempData["ErrorMessage"]"></span>
     }
 
-    <div class="row">
-        <!-- SMS Service Status -->
-        <div class="col-lg-6">
+    <!-- Main grid: left info panel | right action panel -->
+    <div class="row g-4">
+
+        <!-- ═══ LEFT: Status, Config, Instructions ═══ -->
+        <div class="col-lg-4">
+
+            <!-- Service Status -->
             <div class="card shadow mb-4">
                 <div class="card-header card-header-gradient py-3 d-flex justify-content-between align-items-center">
                     <h6 class="m-0 fw-bold">
-                        <i class="fas fa-heartbeat me-2"></i>SMS Service Status
+                        <i class="fas fa-heartbeat me-2"></i>Service Status
                     </h6>
                     <button class="btn btn-sm btn-outline-primary" onclick="refreshStatus()">
-                        <i class="fas fa-sync-alt"></i> Refresh
+                        <i class="fas fa-sync-alt fa-sm"></i>
                     </button>
                 </div>
-                <div class="card-body" id="statusCard">
-                    <div class="row">
+                <div class="card-body p-3" id="statusCard">
+                    <div class="row g-2">
                         <div class="col-6">
-                            <div class="border-bottom py-2">
-                                <small class="text-muted">Queue Size</small>
-                                <div class="font-weight-bold text-primary" id="queueSize">@Model.ServiceStatus.QueueSize</div>
+                            <div class="p-2 rounded" style="background:#f8f9fa;">
+                                <div class="text-muted" style="font-size:.72rem;text-transform:uppercase;letter-spacing:.4px;">Queue</div>
+                                <div class="fw-bold text-primary fs-5" id="queueSize">@Model.ServiceStatus.QueueSize</div>
                             </div>
                         </div>
                         <div class="col-6">
-                            <div class="border-bottom py-2">
-                                <small class="text-muted">Messages Sent</small>
-                                <div class="font-weight-bold text-success" id="messagesSent">@Model.ServiceStatus.MessagesSent</div>
+                            <div class="p-2 rounded" style="background:#f8f9fa;">
+                                <div class="text-muted" style="font-size:.72rem;text-transform:uppercase;letter-spacing:.4px;">Sent</div>
+                                <div class="fw-bold text-success fs-5" id="messagesSent">@Model.ServiceStatus.MessagesSent</div>
                             </div>
                         </div>
                         <div class="col-6">
-                            <div class="border-bottom py-2">
-                                <small class="text-muted">Messages Failed</small>
-                                <div class="font-weight-bold text-danger" id="messagesFailed">@Model.ServiceStatus.MessagesFailed</div>
+                            <div class="p-2 rounded" style="background:#f8f9fa;">
+                                <div class="text-muted" style="font-size:.72rem;text-transform:uppercase;letter-spacing:.4px;">Failed</div>
+                                <div class="fw-bold text-danger fs-5" id="messagesFailed">@Model.ServiceStatus.MessagesFailed</div>
                             </div>
                         </div>
                         <div class="col-6">
-                            <div class="border-bottom py-2">
-                                <small class="text-muted">Service Uptime</small>
-                                <div class="font-weight-bold" id="uptime">@Model.ServiceStatus.ServiceUptime.ToString(@"d\.hh\:mm\:ss")</div>
+                            <div class="p-2 rounded" style="background:#f8f9fa;">
+                                <div class="text-muted" style="font-size:.72rem;text-transform:uppercase;letter-spacing:.4px;">Uptime</div>
+                                <div class="fw-bold" style="font-size:.85rem;" id="uptime">@Model.ServiceStatus.ServiceUptime.ToString(@"d\.hh\:mm\:ss")</div>
                             </div>
                         </div>
                         <div class="col-12">
-                            <div class="py-2">
-                                <small class="text-muted">Last Message</small>
-                                <div class="font-weight-bold" id="lastMessage">
-                                    @if (Model.ServiceStatus.LastMessageTime.HasValue)
-                                    {
-                                        @Model.ServiceStatus.LastMessageTime.Value.ToString("yyyy-MM-dd HH:mm:ss")
-                                    }
-                                    else
-                                    {
-                                        <span class="text-muted">Never</span>
-                                    }
-                                </div>
+                            <div class="text-muted" style="font-size:.75rem;">Last message</div>
+                            <div class="fw-semibold" style="font-size:.82rem;" id="lastMessage">
+                                @if (Model.ServiceStatus.LastMessageTime.HasValue)
+                                {
+                                    @Model.ServiceStatus.LastMessageTime.Value.ToString("yyyy-MM-dd HH:mm:ss")
+                                }
+                                else
+                                {
+                                    <span class="text-muted">Never</span>
+                                }
                             </div>
                         </div>
                     </div>
@@ -86,100 +129,31 @@
             <div class="card shadow mb-4">
                 <div class="card-header card-header-gradient py-3">
                     <h6 class="m-0 fw-bold">
-                        <i class="fas fa-cogs me-2"></i>Service Configuration
+                        <i class="fas fa-cogs me-2"></i>Configuration
                     </h6>
                 </div>
-                <div class="card-body">
-                    <div class="row">
+                <div class="card-body p-3">
+                    <div class="row g-2">
                         <div class="col-6">
-                            <div class="border-bottom py-2">
-                                <small class="text-muted">Rate Limit</small>
-                                <div class="font-weight-bold">@Model.ServiceStatus.RateLimit / minute</div>
-                            </div>
+                            <div class="text-muted" style="font-size:.72rem;text-transform:uppercase;">Rate Limit</div>
+                            <div class="fw-semibold">@Model.ServiceStatus.RateLimit / min</div>
                         </div>
                         <div class="col-6">
-                            <div class="border-bottom py-2">
-                                <small class="text-muted">Duplicate Window</small>
-                                <div class="font-weight-bold">@Model.ServiceStatus.DuplicateWindow minutes</div>
-                            </div>
+                            <div class="text-muted" style="font-size:.72rem;text-transform:uppercase;">Dedup Window</div>
+                            <div class="fw-semibold">@Model.ServiceStatus.DuplicateWindow min</div>
                         </div>
-                        <div class="col-12">
-                            <div class="py-2">
-                                <small class="text-muted">Deduplication</small>
-                                <div class="font-weight-bold">
-                                    @if (Model.ServiceStatus.DeduplicationEnabled)
-                                    {
-                                        <span class="text-success"><i class="fas fa-check-circle"></i> Enabled</span>
-                                    }
-                                    else
-                                    {
-                                        <span class="text-warning"><i class="fas fa-exclamation-triangle"></i> Disabled</span>
-                                    }
-                                </div>
-                            </div>
+                        <div class="col-12 mt-1">
+                            <div class="text-muted" style="font-size:.72rem;text-transform:uppercase;">Deduplication</div>
+                            @if (Model.ServiceStatus.DeduplicationEnabled)
+                            {
+                                <span class="text-success"><i class="fas fa-check-circle me-1"></i>Enabled</span>
+                            }
+                            else
+                            {
+                                <span class="text-warning"><i class="fas fa-exclamation-triangle me-1"></i>Disabled</span>
+                            }
                         </div>
                     </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Test SMS Form -->
-        <div class="col-lg-6">
-            <div class="card shadow mb-4">
-                <div class="card-header card-header-gradient py-3">
-                    <h6 class="m-0 fw-bold">
-                        <i class="fas fa-paper-plane me-2"></i>Send Test SMS
-                    </h6>
-                </div>
-                <div class="card-body">
-                    <form method="post" asp-page-handler="SendTest">
-                        <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
-                        
-                        <div class="mb-3">
-                            <label asp-for="TestMessage.Message" class="form-label"></label>
-                            <textarea asp-for="TestMessage.Message" class="form-control" rows="3" 
-                                      placeholder="Enter your test message here..."></textarea>
-                            <span asp-validation-for="TestMessage.Message" class="text-danger"></span>
-                            <div class="form-text">
-                                <i class="fas fa-info-circle me-1"></i>
-                                Test message will be sent to all SMS-enabled users in the selected group
-                            </div>
-                        </div>
-
-                        <div class="mb-3">
-                            <label asp-for="TestMessage.GroupId" class="form-label"></label>
-                            <select asp-for="TestMessage.GroupId" class="form-select">
-                                <option value="">Select a group...</option>
-                                @foreach (var group in Model.AvailableGroups)
-                                {
-                                    <option value="@group.GroupId">@group.GroupName</option>
-                                }
-                            </select>
-                            <span asp-validation-for="TestMessage.GroupId" class="text-danger"></span>
-                        </div>
-
-                        @if (!Model.AvailableGroups.Any())
-                        {
-                            <div class="alert alert-warning">
-                                <i class="fas fa-exclamation-triangle me-2"></i>
-                                No groups available. Please <a href="/Groups/Create">create a group</a> before testing SMS.
-                            </div>
-                        }
-
-                        <div class="d-grid gap-2">
-                            <button type="submit" class="btn btn-warning" @(Model.AvailableGroups.Any() ? "" : "disabled")>
-                                <i class="fas fa-paper-plane me-2"></i>Send Test SMS
-                            </button>
-                        </div>
-                    </form>
-                    
-                    <form method="post" asp-page-handler="TestHealth" class="mt-2">
-                        <div class="d-grid">
-                            <button type="submit" class="btn btn-outline-info">
-                                <i class="fas fa-heartbeat me-2"></i>Test Health Check
-                            </button>
-                        </div>
-                    </form>
                 </div>
             </div>
 
@@ -187,131 +161,191 @@
             <div class="card shadow">
                 <div class="card-header card-header-gradient py-3">
                     <h6 class="m-0 fw-bold">
-                        <i class="fas fa-info-circle me-2"></i>Testing Instructions
+                        <i class="fas fa-info-circle me-2"></i>How to Test
+                    </h6>
+                </div>
+                <div class="card-body p-3" style="font-size:.83rem;">
+                    <ol class="mb-3 ps-3">
+                        <li>Select a group with SMS-enabled members</li>
+                        <li>Type your test message</li>
+                        <li>Preview updates live on the right</li>
+                        <li>Click <strong>Send Test SMS</strong></li>
+                        <li>Check <a href="/Audit">Audit page</a> for delivery results</li>
+                    </ol>
+                    <hr class="my-2">
+                    <div class="text-muted" style="font-size:.78rem;">
+                        <strong>API direct:</strong>
+                        <pre class="mt-1 p-2 rounded" style="background:#f8f9fa;font-size:.72rem;">POST /api/sms/send
+{ "message":"...", "groupId":1,
+  "alarmId":"TEST-001" }</pre>
+                    </div>
+                    @if (Model.TestModeActive)
+                    {
+                        <div class="alert alert-warning py-2 mb-0 mt-2" style="font-size:.78rem;">
+                            <i class="fas fa-flask me-1"></i>
+                            <strong>Test Mode ON</strong> — no real SMS sent. See Mock Tester below.
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <!-- ═══ RIGHT: Form + Preview ═══ -->
+        <div class="col-lg-8" x-data="smsPreviewer()" x-init="initFocusRefresh()">
+
+            <!-- Send Test SMS card -->
+            <div class="card shadow mb-4">
+                <div class="card-header card-header-gradient py-3">
+                    <h6 class="m-0 fw-bold">
+                        <i class="fas fa-paper-plane me-2"></i>Send Test SMS
                     </h6>
                 </div>
                 <div class="card-body">
-                    <h6 class="font-weight-bold">How to Test:</h6>
-                    <ol class="small">
-                        <li>Select a group that has members with SMS enabled</li>
-                        <li>Enter a test message (will include timestamp)</li>
-                        <li>Click "Send Test SMS" to queue the message</li>
-                        <li>Watch the service status update in real-time</li>
-                        <li>Check the <a href="/Audit">Audit page</a> for delivery results</li>
-                    </ol>
+                    <form method="post" asp-page-handler="SendTest" id="sendTestForm">
+                        <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
+                        <div class="row g-3">
+                            <div class="col-md-7">
+                                <label asp-for="TestMessage.Message" class="form-label fw-semibold" style="font-size:.82rem;text-transform:uppercase;letter-spacing:.4px;"></label>
+                                <textarea asp-for="TestMessage.Message" class="form-control" rows="3"
+                                          placeholder="Enter test message..." id="TestMessage_Message"></textarea>
+                                <span asp-validation-for="TestMessage.Message" class="text-danger small"></span>
+                            </div>
+                            <div class="col-md-5">
+                                <label asp-for="TestMessage.GroupId" class="form-label fw-semibold" style="font-size:.82rem;text-transform:uppercase;letter-spacing:.4px;"></label>
+                                <select asp-for="TestMessage.GroupId" class="form-select" id="TestMessage_GroupId">
+                                    <option value="">Select a group...</option>
+                                    @foreach (var group in Model.AvailableGroups)
+                                    {
+                                        <option value="@group.GroupId">@group.GroupName</option>
+                                    }
+                                </select>
+                                <span asp-validation-for="TestMessage.GroupId" class="text-danger small"></span>
 
-                    <h6 class="font-weight-bold mt-3">API Testing:</h6>
-                    <p class="small">You can also test the API directly:</p>
-                    <pre class="bg-light p-2 small">
-POST /api/sms/send
-{
-  "message": "Test message",
-  "groupId": 1,
-  "alarmId": "TEST-123"
-}
-
-GET /status</pre>
-
-                    <h6 class="font-weight-bold mt-3">Holiday Filtering:</h6>
-                    <p class="small">
-                        SMS delivery respects holiday settings. On sabbatical days, only users with 
-                        "Available on Special Days" enabled will receive messages.
-                    </p>
+                                @if (!Model.AvailableGroups.Any())
+                                {
+                                    <div class="alert alert-warning mt-2 py-2" style="font-size:.8rem;">
+                                        <i class="fas fa-exclamation-triangle me-1"></i>
+                                        No groups. <a href="/Groups/Create">Create one</a> first.
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                        <div class="d-flex gap-2 mt-3">
+                            <button type="submit" class="btn btn-warning flex-grow-1" @(Model.AvailableGroups.Any() ? "" : "disabled")>
+                                <i class="fas fa-paper-plane me-2"></i>Send Test SMS
+                            </button>
+                            <form method="post" asp-page-handler="TestHealth">
+                                <button type="submit" class="btn btn-outline-info">
+                                    <i class="fas fa-heartbeat me-1"></i>Health
+                                </button>
+                            </form>
+                        </div>
+                    </form>
                 </div>
             </div>
-        </div>
-    </div>
 
-    <!-- ═══ SMS PREVIEW PANEL ═══ -->
-    <div class="row mb-4" x-data="smsPreviewer(@Html.Raw(Model.SettingsJson))">
-        <!-- Stats bar -->
-        <div class="col-12 mb-2">
-            <div class="d-flex align-items-center gap-3 px-3 py-2 rounded" style="background:#f8f9fa;border:1px solid #dee2e6;font-size:.82rem;">
-                <i class="fas fa-eye text-secondary me-1"></i>
-                <span class="text-muted fw-semibold">Message Preview</span>
-                <span class="ms-2">Chars: <strong x-text="charCount">0</strong></span>
-                <span>Segments: <strong x-text="segments">1</strong></span>
-                <span class="badge ms-1" :class="encoding==='ASCII'?'bg-success':encoding.includes('Hebrew')?'bg-danger':'bg-warning text-dark'" x-text="encoding">ASCII</span>
-                <span class="ms-auto text-muted" style="font-size:.76rem;">
-                    Provider: <strong class="text-dark" x-text="settings.providerType"></strong>
-                    <template x-if="settings.testMode">
-                        <span class="badge bg-warning text-dark ms-1" style="font-size:.68rem;">TEST MODE</span>
-                    </template>
-                </span>
-            </div>
-        </div>
-
-        <!-- Request Preview -->
-        <div class="col-lg-6">
-            <div class="card shadow mb-4">
+            <!-- Preview card -->
+            <div class="card shadow">
                 <div class="card-header card-header-gradient py-2">
-                    <h6 class="m-0 fw-bold" style="font-size:.85rem;">
-                        <i class="fas fa-code me-2"></i>Request Preview
-                        <small class="fw-normal text-muted ms-2" style="font-size:.72rem;">live — updates as you type</small>
-                    </h6>
+                    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                        <h6 class="m-0 fw-bold">
+                            <i class="fas fa-eye me-2"></i>Live Preview
+                            <span class="badge bg-info ms-2" x-text="(settings.providerType||'REST').toUpperCase()" style="font-size:.65rem;"></span>
+                        </h6>
+                        <!-- Message stats -->
+                        <div class="d-flex align-items-center gap-3" style="font-size:.78rem;">
+                            <button type="button" class="btn btn-sm btn-outline-light py-0 px-2"
+                                    @@click="refreshSettings()" :disabled="refreshing"
+                                    title="Re-fetch the current saved settings from the server">
+                                <i class="fas" :class="refreshing?'fa-spinner fa-spin':'fa-sync-alt'"></i>
+                                <span class="ms-1" x-text="refreshing?'Refreshing…':'Refresh'"></span>
+                            </button>
+                            <span class="text-muted">
+                                <span x-text="charCount">0</span> chars
+                                &bull;
+                                <span x-text="segments">1</span> seg
+                            </span>
+                            <span class="badge"
+                                  :class="encoding==='ASCII'?'bg-success':encoding.includes('Hebrew')?'bg-danger':'bg-warning text-dark'"
+                                  x-text="encoding">ASCII</span>
+                        </div>
+                    </div>
                 </div>
                 <div class="card-body p-0">
-                    <pre class="m-0 p-3 rounded-bottom" style="font-size:.75rem;background:#1e1e1e;color:#d4d4d4;min-height:140px;max-height:280px;overflow-y:auto;white-space:pre-wrap;word-break:break-all;" x-text="requestPreview"></pre>
-                </div>
-            </div>
-        </div>
-
-        <!-- Recipients Preview -->
-        <div class="col-lg-6">
-            <div class="card shadow mb-4">
-                <div class="card-header card-header-gradient py-2 d-flex align-items-center justify-content-between">
-                    <h6 class="m-0 fw-bold" style="font-size:.85rem;">
-                        <i class="fas fa-users me-2"></i>Recipients Preview
-                    </h6>
-                    <span class="badge bg-secondary" style="font-size:.72rem;" x-show="recipients.length > 0">
-                        <span x-text="recipients.filter(r=>r.smsEnabled).length"></span> will receive
-                    </span>
-                </div>
-                <div class="card-body p-2">
-                    <template x-if="!groupId">
-                        <div class="text-center text-muted py-4" style="font-size:.82rem;">
-                            <i class="fas fa-arrow-up me-1"></i>Select a group above to preview recipients
+                    <!-- Bootstrap tabs -->
+                    <ul class="nav nav-tabs px-3 pt-2" style="border-bottom:1px solid #dee2e6;">
+                        <li class="nav-item">
+                            <a class="nav-link active" data-bs-toggle="tab" href="#tab-request" style="font-size:.82rem;">
+                                <i class="fas fa-code me-1"></i>Request
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" data-bs-toggle="tab" href="#tab-recipients" style="font-size:.82rem;">
+                                <i class="fas fa-users me-1"></i>Recipients
+                                <span class="badge bg-secondary ms-1" style="font-size:.65rem;"
+                                      x-show="recipients.length > 0"
+                                      x-text="recipients.filter(r=>r.smsEnabled).length + '/' + recipients.length"></span>
+                            </a>
+                        </li>
+                    </ul>
+                    <div class="tab-content">
+                        <!-- Request Preview tab -->
+                        <div class="tab-pane fade show active" id="tab-request">
+                            <pre class="m-0 p-3" style="font-size:.75rem;background:#1e1e1e;color:#d4d4d4;min-height:160px;max-height:320px;overflow-y:auto;white-space:pre-wrap;word-break:break-all;border-radius:0 0 .5rem .5rem;" x-text="requestPreview"></pre>
                         </div>
-                    </template>
-                    <template x-if="groupId && loadingRecipients">
-                        <div class="text-center py-4">
-                            <span class="spinner-border spinner-border-sm text-secondary"></span>
-                        </div>
-                    </template>
-                    <template x-if="groupId && !loadingRecipients && recipients.length === 0">
-                        <div class="text-center text-muted py-4" style="font-size:.82rem;">
-                            <i class="fas fa-user-slash me-1"></i>No members in this group
-                        </div>
-                    </template>
-                    <template x-if="groupId && !loadingRecipients && recipients.length > 0">
-                        <div>
-                            <table class="table table-sm table-hover align-middle mb-0" style="font-size:.78rem;">
-                                <thead class="table-light">
-                                    <tr>
-                                        <th>Name</th>
-                                        <th>Phone</th>
-                                        <th class="text-center">SMS</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <template x-for="(r, i) in recipients" :key="i">
-                                        <tr :class="r.smsEnabled ? '' : 'table-secondary text-muted'">
-                                            <td x-text="r.name || '—'"></td>
-                                            <td class="font-monospace" x-text="r.maskedPhone"></td>
-                                            <td class="text-center">
-                                                <template x-if="r.smsEnabled">
-                                                    <i class="fas fa-check-circle text-success"></i>
+                        <!-- Recipients tab -->
+                        <div class="tab-pane fade" id="tab-recipients">
+                            <div class="p-3" style="min-height:160px;">
+                                <template x-if="!groupId">
+                                    <div class="text-center text-muted py-5" style="font-size:.85rem;">
+                                        <i class="fas fa-users fa-2x mb-2 d-block text-secondary"></i>
+                                        Select a group above to preview who would receive this SMS
+                                    </div>
+                                </template>
+                                <template x-if="groupId && loadingRecipients">
+                                    <div class="text-center py-5">
+                                        <span class="spinner-border text-secondary"></span>
+                                    </div>
+                                </template>
+                                <template x-if="groupId && !loadingRecipients && recipients.length === 0">
+                                    <div class="text-center text-muted py-5" style="font-size:.85rem;">
+                                        <i class="fas fa-user-slash fa-2x mb-2 d-block text-secondary"></i>
+                                        No members in this group
+                                    </div>
+                                </template>
+                                <template x-if="groupId && !loadingRecipients && recipients.length > 0">
+                                    <div>
+                                        <div class="d-flex align-items-center justify-content-between mb-2">
+                                            <span style="font-size:.78rem;" class="text-muted">
+                                                <span class="text-success fw-bold" x-text="recipients.filter(r=>r.smsEnabled).length"></span>
+                                                of <span x-text="recipients.length"></span> members will receive
+                                            </span>
+                                        </div>
+                                        <table class="table table-sm table-hover align-middle mb-0" style="font-size:.82rem;">
+                                            <thead class="table-light">
+                                                <tr>
+                                                    <th>Name</th>
+                                                    <th>Phone</th>
+                                                    <th class="text-center" style="width:60px;">SMS</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <template x-for="(r, i) in recipients" :key="i">
+                                                    <tr :class="!r.smsEnabled ? 'table-secondary text-muted' : ''">
+                                                        <td x-text="r.name || '—'"></td>
+                                                        <td class="font-monospace" x-text="r.maskedPhone"></td>
+                                                        <td class="text-center">
+                                                            <i :class="r.smsEnabled ? 'fas fa-check-circle text-success' : 'fas fa-times-circle text-danger'"></i>
+                                                        </td>
+                                                    </tr>
                                                 </template>
-                                                <template x-if="!r.smsEnabled">
-                                                    <i class="fas fa-times-circle text-danger"></i>
-                                                </template>
-                                            </td>
-                                        </tr>
-                                    </template>
-                                </tbody>
-                            </table>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </template>
+                            </div>
                         </div>
-                    </template>
+                    </div>
                 </div>
             </div>
         </div>
@@ -336,7 +370,6 @@ GET /status</pre>
                     <div class="row g-4">
                         <!-- LEFT: Request builder -->
                         <div class="col-lg-5">
-                            <!-- Tab selector -->
                             <div class="d-flex gap-2 mb-3">
                                 <button type="button" class="btn btn-sm"
                                         :class="activeTab==='REST'?'btn-primary':'btn-outline-primary'"
@@ -350,20 +383,16 @@ GET /status</pre>
                                 </button>
                             </div>
 
-                            <!-- REST form -->
                             <div x-show="activeTab==='REST'" x-transition>
                                 <div class="mb-2">
                                     <label class="form-label" style="font-size:.82rem;">Phone Number</label>
-                                    <input type="tel" x-model="restPhone" class="form-control form-control-sm"
-                                           placeholder="+972501234567" />
+                                    <input type="tel" x-model="restPhone" class="form-control form-control-sm" placeholder="+972501234567" />
                                 </div>
                                 <div class="mb-3">
                                     <label class="form-label" style="font-size:.82rem;">Message</label>
-                                    <textarea x-model="restMessage" class="form-control form-control-sm" rows="3"
-                                              placeholder="Test alarm message..."></textarea>
+                                    <textarea x-model="restMessage" class="form-control form-control-sm" rows="3" placeholder="Test alarm message..."></textarea>
                                 </div>
-                                <button type="button" class="btn btn-primary w-100"
-                                        @@click="sendMockRest()" :disabled="sending">
+                                <button type="button" class="btn btn-primary w-100" @@click="sendMockRest()" :disabled="sending">
                                     <span x-show="sending" class="spinner-border spinner-border-sm me-1"></span>
                                     <i class="fas fa-paper-plane me-1" x-show="!sending"></i>
                                     <span x-text="sending?'Sending...':'Send to Mock REST'"></span>
@@ -373,26 +402,22 @@ GET /status</pre>
                                 </div>
                             </div>
 
-                            <!-- SOAP form -->
                             <div x-show="activeTab==='SOAP'" x-transition>
                                 <div class="mb-2">
                                     <label class="form-label" style="font-size:.82rem;">Phone Number</label>
-                                    <input type="tel" x-model="soapPhone" class="form-control form-control-sm"
-                                           placeholder="+972501234567" />
+                                    <input type="tel" x-model="soapPhone" class="form-control form-control-sm" placeholder="+972501234567" />
                                 </div>
                                 <div class="mb-3">
                                     <label class="form-label" style="font-size:.82rem;">Message</label>
-                                    <textarea x-model="soapMessage" class="form-control form-control-sm" rows="3"
-                                              placeholder="Test alarm message..."></textarea>
+                                    <textarea x-model="soapMessage" class="form-control form-control-sm" rows="3" placeholder="Test alarm message..."></textarea>
                                 </div>
-                                <button type="button" class="btn btn-warning text-dark w-100"
-                                        @@click="sendMockSoap()" :disabled="sending">
+                                <button type="button" class="btn btn-warning text-dark w-100" @@click="sendMockSoap()" :disabled="sending">
                                     <span x-show="sending" class="spinner-border spinner-border-sm me-1"></span>
                                     <i class="fas fa-paper-plane me-1" x-show="!sending"></i>
                                     <span x-text="sending?'Sending...':'Send to Mock SOAP'"></span>
                                 </button>
                                 <div class="info-box mt-2" style="font-size:.75rem;">
-                                    <code>POST /mock/sms/soap</code> — XML envelope with &lt;Phone&gt; and &lt;Message&gt;
+                                    <code>POST /mock/sms/soap</code> — XML envelope
                                 </div>
                             </div>
                         </div>
@@ -406,21 +431,20 @@ GET /status</pre>
                                           x-text="lastStatus===200?'200 OK':''+lastStatus+' Error'"></span>
                                 </template>
                             </div>
-                            <pre class="code-preview" style="min-height:120px; max-height:220px; overflow:auto; font-size:.75rem; white-space:pre-wrap; word-break:break-all;"
+                            <pre class="code-preview" style="min-height:120px;max-height:220px;overflow:auto;font-size:.75rem;white-space:pre-wrap;word-break:break-all;"
                                  x-text="responseText || '— no response yet —'"></pre>
 
-                            <!-- Recent log -->
                             <div class="mt-3">
                                 <div class="d-flex align-items-center justify-content-between mb-1">
-                                    <span style="font-size:.78rem; font-weight:600; color:#6c757d; text-transform:uppercase; letter-spacing:.3px;">
+                                    <span style="font-size:.78rem;font-weight:600;color:#6c757d;text-transform:uppercase;letter-spacing:.3px;">
                                         <i class="fas fa-list me-1"></i>Recent Mock Log
                                     </span>
-                                    <button type="button" class="btn btn-sm btn-outline-secondary" style="font-size:.72rem; padding:.15rem .5rem;"
+                                    <button type="button" class="btn btn-sm btn-outline-secondary" style="font-size:.72rem;padding:.15rem .5rem;"
                                             @@click="refreshLog()">
                                         <i class="fas fa-sync-alt"></i>
                                     </button>
                                 </div>
-                                <div class="border rounded" style="max-height:160px; overflow-y:auto; font-size:.74rem;">
+                                <div class="border rounded" style="max-height:160px;overflow-y:auto;font-size:.74rem;">
                                     <template x-if="mockLog.length===0">
                                         <div class="text-center text-muted py-3">
                                             <i class="fas fa-inbox me-1"></i>No messages yet
@@ -438,11 +462,9 @@ GET /status</pre>
                             </div>
                         </div>
                     </div>
-
                 </div>
             </div>
 
-            <!-- How Mock Server Works -->
             <div class="card shadow mt-3">
                 <div class="card-header card-header-gradient py-2">
                     <h6 class="m-0 fw-bold" style="font-size:.85rem;">
@@ -453,17 +475,17 @@ GET /status</pre>
                     <div class="row g-3">
                         <div class="col-md-6">
                             <p class="text-muted mb-2">
-                                When <strong>Test Mode is ON</strong>, all SMS sends are intercepted and routed to the
-                                built-in mock server. <strong>No real SMS is ever sent.</strong>
+                                When <strong>Test Mode is ON</strong>, all SMS sends are intercepted by the built-in mock.
+                                <strong>No real SMS is ever sent.</strong>
                             </p>
                             <ul class="mb-0" style="padding-left:1.2rem;">
-                                <li><strong>Failure rate:</strong> ~3% (simulated) — tests your retry logic</li>
-                                <li><strong>Log:</strong> last 100 messages, in-memory (reset on restart)</li>
+                                <li><strong>Failure rate:</strong> ~3% simulated — tests retry logic</li>
+                                <li><strong>Log:</strong> last 100 messages, in-memory</li>
                                 <li><strong>Mock ID:</strong> <code>MOCK-yyyyMMddHHmmssff-XXXX</code></li>
                             </ul>
                         </div>
                         <div class="col-md-6">
-                            <div class="code-preview" style="font-size:.72rem; padding:.6rem .8rem;">
+                            <div class="code-preview" style="font-size:.72rem;padding:.6rem .8rem;">
 <strong class="placeholder-key">REST mock</strong>  GET/POST /mock/sms/rest
   <span class="placeholder-var">→ JSON:</span> { mock, success, messageId }
 
@@ -478,6 +500,17 @@ GET /status</pre>
             </div>
         </div>
     }
+
+    </div><!-- /tab-sms-test -->
+
+    <!-- ═══ SOAP WORKBENCH TAB ═══ -->
+    <div class="tab-pane fade @(Model.CurrentProviderType == "SOAP" ? "show active" : "")"
+         id="tab-soap-workbench" role="tabpanel">
+        <!-- content added in Task 5 -->
+    </div><!-- /tab-soap-workbench -->
+
+    </div><!-- /tab-content -->
+
 </div>
 
 @section Scripts {
@@ -485,30 +518,25 @@ GET /status</pre>
 
     <script>
         document.addEventListener('DOMContentLoaded', function () {
-            // Show server messages as toasts
             document.querySelectorAll('[data-toast-success]').forEach(el =>
                 SCADAUtils.showToast('<i class="fas fa-check-circle me-2"></i>' + el.dataset.toastSuccess, 'success'));
             document.querySelectorAll('[data-toast-error]').forEach(el =>
                 SCADAUtils.showToast('<i class="fas fa-exclamation-circle me-2"></i>' + el.dataset.toastError, 'danger'));
 
-            // Loading state on send SMS form
-            const sendForm = document.querySelector('form[action*="SendTest"], form[method="post"]');
+            const sendForm = document.getElementById('sendTestForm');
             if (sendForm) {
-                sendForm.addEventListener('submit', function (e) {
+                sendForm.addEventListener('submit', function () {
                     const btn = this.querySelector('button[type="submit"]');
-                    if (btn && !btn.disabled) {
-                        SCADAUtils.setButtonLoading(btn, true, 'Sending...');
-                    }
+                    if (btn && !btn.disabled) SCADAUtils.setButtonLoading(btn, true, 'Sending...');
                 });
             }
         });
 
-        // Auto-refresh status every 5 seconds
         setInterval(refreshStatus, 5000);
 
         function refreshStatus() {
             fetch('/Test/Sms?handler=RefreshStatus')
-                .then(response => response.json())
+                .then(r => r.json())
                 .then(data => {
                     document.getElementById('queueSize').textContent = data.queueSize;
                     document.getElementById('messagesSent').textContent = data.messagesSent;
@@ -516,25 +544,17 @@ GET /status</pre>
                     document.getElementById('uptime').textContent = data.uptime;
                     document.getElementById('lastMessage').textContent = data.lastMessage || 'Never';
                 })
-                .catch(error => console.error('Error refreshing status:', error));
+                .catch(() => {});
         }
 
         function mockTester(defaultProvider) {
             return {
                 activeTab: defaultProvider === 'SOAP' ? 'SOAP' : 'REST',
-                restPhone: '',
-                restMessage: 'Test alarm from SCADA',
-                soapPhone: '',
-                soapMessage: 'Test alarm from SCADA',
-                sending: false,
-                lastStatus: null,
-                responseText: '',
-                mockLog: [],
+                restPhone: '', restMessage: 'Test alarm from SCADA',
+                soapPhone: '', soapMessage: 'Test alarm from SCADA',
+                sending: false, lastStatus: null, responseText: '', mockLog: [],
 
-                init() {
-                    this.refreshLog();
-                    setInterval(() => this.refreshLog(), 3000);
-                },
+                init() { this.refreshLog(); setInterval(() => this.refreshLog(), 3000); },
 
                 async sendMockRest() {
                     this.sending = true;
@@ -542,15 +562,10 @@ GET /status</pre>
                         const params = new URLSearchParams({ phone: this.restPhone, message: this.restMessage });
                         const res = await fetch('/mock/sms/rest?' + params);
                         this.lastStatus = res.status;
-                        const json = await res.json();
-                        this.responseText = JSON.stringify(json, null, 2);
+                        this.responseText = JSON.stringify(await res.json(), null, 2);
                         await this.refreshLog();
-                    } catch (e) {
-                        this.responseText = 'Error: ' + e.message;
-                        this.lastStatus = 0;
-                    } finally {
-                        this.sending = false;
-                    }
+                    } catch (e) { this.responseText = 'Error: ' + e.message; this.lastStatus = 0; }
+                    finally { this.sending = false; }
                 },
 
                 async sendMockSoap() {
@@ -567,20 +582,12 @@ GET /status</pre>
     </SendSMS>
   </soapenv:Body>
 </soapenv:Envelope>`;
-                        const res = await fetch('/mock/sms/soap', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'text/xml; charset=utf-8' },
-                            body
-                        });
+                        const res = await fetch('/mock/sms/soap', { method: 'POST', headers: { 'Content-Type': 'text/xml; charset=utf-8' }, body });
                         this.lastStatus = res.status;
                         this.responseText = await res.text();
                         await this.refreshLog();
-                    } catch (e) {
-                        this.responseText = 'Error: ' + e.message;
-                        this.lastStatus = 0;
-                    } finally {
-                        this.sending = false;
-                    }
+                    } catch (e) { this.responseText = 'Error: ' + e.message; this.lastStatus = 0; }
+                    finally { this.sending = false; }
                 },
 
                 async refreshLog() {
@@ -589,21 +596,60 @@ GET /status</pre>
                         if (!res.ok) return;
                         const data = await res.json();
                         this.mockLog = (data.recentLog || []).slice(0, 10);
-                    } catch { /* silently ignore */ }
+                    } catch { }
                 }
             };
         }
-    </script>
-    <script src="~/js/alpine.min.js" defer></script>
 
-    <script>
-        function smsPreviewer(settings) {
+        function smsPreviewer() {
+            // Inject settings as JSON element to avoid HTML attribute quote-breaking
+            const settings = JSON.parse(document.getElementById('sms-preview-settings').textContent);
             return {
                 settings,
-                message: document.getElementById('TestMessage_Message')?.value ?? '',
+                message: '',
                 groupId: null,
                 recipients: [],
                 loadingRecipients: false,
+                refreshing: false,
+
+                // Re-pull settings whenever the user returns to this tab/window so a Settings
+                // change (provider switch, test-mode toggle, auth method) reflects immediately
+                // without requiring a manual click on the Refresh button.
+                initFocusRefresh() {
+                    let last = 0;
+                    window.addEventListener('focus', () => {
+                        const now = Date.now();
+                        if (now - last < 1500) return; // debounce rapid Alt-Tab
+                        last = now;
+                        this.refreshSettings(true);
+                    });
+                },
+
+                async refreshSettings(silent) {
+                    if (this.refreshing) return;
+                    this.refreshing = true;
+                    try {
+                        const res = await fetch('/Settings?handler=Snapshot', {
+                            headers: { 'Accept': 'application/json' },
+                            cache: 'no-store'
+                        });
+                        if (!res.ok) throw new Error('HTTP ' + res.status);
+                        const data = await res.json();
+                        const before = this.settings.providerType;
+                        Object.keys(data).forEach(k => { this.settings[k] = data[k]; });
+                        const changed = before !== this.settings.providerType;
+                        if (window.SCADAUtils && SCADAUtils.showToast && (!silent || changed)) {
+                            SCADAUtils.showToast('Settings refreshed (Provider: ' + (this.settings.providerType || 'REST') + ')', 'success');
+                        }
+                    } catch (e) {
+                        console.error('refreshSettings failed', e);
+                        if (!silent && window.SCADAUtils && SCADAUtils.showToast) {
+                            SCADAUtils.showToast('Failed to refresh settings', 'danger');
+                        }
+                    } finally {
+                        this.refreshing = false;
+                    }
+                },
 
                 get charCount() { return this.message.length; },
                 get encoding() {
@@ -619,7 +665,7 @@ GET /status</pre>
                     return n <= max1 ? 1 : Math.ceil(n / maxN);
                 },
                 get requestPreview() {
-                    const msg = this.message || '{message}';
+                    const msg = this.message || '(type a message above)';
                     const phone = '+972XXXXXXXXX';
                     return this.settings.providerType === 'SOAP'
                         ? this.buildSoapPreview(msg, phone)
@@ -627,61 +673,102 @@ GET /status</pre>
                 },
 
                 buildRestPreview(msg, phone) {
-                    const endpoint = this.settings.apiEndpoint || '(no endpoint configured)';
+                    const endpoint = this.settings.apiEndpoint || '(endpoint not configured)';
                     const method = (this.settings.httpMethod || 'POST').toUpperCase();
+                    const ct = this.settings.contentType || 'application/x-www-form-urlencoded';
                     let params = [];
                     try {
-                        const rows = JSON.parse(this.settings.apiParams || '[]');
-                        params = rows.filter(r => r.enabled).map(r => ({
-                            key: r.key,
-                            value: this.resolveValue(r.value, msg, phone)
+                        // apiParams is stored as dict {"key": "keyword-or-value"}
+                        const raw = JSON.parse(this.settings.apiParams || '{}');
+                        params = Object.entries(raw).map(([k, v]) => ({
+                            key: k,
+                            value: this.resolveValue(v, msg, phone)
                         }));
                     } catch { }
-                    const ct = this.settings.contentType || 'application/x-www-form-urlencoded';
-                    let body = '';
                     if (method === 'GET') {
-                        const qs = params.map(p => `${encodeURIComponent(p.key)}=${encodeURIComponent(p.value)}`).join('&');
-                        return `GET ${endpoint}${qs ? '?' + qs : ''}\n\n(no body — params in query string)`;
+                        // Break long URLs onto one query-pair per line for readability;
+                        // the actual request still goes out as a single line.
+                        const pairs = params.map(p => `${encodeURIComponent(p.key)}=${encodeURIComponent(p.value)}`);
+                        const url = pairs.length
+                            ? `${endpoint}\n  ?${pairs.join('\n  &')}`
+                            : endpoint;
+                        return `${method} ${url}\n\n(no body)`;
                     }
+                    let body = '';
                     if (ct.includes('json')) {
-                        const obj = Object.fromEntries(params.map(p => [p.key, p.value]));
-                        body = JSON.stringify(obj, null, 2);
+                        body = JSON.stringify(Object.fromEntries(params.map(p => [p.key, p.value])), null, 2);
                     } else if (ct.includes('xml')) {
-                        body = params.map(p => `<${p.key}>${p.value}</${p.key}>`).join('\n');
+                        body = this.prettyXml(params.map(p => `<${p.key}>${p.value}</${p.key}>`).join(''));
                     } else {
-                        body = params.map(p => `${p.key}=${p.value}`).join('&');
+                        body = params.map(p => `${encodeURIComponent(p.key)}=${encodeURIComponent(p.value)}`).join('&');
                     }
-                    const headers = this.buildHeaderPreview();
-                    return `${method} ${endpoint}\nContent-Type: ${ct}${headers}\n\n${body || '(no params configured)'}`;
+                    const extraHeaders = this.buildHeaderLines();
+                    return `${method} ${endpoint}\nContent-Type: ${ct}${extraHeaders}\n\n${body || '(no params configured)'}`;
                 },
 
                 buildSoapPreview(msg, phone) {
-                    const endpoint = this.settings.apiEndpoint || '(no SOAP endpoint)';
+                    const endpoint = this.settings.apiEndpoint || '(SOAP endpoint not configured)';
                     const action = this.settings.soapAction || '';
-                    let body = this.settings.soapBodyTemplate || '';
+                    const authType = this.settings.soapAuthType || 'WSSecurity';
+                    const ns = this.settings.soapEnvelopeNamespaces
+                        ? ' ' + this.settings.soapEnvelopeNamespaces.trim() : '';
+
+                    let body = this.settings.soapBodyTemplate ||
+                        `<Phone>${phone}</Phone>\n<Message>${msg}</Message>`;
+
                     if (this.settings.soapParams) {
                         try {
                             const map = JSON.parse(this.settings.soapParams);
                             for (const [token, kw] of Object.entries(map))
                                 body = body.replaceAll(`{${token}}`, this.resolveValue(kw, msg, phone));
                         } catch { }
-                    } else if (body) {
-                        body = body
-                            .replace('{Message}', msg).replace('{Phone}', phone)
-                            .replace('{Username}', '***').replace('{Password}', '***')
-                            .replace('{SenderName}', this.settings.senderName || '');
-                    } else {
-                        body = `<Phone>${phone}</Phone>\n<Message>${msg}</Message>`;
+                    } else if (this.settings.soapBodyTemplate) {
+                        body = body.replace(/{Message}/g, msg).replace(/{Phone}/g, phone)
+                            .replace(/{Username}/g, '***').replace(/{Password}/g, '***')
+                            .replace(/{SenderName}/g, this.settings.senderName || '');
                     }
-                    return `POST ${endpoint}\nSOAPAction: "${action}"\nContent-Type: text/xml; charset=utf-8\n\n[SOAP Envelope body]\n${body}`;
+
+                    let header = '  <soapenv:Header/>';
+                    if (authType === 'WSSecurity') {
+                        header = `  <soapenv:Header>
+    <wsse:Security xmlns:wsse="http://schemas.xmlsoap.org/ws/2002/07/secext">
+      <wsse:UsernameToken>
+        <wsse:Username>***</wsse:Username>
+        <wsse:Password>***</wsse:Password>
+      </wsse:UsernameToken>
+    </wsse:Security>
+  </soapenv:Header>`;
+                    } else if (authType === 'HttpBasic') {
+                        header = '  <soapenv:Header/>';
+                    }
+
+                    const envelope = `<?xml version="1.0" encoding="utf-8"?>\n<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/"${ns}>\n${header}\n  <soapenv:Body>\n    ${body}\n  </soapenv:Body>\n</soapenv:Envelope>`;
+                    return `POST ${endpoint} HTTP/1.1\nSOAPAction: "${action}"\nContent-Type: text/xml; charset=utf-8\n\n${this.prettyXml(envelope)}`;
                 },
 
-                buildHeaderPreview() {
-                    if (!this.settings.apiHeaders) return '';
-                    try {
-                        const h = JSON.parse(this.settings.apiHeaders);
-                        return '\n' + Object.entries(h).map(([k, v]) => `${k}: ${k.toLowerCase().includes('auth') ? '***' : v}`).join('\n');
-                    } catch { return ''; }
+                buildHeaderLines() {
+                    const lines = [];
+                    // Auto-injected auth header from RestAuthType (mirrors SmsService.ApplyRestAuth)
+                    const authType = (this.settings.restAuthType || 'None');
+                    if (authType === 'Basic') {
+                        lines.push('Authorization: Basic ***');
+                    } else if (authType === 'Bearer') {
+                        if (this.settings.restBearerToken) lines.push('Authorization: Bearer ***');
+                    } else if (authType === 'ApiKey') {
+                        const name = this.settings.restApiKeyName;
+                        const loc  = this.settings.restApiKeyLocation || 'Header';
+                        if (name && loc === 'Header') lines.push(`${name}: ***`);
+                        // Query-location key is appended to URL; surfaced in REST preview path instead
+                    }
+                    if (this.settings.apiHeaders) {
+                        try {
+                            const h = JSON.parse(this.settings.apiHeaders);
+                            Object.entries(h).forEach(([k, v]) => {
+                                lines.push(`${k}: ${k.toLowerCase().includes('auth') || k.toLowerCase().includes('key') ? '***' : v}`);
+                            });
+                        } catch { }
+                    }
+                    return lines.length ? '\n' + lines.join('\n') : '';
                 },
 
                 resolveValue(keyword, msg, phone) {
@@ -696,8 +783,39 @@ GET /status</pre>
                         case 'lastname': return '{LastName}';
                         case 'sendingsystem': return this.settings.soapSendingSystem || 'SCADA';
                         case 'messagetype': return this.settings.soapMessageType || 'SmsType1';
+                        // SCADA payload-derived dynamic vars (forwarded by Scada_sms.bat at runtime).
+                        // Preview substitutes a clearly bracketed placeholder so admins recognise them.
+                        case 'group_id': case 'groupid': return '{GroupId}';
+                        case 'alarm_id': case 'alarmid': return '{AlarmId}';
+                        case 'priority': return '{Priority}';
+                        case 'value': return '{Value}';
                         default: return keyword;
                     }
+                },
+
+                // Lightweight XML pretty-printer for the request preview.
+                // Inserts newlines between adjacent tags and indents 2 spaces per nesting level.
+                // Pure-string transform — does NOT validate the XML; safe for preview only.
+                prettyXml(xml) {
+                    if (!xml || typeof xml !== 'string') return xml;
+                    try {
+                        const PAD = '  ';
+                        // Normalise: put each tag on its own line, then re-indent.
+                        let formatted = xml
+                            .replace(/>\s*</g, '>\n<')
+                            .replace(/(<\?xml[^?]*\?>)/g, '$1\n');
+                        let indent = 0;
+                        return formatted.split('\n').map(line => {
+                            line = line.trim();
+                            if (!line) return '';
+                            // Closing tag → dedent first
+                            if (/^<\//.test(line)) indent = Math.max(0, indent - 1);
+                            const padded = PAD.repeat(indent) + line;
+                            // Opening tag (not self-closing, not <?xml, not <!--) → indent next
+                            if (/^<[^!?\/][^>]*[^\/]>$/.test(line)) indent++;
+                            return padded;
+                        }).filter(Boolean).join('\n');
+                    } catch { return xml; }
                 },
 
                 async fetchRecipients(groupId) {
@@ -705,8 +823,7 @@ GET /status</pre>
                     this.loadingRecipients = true;
                     try {
                         const res = await fetch(`/Test/Sms?handler=GroupMembers&groupId=${groupId}`);
-                        if (res.ok) this.recipients = await res.json();
-                        else this.recipients = [];
+                        this.recipients = res.ok ? await res.json() : [];
                     } catch { this.recipients = []; }
                     finally { this.loadingRecipients = false; }
                 },
@@ -730,4 +847,9 @@ GET /status</pre>
             };
         }
     </script>
+
+    <!-- Settings JSON injected as data element to avoid HTML attribute quoting issues -->
+    <script type="application/json" id="sms-preview-settings">@Html.Raw(Model.SettingsJson)</script>
+
+    <script src="~/js/alpine.min.js" defer></script>
 }
