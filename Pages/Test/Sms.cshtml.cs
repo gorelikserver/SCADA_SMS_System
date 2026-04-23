@@ -299,6 +299,46 @@ namespace SCADASMSSystem.Web.Pages.Test
             }
         }
 
+        public async Task<IActionResult> OnPostSaveSoapConfigAsync([FromBody] SaveSoapConfigRequest req)
+        {
+            try
+            {
+                var appSettingsPath = Path.Combine(_env.ContentRootPath, "appsettings.json");
+                var json = await System.IO.File.ReadAllTextAsync(appSettingsPath);
+                var root = JsonNode.Parse(json)!.AsObject();
+
+                // Clone existing SmsSettings node so non-SOAP fields are preserved
+                var existing = root["SmsSettings"]?.AsObject() ?? new JsonObject();
+
+                existing["ProviderType"]           = "SOAP";
+                existing["ApiEndpoint"]            = req.ApiEndpoint;
+                existing["SoapAction"]             = req.SoapAction;
+                existing["SoapBodyTemplate"]       = req.SoapBodyTemplate;
+                existing["SoapParams"]             = req.SoapParams;
+                existing["SoapEnvelopeNamespaces"] = req.SoapEnvelopeNamespaces;
+                existing["SoapAuthType"]           = req.SoapAuthType;
+                existing["Username"]               = req.Username;
+                if (!string.IsNullOrEmpty(req.Password))
+                    existing["Password"]           = req.Password;
+
+                root["SmsSettings"] = existing;
+
+                var writeOptions = new JsonSerializerOptions { WriteIndented = true };
+                await System.IO.File.WriteAllTextAsync(appSettingsPath, root.ToJsonString(writeOptions));
+
+                if (_configuration is IConfigurationRoot configRoot)
+                    configRoot.Reload();
+
+                _logger.LogInformation("SOAP config saved from workbench by user");
+                return new JsonResult(new { success = true });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error saving SOAP config from workbench");
+                return new JsonResult(new { success = false, message = ex.Message }) { StatusCode = 500 };
+            }
+        }
+
         private static string BuildWsSecurityHeader(string username, string password) =>
             $@"  <soapenv:Header>
     <Security xmlns=""http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd"">
@@ -338,5 +378,17 @@ namespace SCADASMSSystem.Web.Pages.Test
         public string Username { get; set; } = string.Empty;
         public string Password { get; set; } = string.Empty;
         public bool TargetMock { get; set; }
+    }
+
+    public class SaveSoapConfigRequest
+    {
+        public string ApiEndpoint { get; set; } = string.Empty;
+        public string SoapAction { get; set; } = string.Empty;
+        public string SoapBodyTemplate { get; set; } = string.Empty;
+        public string SoapParams { get; set; } = string.Empty;
+        public string SoapEnvelopeNamespaces { get; set; } = string.Empty;
+        public string SoapAuthType { get; set; } = string.Empty;
+        public string Username { get; set; } = string.Empty;
+        public string Password { get; set; } = string.Empty;
     }
 }
