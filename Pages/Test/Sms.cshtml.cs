@@ -11,7 +11,6 @@ using System.Text.Json.Nodes;
 
 namespace SCADASMSSystem.Web.Pages.Test
 {
-    [IgnoreAntiforgeryToken]
     public class SmsModel : PageModel
     {
         private readonly SmsBackgroundService _smsBackgroundService;
@@ -215,8 +214,8 @@ namespace SCADASMSSystem.Web.Pages.Test
                     return new JsonResult(new { success = false, errorMessage = "Invalid endpoint URL" }) { StatusCode = 400 };
 
                 // Fall back to saved credentials when caller sends empty strings
-                var username = !string.IsNullOrEmpty(req.Username) ? req.Username : Settings.Username;
-                var password = !string.IsNullOrEmpty(req.Password) ? req.Password : Settings.Password;
+                var username = !string.IsNullOrEmpty(req.Username) ? req.Username : (Settings.Username ?? string.Empty);
+                var password = !string.IsNullOrEmpty(req.Password) ? req.Password : (Settings.Password ?? string.Empty);
 
                 var envelope = req.Envelope;
 
@@ -228,6 +227,8 @@ namespace SCADASMSSystem.Web.Pages.Test
                     envelope = envelope
                         .Replace("<soapenv:Header/>", wsHeader, StringComparison.Ordinal)
                         .Replace("<soapenv:Header />", wsHeader, StringComparison.Ordinal);
+                    if (!envelope.Contains("<Security", StringComparison.OrdinalIgnoreCase))
+                        _logger.LogWarning("FireSoap: WSSecurity injection requested but no matching empty header tag found — Security header was not injected");
                 }
 
                 var client = _httpClientFactory.CreateClient("SoapProbe");
