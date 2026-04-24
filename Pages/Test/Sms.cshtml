@@ -1121,6 +1121,279 @@
                 }
             };
         }
+
+        function soapWorkbench() {
+            return {
+                // ── Request state ──────────────────────────────
+                endpoint: '',
+                soapAction: '',
+                authType: 'WSSecurity',
+                username: '',
+                password: '',
+                soapBodyTemplate: '',
+                soapParams: {},
+                soapEnvelopeNamespaces: '',
+                inputs: {
+                    message: 'Test alarm from SCADA',
+                    phone: '+972501234567',
+                    tz: '',
+                    firstName: '',
+                    lastName: '',
+                    senderName: '',
+                    sendingSystem: 'SCADA',
+                    messageType: 'SmsType1',
+                },
+                targetMock: false,
+                editorTab: 'template',
+                rawEnvelope: '',
+                showAuth: false,
+
+                // ── Response state ─────────────────────────────
+                sending: false,
+                lastStatusCode: null,
+                lastElapsedMs: null,
+                lastSuccess: null,
+                lastErrorMessage: null,
+                lastResponseBody: '',
+                lastEchoEnvelope: '',
+                showEcho: false,
+                saving: false,
+
+                // ── Init ───────────────────────────────────────
+                init() {
+                    const s = JSON.parse(document.getElementById('sms-preview-settings').textContent);
+                    this.endpoint = s.apiEndpoint || '';
+                    this.soapAction = s.soapAction || '';
+                    this.authType = s.soapAuthType || 'WSSecurity';
+                    this.username = s.username || '';
+                    this.soapBodyTemplate = s.soapBodyTemplate || '';
+                    this.soapEnvelopeNamespaces = s.soapEnvelopeNamespaces || '';
+                    this.inputs.sendingSystem = s.soapSendingSystem || 'SCADA';
+                    this.inputs.messageType = s.soapMessageType || 'SmsType1';
+                    this.inputs.senderName = s.senderName || '';
+                    try { this.soapParams = s.soapParams ? JSON.parse(s.soapParams) : {}; } catch { this.soapParams = {}; }
+                    this.rawEnvelope = this.assembledEnvelope;
+                },
+
+                // ── Computed: assembled full envelope ──────────
+                get assembledEnvelope() {
+                    if (!this.soapBodyTemplate) return '<!-- No SOAP Body Template configured -->';
+                    let body = this.soapBodyTemplate;
+                    if (Object.keys(this.soapParams).length > 0) {
+                        for (const [token, keyword] of Object.entries(this.soapParams))
+                            body = body.replaceAll(`{${token}}`, this.resolveKeyword(keyword));
+                    } else {
+                        body = body
+                            .replaceAll('{Message}',       this.escXml(this.inputs.message))
+                            .replaceAll('{Phone}',         this.escXml(this.inputs.phone))
+                            .replaceAll('{TZ}',            this.escXml(this.inputs.tz))
+                            .replaceAll('{FirstName}',     this.escXml(this.inputs.firstName))
+                            .replaceAll('{LastName}',      this.escXml(this.inputs.lastName))
+                            .replaceAll('{Username}',      '***')
+                            .replaceAll('{Password}',      '***')
+                            .replaceAll('{SenderName}',    this.escXml(this.inputs.senderName))
+                            .replaceAll('{SendingSystem}', this.escXml(this.inputs.sendingSystem))
+                            .replaceAll('{MessageType}',   this.escXml(this.inputs.messageType));
+                    }
+                    const ns = this.soapEnvelopeNamespaces ? ' ' + this.soapEnvelopeNamespaces.trim() : '';
+                    const header = this.authType === 'WSSecurity'
+                        ? `  <soapenv:Header>
+    <Security xmlns="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd">
+      <UsernameToken>
+        <Username>***</Username>
+        <Password Type="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-username-token-profile-1.0#PasswordText">***</Password>
+      </UsernameToken>
+    </Security>
+  </soapenv:Header>`
+                        : '  <soapenv:Header/>';
+                    return `<?xml version="1.0" encoding="utf-8"?>
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/"${ns}>
+${header}
+  <soapenv:Body>
+${body}
+  </soapenv:Body>
+</soapenv:Envelope>`;
+                },
+
+                // ── Computed: which template tokens need inputs ─
+                get detectedInputTokens() {
+                    if (Object.keys(this.soapParams).length > 0) {
+                        return Object.keys(this.soapParams);
+                    }
+                    const credTokens = new Set(['Username', 'Password']);
+                    const matches = [...(this.soapBodyTemplate || '').matchAll(/\{(\w+)\}/g)];
+                    return [...new Set(matches.map(m => m[1]).filter(t => !credTokens.has(t)))];
+                },
+
+                // ── Helpers ────────────────────────────────────
+                tokenKey(token) {
+                    const map = {
+                        Message: 'message', Phone: 'phone', TZ: 'tz',
+                        FirstName: 'firstName', LastName: 'lastName',
+                        SenderName: 'senderName', SendingSystem: 'sendingSystem',
+                        MessageType: 'messageType',
+                    };
+                    return map[token] || token.toLowerCase();
+                },
+
+                tokenLabel(token) {
+                    const labels = {
+                        Message: 'Message', Phone: 'Phone Number', TZ: 'TZ (User Timezone)',
+                        FirstName: 'First Name', LastName: 'Last Name',
+                        SenderName: 'Sender Name', SendingSystem: 'Sending System',
+                        MessageType: 'Message Type',
+                    };
+                    if (Object.keys(this.soapParams).length > 0) {
+                        const kw = this.soapParams[token] || token;
+                        return `${token} (${kw})`;
+                    }
+                    return labels[token] || token;
+                },
+
+                tokenPlaceholder(token) {
+                    const ph = {
+                        message: 'Test alarm message', phone: '+972501234567', tz: '0',
+                        firstName: 'John', lastName: 'Doe', senderName: 'SCADA',
+                        sendingSystem: 'SCADA', messageType: 'SmsType1',
+                    };
+                    return ph[this.tokenKey(token)] || '';
+                },
+
+                resolveKeyword(keyword) {
+                    switch ((keyword || '').toLowerCase()) {
+                        case 'message': return this.escXml(this.inputs.message);
+                        case 'phone': case 'phonenumber': case 'mobile': return this.escXml(this.inputs.phone);
+                        case 'tz': return this.escXml(this.inputs.tz);
+                        case 'firstname': return this.escXml(this.inputs.firstName);
+                        case 'lastname': return this.escXml(this.inputs.lastName);
+                        case 'username': case 'user': return '***';
+                        case 'password': case 'pass': return '***';
+                        case 'sender_name': case 'sendername': case 'from': return this.escXml(this.inputs.senderName);
+                        case 'sendingsystem': return this.escXml(this.inputs.sendingSystem);
+                        case 'messagetype': return this.escXml(this.inputs.messageType);
+                        default: return this.escXml(keyword);
+                    }
+                },
+
+                escXml(s) {
+                    return String(s || '')
+                        .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+                        .replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;');
+                },
+
+                switchToRaw() {
+                    this.rawEnvelope = this.assembledEnvelope;
+                    this.editorTab = 'raw';
+                },
+
+                switchToTemplate() {
+                    if (this.editorTab === 'template') return;
+                    if (!confirm('Switch to Template mode? Any direct edits in Raw mode will be lost.')) return;
+                    this.editorTab = 'template';
+                },
+
+                // ── Send ───────────────────────────────────────
+                async send() {
+                    this.sending = true;
+                    this.lastStatusCode = null;
+                    this.lastElapsedMs = null;
+                    this.lastSuccess = null;
+                    this.lastErrorMessage = null;
+                    this.lastResponseBody = '';
+                    this.lastEchoEnvelope = '';
+                    this.showEcho = false;
+                    try {
+                        const envelope = this.editorTab === 'raw' ? this.rawEnvelope : this.assembledEnvelope;
+                        const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
+                        const res = await fetch('?handler=FireSoap', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': token },
+                            body: JSON.stringify({
+                                endpoint: this.endpoint,
+                                soapAction: this.soapAction,
+                                envelope,
+                                authType: this.authType,
+                                username: this.username,
+                                password: this.password,
+                                targetMock: this.targetMock,
+                            }),
+                        });
+                        const data = await res.json();
+                        this.lastStatusCode = data.statusCode ?? res.status;
+                        this.lastElapsedMs = data.elapsedMs ?? null;
+                        this.lastSuccess = data.success ?? false;
+                        this.lastErrorMessage = data.errorMessage ?? null;
+                        this.lastResponseBody = data.body ?? '';
+                        this.lastEchoEnvelope = data.echoEnvelope ?? '';
+                    } catch (e) {
+                        this.lastResponseBody = 'Network error: ' + e.message;
+                        this.lastSuccess = false;
+                        this.lastStatusCode = 0;
+                    } finally {
+                        this.sending = false;
+                    }
+                },
+
+                // ── Load from settings ─────────────────────────
+                async loadFromSettings() {
+                    try {
+                        const res = await fetch('/Settings?handler=Snapshot', {
+                            headers: { Accept: 'application/json' },
+                            cache: 'no-store',
+                        });
+                        if (!res.ok) throw new Error('HTTP ' + res.status);
+                        const s = await res.json();
+                        this.endpoint = s.apiEndpoint || '';
+                        this.soapAction = s.soapAction || '';
+                        this.authType = s.soapAuthType || 'WSSecurity';
+                        this.username = s.username || '';
+                        this.soapBodyTemplate = s.soapBodyTemplate || '';
+                        this.soapEnvelopeNamespaces = s.soapEnvelopeNamespaces || '';
+                        this.inputs.sendingSystem = s.soapSendingSystem || 'SCADA';
+                        this.inputs.messageType = s.soapMessageType || 'SmsType1';
+                        this.inputs.senderName = s.senderName || '';
+                        try { this.soapParams = s.soapParams ? JSON.parse(s.soapParams) : {}; } catch { this.soapParams = {}; }
+                        this.rawEnvelope = this.assembledEnvelope;
+                        if (window.SCADAUtils) SCADAUtils.showToast('Loaded from settings', 'success');
+                    } catch (e) {
+                        if (window.SCADAUtils) SCADAUtils.showToast('Failed to load settings: ' + e.message, 'danger');
+                    }
+                },
+
+                // ── Save to settings ───────────────────────────
+                async saveToSettings() {
+                    this.saving = true;
+                    try {
+                        const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
+                        const res = await fetch('?handler=SaveSoapConfig', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': token },
+                            body: JSON.stringify({
+                                apiEndpoint: this.endpoint,
+                                soapAction: this.soapAction,
+                                soapBodyTemplate: this.soapBodyTemplate,
+                                soapParams: Object.keys(this.soapParams).length > 0
+                                    ? JSON.stringify(this.soapParams) : '',
+                                soapEnvelopeNamespaces: this.soapEnvelopeNamespaces,
+                                soapAuthType: this.authType,
+                                username: this.username,
+                                password: this.password,
+                            }),
+                        });
+                        const data = await res.json();
+                        if (window.SCADAUtils)
+                            SCADAUtils.showToast(
+                                data.success ? 'Saved to settings' : ('Save failed: ' + (data.message || 'Unknown error')),
+                                data.success ? 'success' : 'danger'
+                            );
+                    } catch (e) {
+                        if (window.SCADAUtils) SCADAUtils.showToast('Save failed: ' + e.message, 'danger');
+                    } finally {
+                        this.saving = false;
+                    }
+                },
+            };
+        }
     </script>
 
     <!-- Settings JSON injected as data element to avoid HTML attribute quoting issues -->
