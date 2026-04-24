@@ -67,7 +67,7 @@ namespace SCADASMSSystem.Web.Services
             }
         }
 
-        public async Task<bool> QueueSmsMessageAsync(string message, int groupId, string alarmId, string priority = "normal")
+        public async Task<bool> QueueSmsMessageAsync(string message, int groupId, string alarmId, string priority = "normal", string? value = null)
         {
             try
             {
@@ -77,6 +77,7 @@ namespace SCADASMSSystem.Web.Services
                     GroupId = groupId,
                     AlarmId = alarmId,
                     Priority = priority,
+                    Value = value,
                     QueuedAt = DateTime.Now
                 };
 
@@ -167,7 +168,7 @@ namespace SCADASMSSystem.Web.Services
                 // Add timestamp to message if configured
                 var messageWithTimestamp = AddTimestampToMessage(queueItem.Message);
                 
-                var success = await smsService.SendSmsToGroupAsync(messageWithTimestamp, queueItem.GroupId, queueItem.AlarmId);
+                var success = await smsService.SendSmsToGroupAsync(messageWithTimestamp, queueItem.GroupId, queueItem.AlarmId, queueItem.Priority, queueItem.Value);
                 
                 if (success)
                 {
@@ -263,6 +264,8 @@ namespace SCADASMSSystem.Web.Services
         public int GroupId { get; set; }
         public string AlarmId { get; set; } = string.Empty;
         public string Priority { get; set; } = "normal";
+        // Optional measurement value forwarded by SCADA (alarmed tag reading, etc.)
+        public string? Value { get; set; }
         public DateTime QueuedAt { get; set; }
     }
 

@@ -108,6 +108,23 @@
               KeyPath="yes" />
       </Component>
 
+      <!--
+        Full install-folder cleanup on uninstall.
+        MSI by default only removes files it installed. Files created post-install
+        (configured appsettings backups, harvested folders, runtime artifacts) would
+        otherwise be orphaned. RemoveFolderEx walks INSTALLDIR and removes everything.
+      -->
+      <Component Id="InstallDirCleanupComp"
+                 Guid="E4F5A6B7-8C9D-0E1F-2A3B-C4D5E6F7A8B9">
+        <RegistryValue Root="HKLM"
+                       Key="Software\$(Manufacturer)\$(ProductName)"
+                       Name="InstallDir"
+                       Type="string"
+                       Value="[INSTALLDIR]"
+                       KeyPath="yes" />
+        <util:RemoveFolderEx On="uninstall" Property="INSTALLDIR" />
+      </Component>
+
       <!-- Remaining files: harvested by Generate-HarvestedFiles.ps1 (HarvestedAppFiles component group) -->
       <ComponentGroupRef Id="HarvestedAppFiles" />
 

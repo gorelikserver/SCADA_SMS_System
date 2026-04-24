@@ -20,24 +20,30 @@ if not defined PRI set "PRI=normal"
 :: Validate group ID is numeric
 echo %GRP%| findstr /r "^[0-9]*$" >nul || exit /b 1
 
-:: Append VALUE parameter to message if provided
-if defined VALUE (
-    set "MSG=!MSG! - !VALUE!"
-)
-
-:: Escape quotes for JSON
+:: Escape quotes for JSON in Message and Value
 set "MSG=!MSG:"=\"!"
+if defined VALUE set "VALUE=!VALUE:"=\"!"
 
 :: Smart curl detection: try bundled first, then system
 set "CURL_PATH=%~dp0..\Tools\curl.exe"
 if not exist "%CURL_PATH%" set "CURL_PATH=curl.exe"
 
-:: Create temporary JSON file to avoid batch escaping issues
+:: Create temporary JSON file to avoid batch escaping issues.
+:: Value is a first-class SCADA payload field (e.g. tag reading at the time of alarm).
+:: It is NOT auto-appended to Message anymore \u2014 use the {Value} placeholder in your
+:: REST/SOAP body template (Settings \u2192 Body Parameters) to embed it.
 set "TEMP_JSON=%TEMP%\scada_sms_%RANDOM%.json"
-(
-    echo {"Message":"!MSG!","GroupId":%GRP%,"AlarmId":"%ALM%","Priority":"%PRI%"
-    echo }
-) > "%TEMP_JSON%"
+if defined VALUE (
+    (
+        echo {"Message":"!MSG!","GroupId":%GRP%,"Value":"!VALUE!","AlarmId":"%ALM%","Priority":"%PRI%"
+        echo }
+    ) > "%TEMP_JSON%"
+) else (
+    (
+        echo {"Message":"!MSG!","GroupId":%GRP%,"AlarmId":"%ALM%","Priority":"%PRI%"
+        echo }
+    ) > "%TEMP_JSON%"
+)
 
 :: Send SMS using JSON file
 "%CURL_PATH%" -X POST http://localhost:5000/api/sms/send -H "Content-Type: application/json; charset=utf-8" --data-binary "@%TEMP_JSON%" --silent --connect-timeout 5 --max-time 15 >nul 2>&1

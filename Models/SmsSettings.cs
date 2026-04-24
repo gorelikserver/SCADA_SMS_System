@@ -32,6 +32,26 @@ namespace SCADASMSSystem.Web.Models
         // JSON dict of extra HTTP request headers: {"X-API-Key": "abc", "Authorization": "Bearer xyz"}
         public string ApiHeaders { get; set; } = string.Empty;
 
+        // REST authentication method applied automatically by SmsService:
+        //   "None"   - no auth header injected
+        //   "Basic"  - Authorization: Basic base64(Username:Password)
+        //   "Bearer" - Authorization: Bearer {RestBearerToken}
+        //   "ApiKey" - {RestApiKeyName} sent as header or query (per RestApiKeyLocation)
+        public string RestAuthType { get; set; } = "None";
+
+        // Bearer token for RestAuthType="Bearer" (stored in plain text in appsettings.json,
+        // same trust boundary as Username/Password)
+        public string RestBearerToken { get; set; } = string.Empty;
+
+        // API-key header/query name (e.g. "X-API-Key", "api_key")
+        public string RestApiKeyName { get; set; } = string.Empty;
+
+        // API-key value
+        public string RestApiKeyValue { get; set; } = string.Empty;
+
+        // "Header" (default) or "Query"
+        public string RestApiKeyLocation { get; set; } = "Header";
+
         // If set, response body must contain this string for REST call to count as success
         public string RestSuccessPattern { get; set; } = string.Empty;
 

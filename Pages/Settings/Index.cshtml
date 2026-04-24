@@ -203,6 +203,12 @@
     .pm-type-select.pm-type-default  { color:#6b7280; background:#f9fafb; border-color:#d1d5db; }
     .pm-row-default { opacity:.72; }
     .pm-row-default .pm-kv-key { color:#9ca3af; }
+    .pm-row-mandatory { background:#fff8e1 !important; border-left:3px solid #ffc107; }
+    .pm-row-mandatory .pm-kv-key { font-weight:600; color:#7c4d00; }
+    .pm-row-mandatory .pm-row-del:disabled { color:#ffc107; cursor:not-allowed; }
+    .pm-row-scada-optional { background:#e7f5ff !important; border-left:3px solid #339af0; }
+    .pm-row-scada-optional .pm-kv-key { font-weight:600; color:#1864ab; }
+    .pm-row-scada-optional .pm-row-del:disabled { color:#339af0; cursor:not-allowed; }
     .pm-param-legend { font-size:.68rem; color:#9ca3af; display:flex; gap:12px; margin-top:4px; margin-bottom:2px; }
     .pm-param-legend span { display:flex; align-items:center; gap:3px; }
     .pm-legend-dot-dynamic { width:7px;height:7px;border-radius:50%;background:#7c3aed;flex-shrink:0; }
@@ -243,6 +249,7 @@
             <i class="fas fa-check-circle me-2"></i>@TempData["SuccessMessage"]
             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>
+        <script>try { localStorage.removeItem('scada_settings_draft'); } catch {}</script>
     }
     @if (TempData["ErrorMessage"] != null)
     {
@@ -322,9 +329,9 @@
                             <i class="fas fa-database me-1"></i>Test DB Connection
                         </button>
                     </form>
-                    <form method="post" asp-page-handler="CleanupData">
-                        <button type="submit" class="btn btn-outline-warning btn-sm w-100"
-                                onclick="return confirm('Delete audit records older than 90 days?')">
+                    <form method="post" asp-page-handler="CleanupData" id="cleanupDataForm">
+                        <button type="button" class="btn btn-outline-warning btn-sm w-100"
+                                onclick="confirmCleanupData()">
                             <i class="fas fa-broom me-1"></i>Cleanup Old Data
                         </button>
                     </form>
@@ -361,26 +368,28 @@
 
         <!-- RIGHT: Editable Settings Form -->
         <div class="col-xl-9 col-lg-8">
-            <form method="post" asp-page-handler="SaveSettings" id="settingsForm" x-data="settingsApp()" @@submit="serializeToHiddenInputs()">
+            <form method="post" asp-page-handler="SaveSettings" id="settingsForm" x-data="settingsApp()">
                 @Html.AntiForgeryToken()
-                <!-- Hidden binding targets — Alpine writes to these on submit -->
-                <input type="hidden" asp-for="SmsSettingsInput.ProviderType" />
-                <input type="hidden" asp-for="SmsSettingsInput.ApiEndpoint" />
-                <input type="hidden" asp-for="SmsSettingsInput.HttpMethod" />
-                <input type="hidden" asp-for="SmsSettingsInput.ContentType" />
-                <input type="hidden" asp-for="SmsSettingsInput.ApiParams" />
-                <input type="hidden" asp-for="SmsSettingsInput.ApiHeaders" />
-                <input type="hidden" asp-for="SmsSettingsInput.SoapAction" />
-                <input type="hidden" asp-for="SmsSettingsInput.SoapAuthType" />
-                <textarea style="display:none" asp-for="SmsSettingsInput.SoapBodyTemplate"></textarea>
-                <input type="hidden" asp-for="SmsSettingsInput.SoapEnvelopeNamespaces" />
-                <input type="hidden" asp-for="SmsSettingsInput.SoapMessageType" />
-                <input type="hidden" asp-for="SmsSettingsInput.SoapSendingSystem" />
-                <input type="hidden" asp-for="SmsSettingsInput.RestSuccessPattern" />
-                <input type="hidden" asp-for="SmsSettingsInput.RestFailurePattern" />
-                <input type="hidden" asp-for="SmsSettingsInput.SoapSuccessPattern" />
-                <input type="hidden" asp-for="SmsSettingsInput.SoapErrorPattern" />
-                <input type="hidden" asp-for="SmsSettingsInput.SoapParams" />
+                <!-- Reactive hidden inputs — Alpine :value keeps these synced at all times -->
+                <input type="hidden" asp-for="SmsSettingsInput.ProviderType"           :value="providerType" />
+                <input type="hidden" asp-for="SmsSettingsInput.ApiEndpoint"            :value="endpoint" />
+                <input type="hidden" asp-for="SmsSettingsInput.HttpMethod"             :value="httpMethod" />
+                <input type="hidden" asp-for="SmsSettingsInput.ContentType"            :value="contentType" />
+                <input type="hidden" asp-for="SmsSettingsInput.ApiParams"              :value="rowsToJson(paramRows)" />
+                <input type="hidden" asp-for="SmsSettingsInput.ApiHeaders"             :value="rowsToJson(headerRows)" />
+                <input type="hidden" asp-for="SmsSettingsInput.SoapAction"             :value="soapAction" />
+                <input type="hidden" asp-for="SmsSettingsInput.SoapAuthType"           :value="soapAuthType" />
+                <textarea style="display:none" asp-for="SmsSettingsInput.SoapBodyTemplate" :value="soapTemplate"></textarea>
+                <input type="hidden" asp-for="SmsSettingsInput.SoapEnvelopeNamespaces" :value="soapNamespaces" />
+                <input type="hidden" asp-for="SmsSettingsInput.SoapMessageType"        :value="soapMsgType" />
+                <input type="hidden" asp-for="SmsSettingsInput.SoapSendingSystem"      :value="soapSendingSys" />
+                <input type="hidden" asp-for="SmsSettingsInput.RestSuccessPattern"     :value="successPattern" />
+                <input type="hidden" asp-for="SmsSettingsInput.RestFailurePattern"     :value="failurePattern" />
+                <input type="hidden" asp-for="SmsSettingsInput.SoapSuccessPattern"     :value="soapSuccessPattern" />
+                <input type="hidden" asp-for="SmsSettingsInput.SoapErrorPattern"       :value="soapErrorPattern" />
+                <input type="hidden" asp-for="SmsSettingsInput.SoapParams"             :value="rowsToJson(soapParamRows)" />
+                <input type="hidden" asp-for="SmsSettingsInput.TestMode"               :value="testMode ? 'true' : 'false'" />
+                <input type="hidden" asp-for="SmsSettingsInput.RestAuthType"           :value="restAuthType" />
 
                 <!-- Tab navigation -->
                 <div class="card config-card mb-0" style="border-radius:12px 12px 0 0; border-bottom:none;">
@@ -428,12 +437,12 @@
                                     <div class="pm-provider-toggle">
                                         <button type="button" class="pm-toggle-btn"
                                                 :class="providerType==='REST'?'active':''"
-                                                @@click="providerType='REST'">
+                                                @@click="requestProviderSwitch('REST')">
                                             <i class="fas fa-code me-1"></i>REST
                                         </button>
                                         <button type="button" class="pm-toggle-btn"
                                                 :class="providerType==='SOAP'?'active':''"
-                                                @@click="providerType='SOAP'">
+                                                @@click="requestProviderSwitch('SOAP')">
                                             <i class="fas fa-file-code me-1"></i>SOAP
                                         </button>
                                     </div>
@@ -471,6 +480,13 @@
                                                           x-text="paramRows.filter(r=>r.enabled&&r.key.trim()).length"></span>
                                                 </button>
                                                 <button type="button" class="pm-inner-tab"
+                                                        :class="restTab==='auth'?'active':''"
+                                                        @@click="restTab='auth'">
+                                                    Auth
+                                                    <span class="pm-tab-badge"
+                                                          x-text="restAuthType==='None'?'':restAuthType"></span>
+                                                </button>
+                                                <button type="button" class="pm-inner-tab"
                                                         :class="restTab==='headers'?'active':''"
                                                         @@click="restTab='headers'">
                                                     Headers
@@ -493,26 +509,38 @@
 
                                                 <!-- PARAMS tab -->
                                                 <div x-show="restTab==='params'">
+                                                    <div class="info-box mb-2" style="font-size:.78rem;">
+                                                        <i class="fas fa-info-circle me-1"></i>
+                                                        <strong>Mandatory:</strong> the <code>message</code> row is <strong>locked</strong> &mdash; only the provider key name is editable. The next four rows (<code>group_id</code>, <code>value</code>, <code>alarm_id</code>, <code>priority</code>) are SCADA payload fields that are always shown but disabled by default &mdash; tick them on if your gateway expects them. Add per-recipient (phone/tz/firstname/lastname) or platform (username/password/sender_name/&hellip;) variables via the <strong>+ Add variable</strong> picker.
+                                                        Other rows: pick <em>Dynamic</em> for SCADA variables (whitelist), or <em>Static</em> for literal constants. Custom literals require a fixed value.
+                                                    </div>
                                                     <div class="pm-kv-table">
                                                         <div class="pm-kv-header">
                                                             <span></span><span>Key</span>
                                                             <span>Value</span><span>Type</span><span></span>
                                                         </div>
-                                                        <template x-for="(row, i) in paramRows" :key="i">
-                                                            <div class="pm-kv-row" :class="(!row.enabled?'pm-row-disabled ':'')+(!row.enabled||row.paramType==='default'?'pm-row-default':'')">
-                                                                <input type="checkbox" x-model="row.enabled" class="pm-row-check" />
-                                                                <input type="text" x-model="row.key" class="pm-kv-key" placeholder="key" />
+                                                        <template x-for="(row, i) in paramRows" :key="row._id">
+                                                            <div class="pm-kv-row" :class="(!row.enabled?'pm-row-disabled ':'')+(!row.enabled||row.paramType==='default'?'pm-row-default ':'')+(row.mandatory?'pm-row-mandatory':'')+(row.scadaOptional?' pm-row-scada-optional':'')">
+                                                                <input type="checkbox" x-model="row.enabled" class="pm-row-check" :disabled="row.mandatory" :title="row.mandatory?'Mandatory — cannot disable':(row.scadaOptional?'SCADA payload field — toggle to include':'')" />
+                                                                <div class="d-flex align-items-center gap-1">
+                                                                    <i x-show="row.mandatory" class="fas fa-lock text-warning" style="font-size:.7rem;" title="Mandatory SCADA variable"></i>
+                                                                    <i x-show="row.scadaOptional && !row.mandatory" class="fas fa-bolt text-info" style="font-size:.7rem;" title="SCADA payload field (optional)"></i>
+                                                                    <input type="text" x-model="row.key" class="pm-kv-key" placeholder="key" />
+                                                                </div>
                                                                 <div class="pm-value-cell">
                                                                     <template x-if="row.isDynamic">
                                                                         <div class="d-flex align-items-center gap-1 w-100">
                                                                             <span class="pm-dynamic-pill"><i class="fas fa-bolt me-1" style="font-size:.65em;"></i><span x-text="'{'+row.value+'}'"></span></span>
-                                                                            <select x-model="row.value" @@change="onValueChange(row)" class="pm-kv-val-select-sm">
+                                                                            <select x-model="row.value" @@change="onValueChange(row)" class="pm-kv-val-select-sm" :disabled="row.mandatory || row.scadaOptional">
                                                                                 <option value="">↩ literal</option>
                                                                                 <option value="message">message</option>
                                                                                 <option value="phone">phone</option>
                                                                                 <option value="username">username</option>
                                                                                 <option value="password">password</option>
                                                                                 <option value="sender_name">sender_name</option>
+                                                                                <option value="firstname">firstname</option>
+                                                                                <option value="lastname">lastname</option>
+                                                                                <option value="tz">tz</option>
                                                                             </select>
                                                                         </div>
                                                                     </template>
@@ -528,6 +556,9 @@
                                                                                 <option value="username">username</option>
                                                                                 <option value="password">password</option>
                                                                                 <option value="sender_name">sender_name</option>
+                                                                                <option value="firstname">firstname</option>
+                                                                                <option value="lastname">lastname</option>
+                                                                                <option value="tz">tz</option>
                                                                             </select>
                                                                         </div>
                                                                     </template>
@@ -536,14 +567,15 @@
                                                                     <select x-model="row.paramType"
                                                                             class="pm-type-select"
                                                                             :class="'pm-type-'+(row.paramType||'static')"
+                                                                            :disabled="row.mandatory"
                                                                             :title="row.paramType==='dynamic'?'Resolved from SCADA at send time':row.paramType==='static'?'Fixed literal value':'Placeholder — sent as-is'">
                                                                         <option value="dynamic" :disabled="!row.isDynamic">Dynamic</option>
                                                                         <option value="static">Static</option>
                                                                         <option value="default">Default</option>
                                                                     </select>
                                                                 </div>
-                                                                <button type="button" class="pm-row-del" @@click="removeParamRow(i)" title="Remove">
-                                                                    <i class="fas fa-times"></i>
+                                                                <button type="button" class="pm-row-del" @@click="removeParamRow(i)" :disabled="row.mandatory" :title="row.mandatory?'Mandatory — cannot remove':'Remove'">
+                                                                    <i class="fas" :class="row.mandatory?'fa-lock':'fa-times'"></i>
                                                                 </button>
                                                             </div>
                                                         </template>
@@ -558,6 +590,24 @@
                                                     <button type="button" class="pm-add-row-btn" @@click="addParamRow()">
                                                         <i class="fas fa-plus me-1"></i>Add Parameter
                                                     </button>
+                                                    <select class="form-select form-select-sm d-inline-block ms-2" style="width:auto"
+                                                            @@change="addDynamicRow('paramRows', $event.target.value); $event.target.value=''"
+                                                            title="Add a per-recipient or platform variable as a new dynamic row">
+                                                        <option value="">+ Add variable…</option>
+                                                        <optgroup label="User (per-recipient)">
+                                                            <option value="phone">phone</option>
+                                                            <option value="tz">tz</option>
+                                                            <option value="firstname">firstname</option>
+                                                            <option value="lastname">lastname</option>
+                                                        </optgroup>
+                                                        <optgroup label="Platform (from Settings)">
+                                                            <option value="username">username</option>
+                                                            <option value="password">password</option>
+                                                            <option value="sender_name">sender_name</option>
+                                                            <option value="sendingsystem">sendingsystem</option>
+                                                            <option value="messagetype">messagetype</option>
+                                                        </optgroup>
+                                                    </select>
                                                 </div>
 
                                                 <!-- HEADERS tab -->
@@ -566,7 +616,7 @@
                                                         <div class="pm-kv-header">
                                                             <span></span><span>Header Name</span><span>Value</span><span></span>
                                                         </div>
-                                                        <template x-for="(row, i) in headerRows" :key="i">
+                                                        <template x-for="(row, i) in headerRows" :key="row._id">
                                                             <div class="pm-kv-row" :class="!row.enabled?'pm-row-disabled':''">
                                                                 <input type="checkbox" x-model="row.enabled" class="pm-row-check" />
                                                                 <input type="text" x-model="row.key" class="pm-kv-key" placeholder="Header-Name" />
@@ -582,6 +632,82 @@
                                                     <button type="button" class="pm-add-row-btn" @@click="addHeaderRow()">
                                                         <i class="fas fa-plus me-1"></i>Add Header
                                                     </button>
+                                                </div>
+
+                                                <!-- AUTH tab — auth method drives which security inputs appear -->
+                                                <div x-show="restTab==='auth'">
+                                                    <div class="row g-3 mt-1">
+                                                        <div class="col-12">
+                                                            <label class="form-label" style="font-size:.78rem;">Auth Type</label>
+                                                            <select x-model="restAuthType" class="form-select form-select-sm">
+                                                                <option value="None">No Auth</option>
+                                                                <option value="Basic">Basic Auth (Username + Password)</option>
+                                                                <option value="Bearer">Bearer Token</option>
+                                                                <option value="ApiKey">API Key (Header or Query)</option>
+                                                            </select>
+                                                            <small class="text-muted d-block mt-1">
+                                                                Selected method is applied automatically by the SMS service — no need to add the Authorization header manually.
+                                                            </small>
+                                                        </div>
+
+                                                        <!-- Basic -->
+                                                        <template x-if="restAuthType==='Basic'">
+                                                            <div class="col-12">
+                                                                <div class="row g-2">
+                                                                    <div class="col-md-6">
+                                                                        <label class="form-label" for="restBasicUser" style="font-size:.78rem;">Username</label>
+                                                                        <input id="restBasicUser" name="SmsSettingsInput.Username" value="@Model.SmsSettingsInput.Username" class="form-control form-control-sm" placeholder="api_user" autocomplete="off" />
+                                                                    </div>
+                                                                    <div class="col-md-6">
+                                                                        <label class="form-label" for="restBasicPass" style="font-size:.78rem;">Password</label>
+                                                                        <input id="restBasicPass" name="SmsSettingsInput.Password" value="@Model.SmsSettingsInput.Password" type="password" class="form-control form-control-sm" placeholder="••••••••" autocomplete="new-password" />
+                                                                    </div>
+                                                                </div>
+                                                                <small class="text-muted">Sent as <code>Authorization: Basic base64(username:password)</code>. Shares Username/Password with SOAP credentials.</small>
+                                                            </div>
+                                                        </template>
+
+                                                        <!-- Bearer -->
+                                                        <template x-if="restAuthType==='Bearer'">
+                                                            <div class="col-12">
+                                                                <label class="form-label" style="font-size:.78rem;">Bearer Token</label>
+                                                                <input asp-for="SmsSettingsInput.RestBearerToken" type="password" class="form-control form-control-sm font-monospace" placeholder="eyJhbGciOi…" autocomplete="off" />
+                                                                <small class="text-muted">Sent as <code>Authorization: Bearer {token}</code>.</small>
+                                                            </div>
+                                                        </template>
+
+                                                        <!-- API Key -->
+                                                        <template x-if="restAuthType==='ApiKey'">
+                                                            <div class="col-12">
+                                                                <div class="row g-2">
+                                                                    <div class="col-md-5">
+                                                                        <label class="form-label" style="font-size:.78rem;">Key Name</label>
+                                                                        <input asp-for="SmsSettingsInput.RestApiKeyName" class="form-control form-control-sm" placeholder="X-API-Key" autocomplete="off" />
+                                                                    </div>
+                                                                    <div class="col-md-5">
+                                                                        <label class="form-label" style="font-size:.78rem;">Key Value</label>
+                                                                        <input asp-for="SmsSettingsInput.RestApiKeyValue" type="password" class="form-control form-control-sm font-monospace" placeholder="••••••••" autocomplete="off" />
+                                                                    </div>
+                                                                    <div class="col-md-2">
+                                                                        <label class="form-label" style="font-size:.78rem;">Send In</label>
+                                                                        <select asp-for="SmsSettingsInput.RestApiKeyLocation" class="form-select form-select-sm">
+                                                                            <option value="Header">Header</option>
+                                                                            <option value="Query">Query</option>
+                                                                        </select>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </template>
+
+                                                        <template x-if="restAuthType==='None'">
+                                                            <div class="col-12">
+                                                                <div class="info-box">
+                                                                    <i class="fas fa-info-circle me-1"></i>
+                                                                    No authentication will be applied. If your provider requires custom auth, add it via the <strong>Headers</strong> tab.
+                                                                </div>
+                                                            </div>
+                                                        </template>
+                                                    </div>
                                                 </div>
 
                                                 <!-- BODY tab -->
@@ -719,20 +845,28 @@
                                                     Body Parameters
                                                     <span class="text-muted fw-normal">(map template placeholders to values)</span>
                                                 </label>
+                                                <div class="info-box mb-2" style="font-size:.78rem;">
+                                                    <i class="fas fa-info-circle me-1"></i>
+                                                    <strong>Mandatory:</strong> the SOAP body template must contain the <code>{Message}</code> token (locked row below). The four SCADA payload rows (<code>group_id</code>, <code>value</code>, <code>alarm_id</code>, <code>priority</code>) are always shown but disabled by default &mdash; tick them on to inject into the SOAP body. Add per-recipient or platform vars via the <strong>+ Add variable</strong> picker.
+                                                </div>
                                                 <div class="pm-kv-table">
                                                     <div class="pm-kv-header">
                                                         <span></span><span>Placeholder</span>
                                                         <span>Value / Keyword</span><span>Type</span><span></span>
                                                     </div>
-                                                    <template x-for="(row, i) in soapParamRows" :key="i">
-                                                        <div class="pm-kv-row" :class="(!row.enabled?'pm-row-disabled ':'')">
-                                                            <input type="checkbox" x-model="row.enabled" class="pm-row-check" />
-                                                            <input type="text" x-model="row.key" class="pm-kv-key" placeholder="{Token}" />
+                                                    <template x-for="(row, i) in soapParamRows" :key="row._id">
+                                                        <div class="pm-kv-row" :class="(!row.enabled?'pm-row-disabled ':'')+(row.mandatory?'pm-row-mandatory':'')+(row.scadaOptional?' pm-row-scada-optional':'')">
+                                                            <input type="checkbox" x-model="row.enabled" class="pm-row-check" :disabled="row.mandatory" :title="row.mandatory?'Mandatory — cannot disable':(row.scadaOptional?'SCADA payload field — toggle to include':'')" />
+                                                            <div class="d-flex align-items-center gap-1">
+                                                                <i x-show="row.mandatory" class="fas fa-lock text-warning" style="font-size:.7rem;" title="Mandatory placeholder"></i>
+                                                                <i x-show="row.scadaOptional && !row.mandatory" class="fas fa-bolt text-info" style="font-size:.7rem;" title="SCADA payload field (optional)"></i>
+                                                                <input type="text" x-model="row.key" class="pm-kv-key" placeholder="{Token}" />
+                                                            </div>
                                                             <div class="pm-value-cell">
                                                                 <template x-if="row.isDynamic">
                                                                     <div class="d-flex align-items-center gap-1 w-100">
                                                                         <span class="pm-dynamic-pill"><i class="fas fa-bolt me-1" style="font-size:.65em;"></i><span x-text="row.value"></span></span>
-                                                                        <select x-model="row.value" @@change="onValueChange(row)" class="pm-kv-val-select-sm">
+                                                                        <select x-model="row.value" @@change="onValueChange(row)" class="pm-kv-val-select-sm" :disabled="row.mandatory || row.scadaOptional">
                                                                             <option value="">↩ literal</option>
                                                                             <option value="message">message</option>
                                                                             <option value="phone">phone</option>
@@ -771,13 +905,14 @@
                                                             <div>
                                                                 <select x-model="row.paramType"
                                                                         class="pm-type-select"
-                                                                        :class="'pm-type-'+(row.paramType||'static')">
+                                                                        :class="'pm-type-'+(row.paramType||'static')"
+                                                                        :disabled="row.mandatory">
                                                                     <option value="dynamic" :disabled="!row.isDynamic">Dynamic</option>
                                                                     <option value="static">Static</option>
                                                                 </select>
                                                             </div>
-                                                            <button type="button" class="pm-row-del" @@click="removeSoapParamRow(i)" title="Remove">
-                                                                <i class="fas fa-times"></i>
+                                                            <button type="button" class="pm-row-del" @@click="removeSoapParamRow(i)" :disabled="row.mandatory" :title="row.mandatory?'Mandatory — cannot remove':'Remove'">
+                                                                <i class="fas" :class="row.mandatory?'fa-lock':'fa-times'"></i>
                                                             </button>
                                                         </div>
                                                     </template>
@@ -789,6 +924,24 @@
                                                 <button type="button" class="pm-add-row-btn" @@click="addSoapParamRow()">
                                                     <i class="fas fa-plus me-1"></i>Add Placeholder
                                                 </button>
+                                                <select class="form-select form-select-sm d-inline-block ms-2" style="width:auto"
+                                                        @@change="addDynamicRow('soapParamRows', $event.target.value); $event.target.value=''"
+                                                        title="Add a per-recipient or platform variable as a new placeholder row">
+                                                    <option value="">+ Add variable…</option>
+                                                    <optgroup label="User (per-recipient)">
+                                                        <option value="phone">phone</option>
+                                                        <option value="tz">tz</option>
+                                                        <option value="firstname">firstname</option>
+                                                        <option value="lastname">lastname</option>
+                                                    </optgroup>
+                                                    <optgroup label="Platform (from Settings)">
+                                                        <option value="username">username</option>
+                                                        <option value="password">password</option>
+                                                        <option value="sender_name">sender_name</option>
+                                                        <option value="sendingsystem">sendingsystem</option>
+                                                        <option value="messagetype">messagetype</option>
+                                                    </optgroup>
+                                                </select>
                                             </div>
 
                                             <!-- Body template -->
@@ -959,10 +1112,13 @@
                                     <div class="col-12">
                                         <div class="form-check form-switch">
                                             <input class="form-check-input" type="checkbox" role="switch"
-                                                   asp-for="SmsSettingsInput.TestMode" id="testModeSwitch"
+                                                   id="testModeSwitch"
+                                                   :checked="testMode"
+                                                   @@change="requestTestModeToggle($event)"
                                                    style="width:3em; height:1.5em;" />
                                             <label class="form-check-label ms-2 fw-semibold" for="testModeSwitch">
                                                 Enable Test Mode
+                                                <span x-show="testMode" class="badge bg-warning text-dark ms-2" style="font-size:.65rem;">ACTIVE</span>
                                             </label>
                                         </div>
                                         <small class="text-muted d-block mt-1">
@@ -1085,7 +1241,9 @@
             'password','pass',
             'sender_name','sendername','sender','from',
             'tz','firstname','lastname',
-            'sendingsystem','messagetype'
+            'sendingsystem','messagetype',
+            // SCADA payload-derived dynamic vars (forwarded by Scada_sms.bat)
+            'group_id','groupid','value','alarm_id','alarmid','priority'
         ];
 
         function detectType(value) {
@@ -1095,6 +1253,26 @@
             return 'static';
         }
 
+        // Stable per-row identity. Required because <template x-for> uses :key="row._id"
+        // to track rows across splice/reorder. Without a stable key, Alpine recycles DOM
+        // nodes by index and clicking the delete button on row N appears to remove the
+        // last row instead (and checkbox ticks bleed across rows after a remove).
+        //
+        // The counter is page-scoped, so we MUST re-stamp every row on load (including
+        // rows restored from a localStorage draft whose _id values came from a previous
+        // page-load counter). Otherwise collisions like __r1 == __r1 raise Alpine's
+        // "Duplicate key on x-for" warning and crash with "Cannot read properties of
+        // undefined (reading 'after')".
+        let __rowIdSeq = 0;
+        function nextRowId() { return '__r' + (++__rowIdSeq); }
+        function stampRowIds(rows) {
+            if (!Array.isArray(rows)) return rows;
+            rows.forEach(r => { if (r) r._id = nextRowId(); });
+            return rows;
+        }
+        // Back-compat alias used in a few callers below.
+        const ensureRowIds = stampRowIds;
+
         function parseJsonToRows(jsonStr) {
             if (!jsonStr || jsonStr.trim() === '' || jsonStr.trim() === '{}') return [];
             try {
@@ -1102,6 +1280,7 @@
                 return Object.entries(obj).map(([k, v]) => {
                     const isDyn = DYNAMIC_KEYWORDS.includes(String(v).toLowerCase().trim());
                     return {
+                        _id: nextRowId(),
                         enabled: true,
                         key: k,
                         value: String(v),
@@ -1121,12 +1300,13 @@
         }
 
         function makeRow() {
-            return { enabled: true, key: '', value: '', isDynamic: false, paramType: 'static' };
+            return { _id: nextRowId(), enabled: true, key: '', value: '', isDynamic: false, paramType: 'static' };
         }
 
         function q(name) { return document.querySelector('[name="' + name + '"]'); }
 
         return {
+            rowsToJson,
             providerType: 'REST',
             httpMethod: 'POST',
             endpoint: '',
@@ -1145,8 +1325,11 @@
             soapSuccessPattern: '',
             soapErrorPattern: '',
             restTab: 'params',
+            testMode: false,
+            restAuthType: 'None',
 
             init() {
+                // 1. Load baseline from server-rendered hidden inputs
                 this.providerType  = q('SmsSettingsInput.ProviderType')?.value  || 'REST';
                 this.httpMethod    = q('SmsSettingsInput.HttpMethod')?.value    || 'POST';
                 this.endpoint      = q('SmsSettingsInput.ApiEndpoint')?.value   || '';
@@ -1161,6 +1344,10 @@
                 this.failurePattern= q('SmsSettingsInput.RestFailurePattern')?.value || '';
                 this.soapSuccessPattern = q('SmsSettingsInput.SoapSuccessPattern')?.value || '';
                 this.soapErrorPattern   = q('SmsSettingsInput.SoapErrorPattern')?.value   || '';
+                // TestMode: read server-rendered hidden input ("True"/"False") rendered by asp-for
+                const tmEl = q('SmsSettingsInput.TestMode');
+                this.testMode = tmEl ? /^(true|on|1)$/i.test(String(tmEl.value).trim()) : false;
+                this.restAuthType  = q('SmsSettingsInput.RestAuthType')?.value || 'None';
 
                 this.paramRows     = parseJsonToRows(q('SmsSettingsInput.ApiParams')?.value  || '');
                 this.headerRows    = parseJsonToRows(q('SmsSettingsInput.ApiHeaders')?.value || '');
@@ -1168,7 +1355,6 @@
                 if (!this.paramRows.length)  this.paramRows.push(makeRow());
                 if (!this.headerRows.length) this.headerRows.push(makeRow());
                 if (!this.soapParamRows.length) {
-                    // Default SOAP placeholder set — user can adjust as needed
                     this.soapParamRows = [
                         { enabled: true,  key: 'Message',   value: 'message',     isDynamic: true, paramType: 'dynamic' },
                         { enabled: true,  key: 'Phone',     value: 'phone',       isDynamic: true, paramType: 'dynamic' },
@@ -1179,21 +1365,244 @@
                         { enabled: false, key: 'SenderName',value: 'sender_name', isDynamic: true, paramType: 'dynamic' },
                     ];
                 }
+                ensureRowIds(this.paramRows);
+                ensureRowIds(this.headerRows);
+                ensureRowIds(this.soapParamRows);
+
+                // Mark mandatory rows so the UI can lock them. SCADA payload contract
+                // (per Scada_sms.bat / SmsRequest DTO):
+                //   * `message` is the only MANDATORY locked dynamic var (cannot disable/delete).
+                //   * `group_id`, `value`, `alarm_id`, `priority` are SCADA-optional rows that
+                //     are ALWAYS shown but ship disabled \u2014 admins toggle them on per gateway.
+                //   * Per-recipient (phone/tz/firstName/lastName) and platform (username/
+                //     password/sender_name/sendingSystem/messageType) vars are added manually
+                //     via the \"Add variable\" picker dropdown.
+                const restMandatory  = [{ keyword: 'message',  defaultKey: 'message' }];
+                const soapMandatory  = [{ keyword: 'message',  defaultKey: 'Message' }];
+                const scadaOptional  = [
+                    { keyword: 'group_id', defaultKey: 'group_id' },
+                    { keyword: 'value',    defaultKey: 'value' },
+                    { keyword: 'alarm_id', defaultKey: 'alarm_id' },
+                    { keyword: 'priority', defaultKey: 'priority' }
+                ];
+                const scadaOptionalSoap = [
+                    { keyword: 'group_id', defaultKey: 'GroupId' },
+                    { keyword: 'value',    defaultKey: 'Value' },
+                    { keyword: 'alarm_id', defaultKey: 'AlarmId' },
+                    { keyword: 'priority', defaultKey: 'Priority' }
+                ];
+                this._enforceMandatory(this.paramRows,     restMandatory, scadaOptional);
+                this._enforceMandatory(this.soapParamRows, soapMandatory, scadaOptionalSoap);
+
+                // 2. Restore unsaved draft from localStorage (Postman-style sticky state)
+                //    NOTE: server-of-truth scalars are intentionally NOT restored from draft —
+                //    they must reflect actual saved server state to avoid stale-draft bugs:
+                //      - testMode (auto-saved on confirm)
+                //      - providerType (auto-saved on switch confirm)
+                //      - restAuthType / soapAuthType (security posture should not flip silently)
+                try {
+                    const draft = JSON.parse(localStorage.getItem('scada_settings_draft') || 'null');
+                    if (draft) {
+                        ['httpMethod','endpoint','contentType','soapAction',
+                         'soapTemplate','soapNamespaces','soapMsgType','soapSendingSys',
+                         'successPattern','failurePattern','soapSuccessPattern','soapErrorPattern']
+                            .forEach(k => { if (draft[k] !== undefined) this[k] = draft[k]; });
+                        if (Array.isArray(draft.paramRows)     && draft.paramRows.length)     this.paramRows     = ensureRowIds(draft.paramRows);
+                        if (Array.isArray(draft.headerRows)    && draft.headerRows.length)    this.headerRows    = ensureRowIds(draft.headerRows);
+                        if (Array.isArray(draft.soapParamRows) && draft.soapParamRows.length) this.soapParamRows = ensureRowIds(draft.soapParamRows);
+                    }
+                } catch { }
+                // Strip any mandatory/scadaOptional flags from ALL rows before re-enforcing.
+                // Stale drafts may have these flags set incorrectly (e.g. all rows locked).
+                const stripFlags = r => { delete r.mandatory; delete r.scadaOptional; };
+                this.paramRows.forEach(stripFlags);
+                this.soapParamRows.forEach(stripFlags);
+                this._enforceMandatory(this.paramRows,     restMandatory, scadaOptional);
+                this._enforceMandatory(this.soapParamRows, soapMandatory, scadaOptionalSoap);
+
+                // 3. Watch scalars → auto-save draft on any change
+                ['providerType','httpMethod','endpoint','contentType','soapAction','soapAuthType',
+                 'soapTemplate','soapNamespaces','soapMsgType','soapSendingSys',
+                 'successPattern','failurePattern','soapSuccessPattern','soapErrorPattern','testMode','restAuthType']
+                    .forEach(k => this.$watch(k, () => this._saveDraft()));
+
+                // 4. Deep-watch row arrays so unticking enabled or editing key/value
+                //    persists to the draft. Without this, ticks/edits get reverted on
+                //    reload because the older draft (from the last add/remove) replays.
+                ['paramRows','headerRows','soapParamRows']
+                    .forEach(k => this.$watch(k, () => this._saveDraft(), { deep: true }));
             },
 
-            addParamRow()  { this.paramRows.push(makeRow()); },
-            removeParamRow(i)  { this.paramRows.splice(i, 1); if (!this.paramRows.length) this.addParamRow(); },
-            addHeaderRow() { this.headerRows.push(makeRow()); },
-            removeHeaderRow(i) { this.headerRows.splice(i, 1); if (!this.headerRows.length) this.addHeaderRow(); },
-            addSoapParamRow()  { this.soapParamRows.push(makeRow()); },
-            removeSoapParamRow(i) { this.soapParamRows.splice(i, 1); if (!this.soapParamRows.length) this.addSoapParamRow(); },
+            // ── Confirmation handlers ──────────────────────────────────────────────────────────
+            async requestProviderSwitch(target) {
+                if (this.providerType === target) return;
+                if (!window.SCADAUtils || !SCADAUtils.confirmModal) {
+                    this.providerType = target;
+                    this._autoSaveAfterToggle();
+                    return;
+                }
+                const ok = await SCADAUtils.confirmModal(
+                    'Switch SMS Provider to ' + target + '?',
+                    'Switching the provider will change how SMS messages are delivered to your provider. ' +
+                    'Make sure your ' + target + ' configuration (endpoint, params, security) is correct before saving. ' +
+                    'Confirming will save settings immediately so the new provider takes effect across the system.',
+                    'Switch & Save',
+                    'btn-primary'
+                );
+                if (ok) {
+                    this.providerType = target;
+                    this._autoSaveAfterToggle();
+                }
+            },
+
+            async requestTestModeToggle(ev) {
+                const desired = !!ev.target.checked;
+                if (desired === this.testMode) return;
+                if (!window.SCADAUtils || !SCADAUtils.confirmModal) {
+                    this.testMode = desired;
+                    return;
+                }
+                let title, body, label, cls;
+                if (desired) {
+                    title = 'Enable Test Mode?';
+                    body  = 'Test Mode intercepts ALL outgoing SMS through the in-process mock server. ' +
+                            'No real messages will be delivered to recipients. Use only for testing.';
+                    label = 'Enable Test Mode';
+                    cls   = 'btn-warning';
+                } else {
+                    title = 'Disable Test Mode — Switch to LIVE?';
+                    body  = 'WARNING: Disabling Test Mode will route SMS to the LIVE provider. ' +
+                            'In a production environment this may activate the real SMS server and send real messages to recipients. Continue?';
+                    label = 'Disable & Go Live';
+                    cls   = 'btn-danger';
+                }
+                const ok = await SCADAUtils.confirmModal(title, body, label, cls);
+                if (ok) {
+                    this.testMode = desired;
+                    // Persist immediately so navigating away and back reflects the saved value.
+                    this._autoSaveAfterToggle();
+                } else {
+                    // revert checkbox visual state
+                    ev.target.checked = this.testMode;
+                }
+            },
+
+            // Submits the settings form so a critical toggle (provider / test-mode) persists
+            // without forcing the user to scroll down and click Save Settings. Clears the
+            // localStorage draft first so it doesn't replay over the freshly saved server value.
+            _autoSaveAfterToggle() {
+                try { localStorage.removeItem('scada_settings_draft'); } catch { }
+                // Defer one tick so Alpine has flushed :value bindings on hidden inputs.
+                setTimeout(() => {
+                    const form = document.getElementById('settingsForm');
+                    if (form) form.submit();
+                }, 50);
+            },
+
+            _saveDraft() {
+                try {
+                    // Strip the page-scoped _id before persisting — it's regenerated on
+                    // every load, so saving it would just risk collisions if old drafts
+                    // get restored after the in-memory counter has advanced.
+                    const stripIds = rows => Array.isArray(rows)
+                        ? rows.map(r => { const { _id, ...rest } = r; return rest; })
+                        : rows;
+                    localStorage.setItem('scada_settings_draft', JSON.stringify({
+                        providerType: this.providerType, httpMethod: this.httpMethod,
+                        endpoint: this.endpoint, contentType: this.contentType,
+                        soapAction: this.soapAction, soapAuthType: this.soapAuthType,
+                        soapTemplate: this.soapTemplate, soapNamespaces: this.soapNamespaces,
+                        soapMsgType: this.soapMsgType, soapSendingSys: this.soapSendingSys,
+                        successPattern: this.successPattern, failurePattern: this.failurePattern,
+                        soapSuccessPattern: this.soapSuccessPattern, soapErrorPattern: this.soapErrorPattern,
+                        testMode: this.testMode,
+                        restAuthType: this.restAuthType,
+                        paramRows: stripIds(this.paramRows),
+                        headerRows: stripIds(this.headerRows),
+                        soapParamRows: stripIds(this.soapParamRows)
+                    }));
+                } catch { }
+            },
+
+            addParamRow()  { this.paramRows.push(makeRow()); this._saveDraft(); },
+            removeParamRow(i)  {
+                const r = this.paramRows[i];
+                if (r && r.mandatory) return;
+                this.paramRows.splice(i, 1);
+                if (!this.paramRows.length) this.addParamRow(); else this._saveDraft();
+            },
+            addHeaderRow() { this.headerRows.push(makeRow()); this._saveDraft(); },
+            removeHeaderRow(i) { this.headerRows.splice(i, 1); if (!this.headerRows.length) this.addHeaderRow(); else this._saveDraft(); },
+            addSoapParamRow()  { this.soapParamRows.push(makeRow()); this._saveDraft(); },
+            removeSoapParamRow(i) {
+                const r = this.soapParamRows[i];
+                if (r && r.mandatory) return;
+                this.soapParamRows.splice(i, 1);
+                if (!this.soapParamRows.length) this.addSoapParamRow(); else this._saveDraft();
+            },
+
+            // Insert a new dynamic row pre-filled with the chosen keyword. Used by the
+            // "Add user/platform variable" picker dropdown in both REST and SOAP tables.
+            addDynamicRow(rowsName, keyword) {
+                if (!keyword) return;
+                const target = this[rowsName];
+                if (!Array.isArray(target)) return;
+                target.push({ _id: nextRowId(), enabled: true, key: keyword, value: keyword, isDynamic: true, paramType: 'dynamic' });
+                this._saveDraft();
+            },
+
+            // SCADA payload contract (per Scada_sms.bat & SmsRequest DTO):
+            //   message       — MANDATORY (locked, cannot disable/delete)
+            //   group_id      — optional, resolved server-side, available as dynamic var
+            //   value         — optional measurement value
+            //   alarm_id      — optional alarm correlation id
+            //   priority      — optional (normal|urgent|critical)
+            // Per-recipient vars (phone, tz, firstName, lastName) and platform vars
+            // (username, password, sender_name, sendingSystem, messageType) are added manually
+            // by the admin via the "Add variable" picker.
+            _enforceMandatory(rows, mandatorySpecs, scadaOptionalSpecs) {
+                mandatorySpecs.forEach(spec => {
+                    const existing = rows.find(r =>
+                        String(r.value || '').toLowerCase().trim() === spec.keyword);
+                    if (existing) {
+                        existing.mandatory = true;
+                        existing.scadaOptional = false;
+                        existing.enabled = true;
+                        existing.isDynamic = true;
+                        existing.paramType = 'dynamic';
+                    } else {
+                        rows.unshift({
+                            _id: nextRowId(),
+                            mandatory: true,
+                            enabled: true,
+                            key: spec.defaultKey,
+                            value: spec.keyword,
+                            isDynamic: true,
+                            paramType: 'dynamic'
+                        });
+                    }
+                });
+                if (Array.isArray(scadaOptionalSpecs)) {
+                    scadaOptionalSpecs.forEach(spec => {
+                        const existing = rows.find(r =>
+                            String(r.value || '').toLowerCase().trim() === spec.keyword);
+                        if (existing) {
+                            existing.scadaOptional = true;
+                            existing.isDynamic = true;
+                            // do NOT force enabled — admin may have unchecked it intentionally
+                        }
+                        // Do NOT auto-insert: only mark rows already present.
+                        // If the user deleted a scadaOptional row it should stay gone.
+                    });
+                }
+            },
 
             onValueChange(row) {
                 row.isDynamic = DYNAMIC_KEYWORDS.includes(String(row.value).toLowerCase().trim());
-                // Auto-update type when value changes
                 const auto = detectType(row.value);
                 if (auto === 'dynamic') row.paramType = 'dynamic';
-                else if (row.paramType === 'dynamic') row.paramType = 'static'; // was dynamic, now literal
+                else if (row.paramType === 'dynamic') row.paramType = 'static';
+                this._saveDraft();
             },
 
             insertPlaceholder(ph) {
@@ -1202,32 +1611,6 @@
                 const s = ta.selectionStart, e = ta.selectionEnd;
                 this.soapTemplate = this.soapTemplate.substring(0, s) + ph + this.soapTemplate.substring(e);
                 this.$nextTick(() => { ta.selectionStart = ta.selectionEnd = s + ph.length; ta.focus(); });
-            },
-
-            serializeToHiddenInputs() {
-                const provider = this.providerType;
-                const testMode = q('SmsSettingsInput.TestMode')?.checked;
-                const confirmMsg = `Save settings?\n\nProvider: ${provider}${testMode ? '\nTest Mode: ON' : ''}`;
-                if (!confirm(confirmMsg)) return false;
-
-                function sync(name, val) { const el = q(name); if (el) el.value = val; }
-                sync('SmsSettingsInput.ApiParams',              rowsToJson(this.paramRows));
-                sync('SmsSettingsInput.ApiHeaders',             rowsToJson(this.headerRows));
-                sync('SmsSettingsInput.SoapParams',             rowsToJson(this.soapParamRows));
-                sync('SmsSettingsInput.ProviderType',           this.providerType);
-                sync('SmsSettingsInput.ApiEndpoint',            this.endpoint);
-                sync('SmsSettingsInput.HttpMethod',             this.httpMethod);
-                sync('SmsSettingsInput.ContentType',            this.contentType);
-                sync('SmsSettingsInput.SoapAction',             this.soapAction);
-                sync('SmsSettingsInput.SoapAuthType',           this.soapAuthType);
-                sync('SmsSettingsInput.SoapBodyTemplate',       this.soapTemplate);
-                sync('SmsSettingsInput.SoapEnvelopeNamespaces', this.soapNamespaces);
-                sync('SmsSettingsInput.SoapMessageType',        this.soapMsgType);
-                sync('SmsSettingsInput.SoapSendingSystem',      this.soapSendingSys);
-                sync('SmsSettingsInput.RestSuccessPattern',     this.successPattern);
-                sync('SmsSettingsInput.RestFailurePattern',     this.failurePattern);
-                sync('SmsSettingsInput.SoapSuccessPattern',     this.soapSuccessPattern);
-                sync('SmsSettingsInput.SoapErrorPattern',       this.soapErrorPattern);
             },
 
             get restPreview() {
@@ -1271,8 +1654,14 @@
 
             get soapPreview() {
                 const ns = this.soapNamespaces ? '\n    ' + this.soapNamespaces : '';
-                const bodyContent = this.soapTemplate ||
+                let bodyContent = this.soapTemplate ||
                     '<ns1:SendSMS xmlns:ns1="http://tempuri.org/">\n  <ns1:Message>{Message}</ns1:Message>\n  <ns1:Phone>{Phone}</ns1:Phone>\n  <ns1:UserName>{Username}</ns1:UserName>\n  <ns1:Password>{Password}</ns1:Password>\n  <ns1:SenderName>{SenderName}</ns1:SenderName>\n  <ns1:MessageType>' + (this.soapMsgType || '{MessageType}') + '</ns1:MessageType>\n  <ns1:SendingSystem>' + (this.soapSendingSys || '{SendingSystem}') + '</ns1:SendingSystem>\n</ns1:SendSMS>';
+
+                // Apply KV table mappings: dynamic keywords shown as {keyword}, static shown inline
+                this.soapParamRows.filter(r => r.enabled && r.key.trim()).forEach(r => {
+                    const resolved = r.isDynamic ? '{' + r.value + '}' : r.value;
+                    bodyContent = bodyContent.replaceAll('{' + r.key.trim() + '}', resolved);
+                });
 
                 let secHeader = '  <soapenv:Header/>\n';
                 if (this.soapAuthType === 'WSSecurity') {
@@ -1310,8 +1699,25 @@
         }
     }
 
-    // Save button loading state
+    async function confirmCleanupData() {
+        if (!window.SCADAUtils || !SCADAUtils.confirmModal) {
+            if (window.confirm('Delete audit records older than 90 days?'))
+                document.getElementById('cleanupDataForm').submit();
+            return;
+        }
+        const ok = await SCADAUtils.confirmModal(
+            'Delete Old Audit Records',
+            'This will permanently delete all SMS audit records older than 90 days. This action cannot be undone.',
+            'Delete', 'btn-danger');
+        if (ok) document.getElementById('cleanupDataForm').submit();
+    }
+
+    // Save button loading state + sync textarea value before submit
     document.getElementById('settingsForm').addEventListener('submit', function () {
+        // Ensure the hidden textarea value is current (Alpine `:value` may lag)
+        const ta = document.getElementById('soapTemplateArea');
+        const htx = document.querySelector('[name="SmsSettingsInput.SoapBodyTemplate"]');
+        if (ta && htx) htx.value = ta.value;
         const btn = document.getElementById('saveBtn');
         btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Saving…';
         btn.disabled = true;

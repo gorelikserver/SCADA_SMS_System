@@ -1,7 +1,7 @@
 ﻿<Project Sdk="WixToolset.Sdk/4.0.5">
   <PropertyGroup>
-    <OutputName>SCADA_SMS_v2.3.9_Setup</OutputName>
-    <ProductVersion>2.3.9</ProductVersion>
+    <OutputName>SCADA_SMS_v2.4.2_Setup</OutputName>
+    <ProductVersion>2.4.2</ProductVersion>
     <Platform>x64</Platform>
     <Cultures>en-US</Cultures>
     <SuppressIces>ICE91</SuppressIces>
@@ -20,6 +20,21 @@
   </ItemGroup>
 
 </Project>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

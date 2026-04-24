@@ -36,7 +36,7 @@ namespace SCADASMSSystem.Web.Services
             _httpClient.Timeout = TimeSpan.FromSeconds(timeout);
         }
 
-        public async Task<bool> SendSmsAsync(string message, IEnumerable<SmsRecipient> recipients, string alarmId, int? groupId = null)
+        public async Task<bool> SendSmsAsync(string message, IEnumerable<SmsRecipient> recipients, string alarmId, int? groupId = null, string? priority = null, string? value = null)
         {
             try
             {
@@ -57,7 +57,7 @@ namespace SCADASMSSystem.Web.Services
                         continue;
                     }
 
-                    tasks.Add(SendSingleSmsAsync(message, recipient, alarmId, groupId));
+                    tasks.Add(SendSingleSmsAsync(message, recipient, alarmId, groupId, priority, value));
                 }
 
                 await Task.WhenAll(tasks);
@@ -70,7 +70,7 @@ namespace SCADASMSSystem.Web.Services
             }
         }
 
-        public async Task<bool> SendSmsToGroupAsync(string message, int groupId, string alarmId)
+        public async Task<bool> SendSmsToGroupAsync(string message, int groupId, string alarmId, string? priority = null, string? value = null)
         {
             try
             {
@@ -91,7 +91,7 @@ namespace SCADASMSSystem.Web.Services
                 }
 
                 _logger.LogInformation("Sending SMS to {Count} recipients in group {GroupId}", smsRecipients.Count, groupId);
-                return await SendSmsAsync(message, smsRecipients, alarmId, groupId);
+                return await SendSmsAsync(message, smsRecipients, alarmId, groupId, priority, value);
             }
             catch (Exception ex)
             {
@@ -101,6 +101,11 @@ namespace SCADASMSSystem.Web.Services
         }
 
         public async Task<SmsApiResponse> SendSmsApiCallAsync(string message, SmsRecipient recipient)
+            => await SendSmsApiCallAsync(message, recipient, null);
+
+        // Internal overload that propagates SCADA-derived context (groupId, alarmId, priority, value)
+        // so the REST/SOAP keyword resolvers can substitute {GroupId}/{AlarmId}/{Priority}/{Value} tokens.
+        private async Task<SmsApiResponse> SendSmsApiCallAsync(string message, SmsRecipient recipient, SmsCallContext? ctx)
         {
             if (Settings.TestMode)
             {
@@ -114,7 +119,7 @@ namespace SCADASMSSystem.Web.Services
             }
 
             if (Settings.ProviderType?.Equals("SOAP", StringComparison.OrdinalIgnoreCase) == true)
-                return await SendSoapApiCallAsync(message, recipient);
+                return await SendSoapApiCallAsync(message, recipient, ctx);
 
             var phoneNumber = recipient.PhoneNumber;
 
@@ -129,7 +134,13 @@ namespace SCADASMSSystem.Web.Services
 
                 // Build parameter dictionary
                 var requestParams = new Dictionary<string, string>();
-                
+
+                // Phase E: detect whether any param row resolves to the recipient's phone number.
+                // Phone is no longer a forced/locked mapping in Settings — admins choose the param key
+                // their gateway expects. If no row maps `phone` we still send (some providers might
+                // derive phone from a header or path), but we log a warning so the operator notices.
+                bool anyPhoneMapped = false;
+
                 foreach (var param in apiParams)
                 {
                     string paramValue;
@@ -147,6 +158,30 @@ namespace SCADASMSSystem.Web.Services
                         case "mobile":
                         case "number":
                             paramValue = phoneNumber;
+                            anyPhoneMapped = true;
+                            break;
+                        case "tz":
+                            paramValue = recipient.TZ ?? "";
+                            break;
+                        case "firstname":
+                            paramValue = recipient.FirstName ?? "";
+                            break;
+                        case "lastname":
+                            paramValue = recipient.LastName ?? "";
+                            break;
+                        case "group_id":
+                        case "groupid":
+                            paramValue = ctx?.GroupId?.ToString() ?? "";
+                            break;
+                        case "alarm_id":
+                        case "alarmid":
+                            paramValue = ctx?.AlarmId ?? "";
+                            break;
+                        case "priority":
+                            paramValue = ctx?.Priority ?? "";
+                            break;
+                        case "value":
+                            paramValue = ctx?.Value ?? "";
                             break;
                         case "username":
                         case "user":
@@ -169,6 +204,12 @@ namespace SCADASMSSystem.Web.Services
                     }
                     
                     requestParams[param.Key] = paramValue;
+                }
+
+                if (!anyPhoneMapped)
+                {
+                    _logger.LogWarning("No 'phone' parameter mapped in REST ApiParams — recipient {PhoneNumber} may not receive SMS. " +
+                        "Add a row in Settings → Body Parameters with the dynamic value `phone`.", MaskPhoneNumber(phoneNumber));
                 }
 
                 // Parse custom request headers
@@ -211,6 +252,8 @@ namespace SCADASMSSystem.Web.Services
                     _logger.LogDebug("GET URL (SECURED): {FullUrl}", MaskSensitiveDataInUrl(fullUrl));
 
                     using var getRequest = new HttpRequestMessage(HttpMethod.Get, fullUrl);
+                    fullUrl = ApplyRestAuth(getRequest, fullUrl);
+                    getRequest.RequestUri = new Uri(fullUrl);
                     AddCustomHeaders(getRequest, customHeaders);
                     response = await _httpClient.SendAsync(getRequest);
                 }
@@ -239,6 +282,9 @@ namespace SCADASMSSystem.Web.Services
                     };
 
                     using var bodyRequest = new HttpRequestMessage(httpMethod, Settings.ApiEndpoint) { Content = content };
+                    var resolvedUrl = ApplyRestAuth(bodyRequest, Settings.ApiEndpoint);
+                    if (!ReferenceEquals(resolvedUrl, Settings.ApiEndpoint))
+                        bodyRequest.RequestUri = new Uri(resolvedUrl);
                     AddCustomHeaders(bodyRequest, customHeaders);
                     response = await _httpClient.SendAsync(bodyRequest);
                 }
@@ -346,12 +392,13 @@ namespace SCADASMSSystem.Web.Services
             }
         }
 
-        private async Task SendSingleSmsAsync(string message, SmsRecipient recipient, string alarmId, int? groupId = null)
+        private async Task SendSingleSmsAsync(string message, SmsRecipient recipient, string alarmId, int? groupId = null, string? priority = null, string? value = null)
         {
             var phoneNumber = recipient.PhoneNumber;
             try
             {
-                var response = await SendSmsApiCallAsync(message, recipient);
+                var ctx = new SmsCallContext(groupId, alarmId, priority, value);
+                var response = await SendSmsApiCallAsync(message, recipient, ctx);
                 
                 // CRITICAL: Create dedicated scope for audit logging to ensure proper database transaction
                 using var auditScope = _serviceProvider.CreateScope();
@@ -435,6 +482,9 @@ namespace SCADASMSSystem.Web.Services
         }
 
         private async Task<SmsApiResponse> SendSoapApiCallAsync(string message, SmsRecipient recipient)
+            => await SendSoapApiCallAsync(message, recipient, null);
+
+        private async Task<SmsApiResponse> SendSoapApiCallAsync(string message, SmsRecipient recipient, SmsCallContext? ctx)
         {
             try
             {
@@ -474,6 +524,10 @@ namespace SCADASMSSystem.Web.Services
                     "lastname"                             => SecurityElement(lastName),
                     "sendingsystem"                        => SecurityElement(Settings.SoapSendingSystem ?? "SCADA"),
                     "messagetype"                          => SecurityElement(Settings.SoapMessageType ?? "SmsType1"),
+                    "group_id" or "groupid"                => SecurityElement(ctx?.GroupId?.ToString() ?? ""),
+                    "alarm_id" or "alarmid"                => SecurityElement(ctx?.AlarmId ?? ""),
+                    "priority"                             => SecurityElement(ctx?.Priority ?? ""),
+                    "value"                                => SecurityElement(ctx?.Value ?? ""),
                     _                                      => SecurityElement(keyword) // literal static value
                 };
 
@@ -484,6 +538,15 @@ namespace SCADASMSSystem.Web.Services
                     // Dynamic KV-table resolution: SoapParams JSON maps placeholder → keyword/value
                     var soapParamMap = JsonSerializer.Deserialize<Dictionary<string, string>>(Settings.SoapParams)
                                        ?? new Dictionary<string, string>();
+
+                    // Phase E: warn if no row maps the recipient phone.
+                    var phoneKws = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "phone", "phonenumber", "mobile" };
+                    if (!soapParamMap.Values.Any(v => phoneKws.Contains(v ?? "")))
+                    {
+                        _logger.LogWarning("No 'phone' placeholder mapped in SOAP SoapParams — recipient {PhoneNumber} may not receive SMS. " +
+                            "Add a row in Settings → SOAP Body Parameters with the dynamic value `phone`.", MaskPhoneNumber(phone));
+                    }
+
                     foreach (var (token, value) in soapParamMap)
                         soapBodyContent = soapBodyContent.Replace($"{{{token}}}", ResolveSoapValue(value));
                 }
@@ -627,6 +690,57 @@ namespace SCADASMSSystem.Web.Services
                 {
                     _logger.LogWarning(ex, "Could not add custom header {Name}", name);
                 }
+            }
+        }
+
+        /// <summary>
+        /// Applies REST authentication to the outgoing request based on Settings.RestAuthType.
+        /// For ApiKey-in-Query the caller must use the returned URL instead of the original endpoint.
+        /// </summary>
+        private string ApplyRestAuth(HttpRequestMessage request, string url)
+        {
+            var authType = (Settings.RestAuthType ?? "None").Trim();
+            if (string.IsNullOrEmpty(authType) || authType.Equals("None", StringComparison.OrdinalIgnoreCase))
+                return url;
+
+            switch (authType.ToLowerInvariant())
+            {
+                case "basic":
+                    if (!string.IsNullOrEmpty(Settings.Username))
+                    {
+                        var raw = $"{Settings.Username}:{Settings.Password}";
+                        var b64 = Convert.ToBase64String(Encoding.UTF8.GetBytes(raw));
+                        request.Headers.TryAddWithoutValidation("Authorization", $"Basic {b64}");
+                        _logger.LogDebug("Applied REST Basic auth header (Authorization: Basic ***)");
+                    }
+                    return url;
+
+                case "bearer":
+                    if (!string.IsNullOrEmpty(Settings.RestBearerToken))
+                    {
+                        request.Headers.TryAddWithoutValidation("Authorization", $"Bearer {Settings.RestBearerToken}");
+                        _logger.LogDebug("Applied REST Bearer token (Authorization: Bearer ***)");
+                    }
+                    return url;
+
+                case "apikey":
+                    if (string.IsNullOrEmpty(Settings.RestApiKeyName))
+                        return url;
+                    var location = (Settings.RestApiKeyLocation ?? "Header").Trim();
+                    if (location.Equals("Query", StringComparison.OrdinalIgnoreCase))
+                    {
+                        var sep = url.Contains('?') ? "&" : "?";
+                        var newUrl = $"{url}{sep}{Uri.EscapeDataString(Settings.RestApiKeyName)}={Uri.EscapeDataString(Settings.RestApiKeyValue ?? string.Empty)}";
+                        _logger.LogDebug("Applied REST API key as query parameter (***)");
+                        return newUrl;
+                    }
+                    request.Headers.TryAddWithoutValidation(Settings.RestApiKeyName, Settings.RestApiKeyValue ?? string.Empty);
+                    _logger.LogDebug("Applied REST API key header {HeaderName}=***", Settings.RestApiKeyName);
+                    return url;
+
+                default:
+                    _logger.LogWarning("Unknown RestAuthType '{AuthType}' - no auth applied", authType);
+                    return url;
             }
         }
 
@@ -791,4 +905,12 @@ namespace SCADASMSSystem.Web.Services
             }
         }
     }
+
+    /// <summary>
+    /// Carries SCADA-derived metadata (group_id, alarm_id, priority, value) through the
+    /// SmsService send pipeline so REST/SOAP keyword resolvers can substitute the matching
+    /// dynamic placeholders. Pass null when invoking the public SendSmsApiCallAsync overload
+    /// from a context that does not have these fields (e.g. test pages).
+    /// </summary>
+    public sealed record SmsCallContext(int? GroupId, string? AlarmId, string? Priority, string? Value);
 }

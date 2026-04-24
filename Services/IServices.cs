@@ -35,14 +35,14 @@ namespace SCADASMSSystem.Web.Services
 
     public interface ISmsService
     {
-        Task<bool> SendSmsAsync(string message, IEnumerable<SmsRecipient> recipients, string alarmId, int? groupId = null);
-        Task<bool> SendSmsToGroupAsync(string message, int groupId, string alarmId);
+        Task<bool> SendSmsAsync(string message, IEnumerable<SmsRecipient> recipients, string alarmId, int? groupId = null, string? priority = null, string? value = null);
+        Task<bool> SendSmsToGroupAsync(string message, int groupId, string alarmId, string? priority = null, string? value = null);
         Task<SmsApiResponse> SendSmsApiCallAsync(string message, SmsRecipient recipient);
     }
 
     public interface ISmsBackgroundService
     {
-        Task<bool> QueueSmsMessageAsync(string message, int groupId, string alarmId, string priority = "normal");
+        Task<bool> QueueSmsMessageAsync(string message, int groupId, string alarmId, string priority = "normal", string? value = null);
         SmsServiceStatus GetServiceStatus();
     }
 

@@ -110,13 +110,12 @@ namespace SCADASMSSystem.Web.Pages.Settings
 
         public async Task<IActionResult> OnPostSaveSettingsAsync()
         {
-            if (!ModelState.IsValid)
-            {
-                await LoadSystemInformationAsync();
-                LoadSmsSettings();
-                await LoadHealthStatusAsync();
-                return Page();
-            }
+            // Clear auto-generated model validation. SmsSettings has non-nullable
+            // string properties (defaulted to string.Empty) which makes the model
+            // binder mark every empty hidden input as a required-field error,
+            // silently failing the save. Our explicit checks below cover the
+            // fields we actually require (JSON validity, SOAP body template).
+            ModelState.Clear();
 
             try
             {
