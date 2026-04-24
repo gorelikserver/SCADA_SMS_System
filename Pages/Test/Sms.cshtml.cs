@@ -76,7 +76,6 @@ namespace SCADASMSSystem.Web.Pages.Test
                     soapSendingSystem = Settings.SoapSendingSystem ?? "SCADA",
                     soapMessageType = Settings.SoapMessageType ?? "SmsType1",
                     senderName = Settings.SenderName ?? "",
-                    username = Settings.Username ?? "",
                     testMode = Settings.TestMode
                 }, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
             }
@@ -317,6 +316,8 @@ namespace SCADASMSSystem.Web.Pages.Test
                 existing["SoapParams"]             = req.SoapParams;
                 existing["SoapEnvelopeNamespaces"] = req.SoapEnvelopeNamespaces;
                 existing["SoapAuthType"]           = req.SoapAuthType;
+                existing["SoapSendingSystem"]      = req.SoapSendingSystem;
+                existing["SoapMessageType"]        = req.SoapMessageType;
                 existing["Username"]               = req.Username;
                 if (!string.IsNullOrEmpty(req.Password))
                     existing["Password"]           = req.Password;
@@ -388,6 +389,8 @@ namespace SCADASMSSystem.Web.Pages.Test
         public string SoapParams { get; set; } = string.Empty;
         public string SoapEnvelopeNamespaces { get; set; } = string.Empty;
         public string SoapAuthType { get; set; } = string.Empty;
+        public string SoapSendingSystem { get; set; } = string.Empty;
+        public string SoapMessageType { get; set; } = string.Empty;
         public string Username { get; set; } = string.Empty;
         public string Password { get; set; } = string.Empty;
     }

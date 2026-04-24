@@ -1180,8 +1180,13 @@
                     if (!this.soapBodyTemplate) return '<!-- No SOAP Body Template configured -->';
                     let body = this.soapBodyTemplate;
                     if (Object.keys(this.soapParams).length > 0) {
-                        for (const [token, keyword] of Object.entries(this.soapParams))
-                            body = body.replaceAll(`{${token}}`, this.resolveKeyword(keyword));
+                        for (const [token, keyword] of Object.entries(this.soapParams)) {
+                            const userInput = this.inputs[this.tokenKey(token)];
+                            const value = (userInput !== undefined && userInput !== '')
+                                ? this.escXml(userInput)
+                                : this.resolveKeyword(keyword);
+                            body = body.replaceAll(`{${token}}`, value);
+                        }
                     } else {
                         body = body
                             .replaceAll('{Message}',       this.escXml(this.inputs.message))
@@ -1326,7 +1331,8 @@ ${body}
                         this.lastResponseBody = data.body ?? '';
                         this.lastEchoEnvelope = data.echoEnvelope ?? '';
                     } catch (e) {
-                        this.lastResponseBody = 'Network error: ' + e.message;
+                        this.lastErrorMessage = 'Network error: ' + e.message;
+                        this.lastResponseBody = '';
                         this.lastSuccess = false;
                         this.lastStatusCode = 0;
                     } finally {
@@ -1376,6 +1382,8 @@ ${body}
                                     ? JSON.stringify(this.soapParams) : '',
                                 soapEnvelopeNamespaces: this.soapEnvelopeNamespaces,
                                 soapAuthType: this.authType,
+                                soapSendingSystem: this.inputs.sendingSystem,
+                                soapMessageType: this.inputs.messageType,
                                 username: this.username,
                                 password: this.password,
                             }),
