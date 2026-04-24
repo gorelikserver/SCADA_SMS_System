@@ -706,7 +706,78 @@
 
             </div><!-- /left col -->
 
-            <!-- content added in Task 6 -->
+            <!-- ═══ RIGHT: Response Panel ═══ -->
+            <div class="col-lg-7">
+                <div class="card shadow h-100">
+                    <div class="card-header card-header-gradient py-2">
+                        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                            <h6 class="m-0 fw-bold" style="font-size:.85rem;">
+                                <i class="fas fa-inbox me-1"></i>Response
+                            </h6>
+                            <div class="d-flex align-items-center gap-2 flex-wrap">
+                                <template x-if="lastStatusCode !== null">
+                                    <span class="badge"
+                                          :class="lastStatusCode >= 200 && lastStatusCode < 300 ? 'bg-success' : 'bg-danger'"
+                                          x-text="lastStatusCode + (lastStatusCode === 200 ? ' OK' : ' Error')"></span>
+                                </template>
+                                <template x-if="lastElapsedMs !== null">
+                                    <span class="badge bg-secondary" style="font-size:.65rem;"
+                                          x-text="lastElapsedMs + ' ms'"></span>
+                                </template>
+                                <template x-if="lastSuccess !== null">
+                                    <span class="badge"
+                                          :class="lastSuccess ? 'bg-success' : 'bg-danger'"
+                                          x-text="lastSuccess ? '✓ SUCCESS' : '✗ FAILURE'"></span>
+                                </template>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-body p-3 d-flex flex-column gap-3">
+
+                        <!-- Empty state -->
+                        <template x-if="lastStatusCode === null">
+                            <div class="d-flex flex-column align-items-center justify-content-center text-muted py-5" style="min-height:200px;">
+                                <i class="fas fa-paper-plane fa-3x mb-3 text-secondary opacity-50"></i>
+                                <div style="font-size:.85rem;">Fire a request to see the response here</div>
+                            </div>
+                        </template>
+
+                        <!-- Error message -->
+                        <template x-if="lastErrorMessage">
+                            <div class="alert alert-danger py-2 mb-0" style="font-size:.78rem;">
+                                <i class="fas fa-exclamation-triangle me-1"></i>
+                                <strong>Provider Error:</strong> <span x-text="lastErrorMessage"></span>
+                            </div>
+                        </template>
+
+                        <!-- Response body -->
+                        <template x-if="lastStatusCode !== null">
+                            <div>
+                                <div class="fw-semibold mb-1" style="font-size:.78rem;color:#6c757d;text-transform:uppercase;letter-spacing:.3px;">
+                                    Response Body
+                                </div>
+                                <pre class="m-0 p-3 rounded" style="font-size:.72rem;background:#1e1e1e;color:#d4d4d4;min-height:120px;max-height:300px;overflow-y:auto;white-space:pre-wrap;word-break:break-all;"
+                                     x-text="lastResponseBody || '(empty response)'"></pre>
+                            </div>
+                        </template>
+
+                        <!-- Request echo accordion -->
+                        <template x-if="lastEchoEnvelope">
+                            <div>
+                                <button type="button" class="btn btn-sm btn-outline-secondary w-100 text-start"
+                                        @@click="showEcho = !showEcho" style="font-size:.78rem;">
+                                    <i class="fas me-1" :class="showEcho ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+                                    Request Sent (credentials redacted)
+                                </button>
+                                <pre x-show="showEcho" x-transition
+                                     class="m-0 mt-1 p-3 rounded" style="font-size:.68rem;background:#0d1117;color:#c9d1d9;max-height:200px;overflow-y:auto;white-space:pre-wrap;word-break:break-all;"
+                                     x-text="lastEchoEnvelope"></pre>
+                            </div>
+                        </template>
+
+                    </div>
+                </div>
+            </div><!-- /right col -->
 
         </div><!-- /row g-4 -->
     </div><!-- /soapWorkbench x-data -->
