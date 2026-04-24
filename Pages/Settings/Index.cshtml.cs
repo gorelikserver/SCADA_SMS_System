@@ -69,6 +69,45 @@ namespace SCADASMSSystem.Web.Pages.Settings
             }
         }
 
+        // GET handler returning a public-safe snapshot of current SMS settings as JSON.
+        // Consumed by the Test SMS page "Refresh from settings" button.
+        public IActionResult OnGetSnapshot()
+        {
+            try
+            {
+                var s = _smsSettings.CurrentValue;
+                var snapshot = new
+                {
+                    providerType = s.ProviderType ?? "REST",
+                    apiEndpoint = s.ApiEndpoint ?? "",
+                    httpMethod = s.HttpMethod ?? "POST",
+                    contentType = s.ContentType ?? "application/x-www-form-urlencoded",
+                    apiParams = s.ApiParams ?? "",
+                    apiHeaders = s.ApiHeaders ?? "",
+                    restAuthType = s.RestAuthType ?? "None",
+                    restBearerToken = string.IsNullOrEmpty(s.RestBearerToken) ? "" : "***",
+                    restApiKeyName = s.RestApiKeyName ?? "",
+                    restApiKeyLocation = s.RestApiKeyLocation ?? "Header",
+                    soapAction = s.SoapAction ?? "",
+                    soapAuthType = s.SoapAuthType ?? "WSSecurity",
+                    soapBodyTemplate = s.SoapBodyTemplate ?? "",
+                    soapParams = s.SoapParams ?? "",
+                    soapEnvelopeNamespaces = s.SoapEnvelopeNamespaces ?? "",
+                    soapSendingSystem = s.SoapSendingSystem ?? "SCADA",
+                    soapMessageType = s.SoapMessageType ?? "SmsType1",
+                    senderName = s.SenderName ?? "",
+                    username = s.Username ?? "",
+                    testMode = s.TestMode
+                };
+                return new JsonResult(snapshot);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error building settings snapshot");
+                return new JsonResult(new { error = "snapshot_failed" }) { StatusCode = 500 };
+            }
+        }
+
         public async Task<IActionResult> OnPostSaveSettingsAsync()
         {
             if (!ModelState.IsValid)
@@ -95,6 +134,19 @@ namespace SCADASMSSystem.Web.Pages.Settings
                 {
                     try { System.Text.Json.JsonDocument.Parse(SmsSettingsInput.ApiHeaders); }
                     catch { ModelState.AddModelError("SmsSettingsInput.ApiHeaders", "ApiHeaders must be valid JSON"); }
+                }
+
+                // Mandatory dynamic vars: when SOAP provider is active and a template is supplied,
+                // the template MUST contain the {Message} placeholder (per SCADA integration guide).
+                // Phone is no longer enforced server-side \u2014 admins choose whether their gateway needs
+                // a {Phone} token (added via the "+ Add variable" picker in Settings).
+                if (string.Equals(SmsSettingsInput.ProviderType, "SOAP", StringComparison.OrdinalIgnoreCase) &&
+                    !string.IsNullOrWhiteSpace(SmsSettingsInput.SoapBodyTemplate))
+                {
+                    var tpl = SmsSettingsInput.SoapBodyTemplate;
+                    if (tpl.IndexOf("{Message}", StringComparison.Ordinal) < 0)
+                        ModelState.AddModelError("SmsSettingsInput.SoapBodyTemplate",
+                            "SOAP body template must include the mandatory {Message} placeholder.");
                 }
                 if (!ModelState.IsValid)
                 {
@@ -125,6 +177,11 @@ namespace SCADASMSSystem.Web.Pages.Settings
                     ["ScadaPcimObjectId"] = SmsSettingsInput.ScadaPcimObjectId,
                     // REST extras
                     ["ApiHeaders"]          = SmsSettingsInput.ApiHeaders,
+                    ["RestAuthType"]        = SmsSettingsInput.RestAuthType,
+                    ["RestBearerToken"]     = SmsSettingsInput.RestBearerToken,
+                    ["RestApiKeyName"]      = SmsSettingsInput.RestApiKeyName,
+                    ["RestApiKeyValue"]     = SmsSettingsInput.RestApiKeyValue,
+                    ["RestApiKeyLocation"]  = SmsSettingsInput.RestApiKeyLocation,
                     ["RestSuccessPattern"]  = SmsSettingsInput.RestSuccessPattern,
                     ["RestFailurePattern"]  = SmsSettingsInput.RestFailurePattern,
                     // SOAP
