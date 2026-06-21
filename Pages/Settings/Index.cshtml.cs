@@ -109,7 +109,7 @@ namespace SCADASMSSystem.Web.Pages.Settings
                     soapSendingSystem = s.SoapSendingSystem ?? "SCADA",
                     soapMessageType = s.SoapMessageType ?? "SmsType1",
                     senderName = s.SenderName ?? "",
-                    username = s.Username ?? "",
+                    username = string.IsNullOrEmpty(s.Username) ? "" : "***",
                     testMode = s.TestMode,
                     restHeaders      = s.RestHeaders.Select(p => new { p.Key, Value = p.IsSecret ? "***" : p.Value, p.IsSecret }),
                     restBodyParams   = s.RestBodyParams.Select(p => new { p.Key, Value = p.IsSecret ? "***" : p.Value, p.IsSecret }),

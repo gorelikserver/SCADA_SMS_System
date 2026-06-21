@@ -623,7 +623,24 @@ namespace SCADASMSSystem.Web.Services
 </soapenv:Envelope>";
 
                 if (Settings.LogSoapXml)
-                    _soapXmlLog.Push(MaskPhoneNumber(phone), soapEnvelope);
+                {
+                    var logEnvelope = soapEnvelope;
+                    // Redact WS-Security / HttpBasic password
+                    if (!string.IsNullOrEmpty(wsPass))
+                    {
+                        logEnvelope = logEnvelope
+                            .Replace(SecurityElement(wsPass), "***", StringComparison.Ordinal)
+                            .Replace(wsPass, "***", StringComparison.Ordinal);
+                    }
+                    // Redact any SOAP placeholder values marked IsSecret
+                    foreach (var p in Settings.SoapPlaceholders.Where(p => p.IsSecret && !string.IsNullOrEmpty(p.Value)))
+                    {
+                        logEnvelope = logEnvelope
+                            .Replace(SecurityElement(p.Value), "***", StringComparison.Ordinal)
+                            .Replace(p.Value, "***", StringComparison.Ordinal);
+                    }
+                    _soapXmlLog.Push(MaskPhoneNumber(phone), logEnvelope);
+                }
 
                 _logger.LogDebug("Sending SOAP SMS to {PhoneNumber} via {Endpoint} (auth={AuthType})",
                     MaskPhoneNumber(phone), Settings.ApiEndpoint, authType);
@@ -896,10 +913,6 @@ namespace SCADASMSSystem.Web.Services
         {
             switch (keyword.ToLowerInvariant())
             {
-                case "message": case "msg": case "text": case "body":
-                    // Caller must supply the message separately — return keyword untouched here.
-                    // The call sites that call this pass message through the loop variable.
-                    return keyword;
                 case "phone": case "phonenumber": case "sendtophonenumbers": case "mobile": case "number":
                     return phoneNumber;
                 case "tz":
