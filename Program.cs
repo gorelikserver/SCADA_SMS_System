@@ -112,6 +112,7 @@ try
 
     // In-memory call log for debugging (last 50 SMS API calls, full request/response)
     builder.Services.AddSingleton<SmsCallLog>();
+    builder.Services.AddSingleton<SoapXmlLog>();
 
     // Add Background Service for SMS processing
     builder.Services.AddSingleton<SmsBackgroundService>();
