@@ -47,6 +47,10 @@ namespace SCADASMSSystem.Web.Pages.Settings
         [BindProperty]
         public SmsSettings SmsSettingsInput { get; set; } = new();
 
+        [BindProperty] public string RestHeadersJson      { get; set; } = "[]";
+        [BindProperty] public string RestBodyParamsJson   { get; set; } = "[]";
+        [BindProperty] public string SoapPlaceholdersJson { get; set; } = "[]";
+
         public async Task OnGetAsync()
         {
             try
@@ -59,6 +63,15 @@ namespace SCADASMSSystem.Web.Pages.Settings
 
                 // Pre-populate form with current values
                 SmsSettingsInput = CurrentSmsSettings;
+                MigrateLegacySettingsToLists();
+
+                // Ensure bind props are initialized even when lists are already populated
+                if (string.IsNullOrEmpty(RestHeadersJson) || RestHeadersJson == "[]")
+                    RestHeadersJson = JsonSerializer.Serialize(SmsSettingsInput.RestHeaders);
+                if (string.IsNullOrEmpty(RestBodyParamsJson) || RestBodyParamsJson == "[]")
+                    RestBodyParamsJson = JsonSerializer.Serialize(SmsSettingsInput.RestBodyParams);
+                if (string.IsNullOrEmpty(SoapPlaceholdersJson) || SoapPlaceholdersJson == "[]")
+                    SoapPlaceholdersJson = JsonSerializer.Serialize(SmsSettingsInput.SoapPlaceholders);
 
                 _logger.LogInformation("Settings page loaded successfully");
             }
@@ -97,7 +110,11 @@ namespace SCADASMSSystem.Web.Pages.Settings
                     soapMessageType = s.SoapMessageType ?? "SmsType1",
                     senderName = s.SenderName ?? "",
                     username = s.Username ?? "",
-                    testMode = s.TestMode
+                    testMode = s.TestMode,
+                    restHeaders      = s.RestHeaders.Select(p => new { p.Key, Value = p.IsSecret ? "***" : p.Value, p.IsSecret }),
+                    restBodyParams   = s.RestBodyParams.Select(p => new { p.Key, Value = p.IsSecret ? "***" : p.Value, p.IsSecret }),
+                    soapPlaceholders = s.SoapPlaceholders.Select(p => new { p.Key, Value = p.IsSecret ? "***" : p.Value, p.IsSecret }),
+                    logSoapXml       = s.LogSoapXml
                 };
                 return new JsonResult(snapshot);
             }
@@ -157,6 +174,10 @@ namespace SCADASMSSystem.Web.Pages.Settings
                     return Page();
                 }
 
+                var restHeaders      = TryDeserializeParamList(RestHeadersJson);
+                var restBodyParams   = TryDeserializeParamList(RestBodyParamsJson);
+                var soapPlaceholders = TryDeserializeParamList(SoapPlaceholdersJson);
+
                 var smsNode = new JsonObject
                 {
                     // Core
@@ -194,7 +215,12 @@ namespace SCADASMSSystem.Web.Pages.Settings
                     ["SoapErrorPattern"]    = SmsSettingsInput.SoapErrorPattern,
                     ["SoapParams"]          = SmsSettingsInput.SoapParams,
                     // Test mode
-                    ["TestMode"]            = SmsSettingsInput.TestMode
+                    ["TestMode"]            = SmsSettingsInput.TestMode,
+                    // Dynamic param lists
+                    ["RestHeaders"]         = JsonNode.Parse(JsonSerializer.Serialize(restHeaders)),
+                    ["RestBodyParams"]      = JsonNode.Parse(JsonSerializer.Serialize(restBodyParams)),
+                    ["SoapPlaceholders"]    = JsonNode.Parse(JsonSerializer.Serialize(soapPlaceholders)),
+                    ["LogSoapXml"]          = SmsSettingsInput.LogSoapXml
                 };
 
                 root["SmsSettings"] = smsNode;
@@ -258,6 +284,79 @@ namespace SCADASMSSystem.Web.Pages.Settings
             }
 
             return RedirectToPage();
+        }
+
+        private void MigrateLegacySettingsToLists()
+        {
+            var s = _smsSettings.CurrentValue;
+
+            if (s.RestBodyParams.Count == 0 && !string.IsNullOrWhiteSpace(s.ApiParams))
+            {
+                try
+                {
+                    var old = JsonSerializer.Deserialize<Dictionary<string, string>>(s.ApiParams) ?? new();
+                    SmsSettingsInput.RestBodyParams = old
+                        .Select(kvp => new SmsParam { Key = kvp.Key, Value = kvp.Value })
+                        .ToList();
+                    _logger.LogInformation("Auto-migrated {Count} REST body params from ApiParams", old.Count);
+                }
+                catch { /* bad JSON — skip */ }
+            }
+
+            if (s.RestHeaders.Count == 0 && !string.IsNullOrWhiteSpace(s.ApiHeaders))
+            {
+                try
+                {
+                    var old = JsonSerializer.Deserialize<Dictionary<string, string>>(s.ApiHeaders) ?? new();
+                    SmsSettingsInput.RestHeaders = old
+                        .Select(kvp => new SmsParam { Key = kvp.Key, Value = kvp.Value })
+                        .ToList();
+                    _logger.LogInformation("Auto-migrated {Count} REST headers from ApiHeaders", old.Count);
+                }
+                catch { /* bad JSON — skip */ }
+            }
+
+            if (s.SoapPlaceholders.Count == 0)
+            {
+                var placeholders = new List<SmsParam>();
+                if (!string.IsNullOrWhiteSpace(s.SoapParams))
+                {
+                    try
+                    {
+                        var old = JsonSerializer.Deserialize<Dictionary<string, string>>(s.SoapParams) ?? new();
+                        placeholders.AddRange(old.Select(kvp => new SmsParam { Key = kvp.Key, Value = kvp.Value }));
+                    }
+                    catch { /* bad JSON */ }
+                }
+                // Promote legacy credential fields into placeholder rows
+                bool hasUser = placeholders.Any(p => p.Key.Equals("Username", StringComparison.OrdinalIgnoreCase));
+                bool hasPass = placeholders.Any(p => p.Key.Equals("Password", StringComparison.OrdinalIgnoreCase));
+                if (!hasUser && !string.IsNullOrWhiteSpace(s.Username))
+                    placeholders.Add(new SmsParam { Key = "Username", Value = s.Username, IsSecret = false });
+                if (!hasPass && !string.IsNullOrWhiteSpace(s.Password))
+                    placeholders.Add(new SmsParam { Key = "Password", Value = s.Password, IsSecret = true });
+                if (!string.IsNullOrWhiteSpace(s.SenderName))
+                    placeholders.Add(new SmsParam { Key = "SenderName", Value = s.SenderName });
+                if (!string.IsNullOrWhiteSpace(s.SoapSendingSystem) && s.SoapSendingSystem != "SCADA")
+                    placeholders.Add(new SmsParam { Key = "SendingSystem", Value = s.SoapSendingSystem });
+                if (!string.IsNullOrWhiteSpace(s.SoapMessageType) && s.SoapMessageType != "SmsType1")
+                    placeholders.Add(new SmsParam { Key = "MessageType", Value = s.SoapMessageType });
+
+                SmsSettingsInput.SoapPlaceholders = placeholders;
+                if (placeholders.Any())
+                    _logger.LogInformation("Auto-migrated {Count} SOAP placeholders from legacy fields", placeholders.Count);
+            }
+
+            // Sync the JSON bind properties so the row editor UI picks them up on GET
+            RestHeadersJson      = JsonSerializer.Serialize(SmsSettingsInput.RestHeaders);
+            RestBodyParamsJson   = JsonSerializer.Serialize(SmsSettingsInput.RestBodyParams);
+            SoapPlaceholdersJson = JsonSerializer.Serialize(SmsSettingsInput.SoapPlaceholders);
+        }
+
+        private static List<SmsParam> TryDeserializeParamList(string json)
+        {
+            try { return JsonSerializer.Deserialize<List<SmsParam>>(json) ?? new(); }
+            catch { return new(); }
         }
 
         private async Task LoadSystemInformationAsync()
