@@ -390,6 +390,9 @@
                 <input type="hidden" asp-for="SmsSettingsInput.SoapParams"             :value="rowsToJson(soapParamRows)" />
                 <input type="hidden" asp-for="SmsSettingsInput.TestMode"               :value="testMode ? 'true' : 'false'" />
                 <input type="hidden" asp-for="SmsSettingsInput.RestAuthType"           :value="restAuthType" />
+                <input type="hidden" name="RestHeadersJson"      id="restHeadersJsonInput" />
+                <input type="hidden" name="RestBodyParamsJson"   id="restBodyParamsJsonInput" />
+                <input type="hidden" name="SoapPlaceholdersJson" id="soapPlaceholdersJsonInput" />
 
                 <!-- Tab navigation -->
                 <div class="card config-card mb-0" style="border-radius:12px 12px 0 0; border-bottom:none;">
@@ -799,46 +802,6 @@
                                                 </div>
                                             </div>
 
-                                            <!-- Credentials — shown when auth type is not None -->
-                                            <div class="row g-2 mb-3" x-show="soapAuthType !== 'None'">
-                                                <div class="col-md-5">
-                                                    <label class="form-label" style="font-size:.78rem;">Username</label>
-                                                    <input asp-for="SmsSettingsInput.Username" class="form-control form-control-sm"
-                                                           placeholder="api_username" autocomplete="off" />
-                                                </div>
-                                                <div class="col-md-5">
-                                                    <label class="form-label" style="font-size:.78rem;">Password</label>
-                                                    <div class="input-group input-group-sm">
-                                                        <input asp-for="SmsSettingsInput.Password" class="form-control"
-                                                               id="passwordField" type="password"
-                                                               placeholder="••••••••" autocomplete="new-password" />
-                                                        <button class="btn btn-outline-secondary" type="button"
-                                                                onclick="togglePassword()" id="togglePwBtn">
-                                                            <i class="fas fa-eye" id="togglePwIcon"></i>
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                                <div class="col-md-4">
-                                                    <label class="form-label" style="font-size:.78rem;">Sender Name</label>
-                                                    <input asp-for="SmsSettingsInput.SenderName" class="form-control form-control-sm"
-                                                           placeholder="SCADA" maxlength="11" />
-                                                </div>
-                                            </div>
-
-                                            <!-- MessageType + SendingSystem -->
-                                            <div class="row g-2 mb-3">
-                                                <div class="col-md-6">
-                                                    <label class="form-label" style="font-size:.78rem;">MessageType</label>
-                                                    <input type="text" x-model="soapMsgType" class="form-control form-control-sm"
-                                                           placeholder="SmsType1" />
-                                                </div>
-                                                <div class="col-md-6">
-                                                    <label class="form-label" style="font-size:.78rem;">SendingSystem</label>
-                                                    <input type="text" x-model="soapSendingSys" class="form-control form-control-sm"
-                                                           placeholder="SCADA" />
-                                                </div>
-                                            </div>
-
                                             <!-- SOAP Placeholder Parameters (KV table, same pattern as REST) -->
                                             <div class="mb-3">
                                                 <label class="form-label" style="font-size:.78rem;">
@@ -997,6 +960,23 @@
                                                     <input type="text" x-model="soapErrorPattern" class="form-control form-control-sm font-monospace"
                                                            placeholder="&lt;ErrorMessage&gt;" />
                                                 </div>
+                                            </div>
+
+                                            <!-- LogSoapXml toggle -->
+                                            <hr class="section-divider" />
+                                            <div class="d-flex align-items-center gap-3 mb-3">
+                                                <div class="form-check form-switch">
+                                                    <input class="form-check-input" type="checkbox" role="switch"
+                                                           id="logSoapXmlToggle"
+                                                           asp-for="SmsSettingsInput.LogSoapXml" />
+                                                    <label class="form-check-label fw-semibold" for="logSoapXmlToggle">
+                                                        Log SOAP XML
+                                                    </label>
+                                                </div>
+                                                <span class="text-muted" style="font-size:.8rem;">
+                                                    Persists outbound SOAP envelopes to a 100-entry ring buffer.
+                                                    <a href="/Debug/SoapLog" target="_blank">View SOAP Log →</a>
+                                                </span>
                                             </div>
 
                                         </div><!-- /SOAP editor col -->
@@ -1185,7 +1165,8 @@
                                 <i class="fas fa-file-code me-1"></i>
                                 Saves to <code>appsettings.json</code> — restart app to fully apply.
                             </span>
-                            <button type="submit" class="btn btn-primary save-btn" id="saveBtn">
+                            <button type="submit" class="btn btn-primary save-btn" id="saveBtn"
+                                    @@click="syncParamJsonInputs()">
                                 <i class="fas fa-save me-2"></i>Save Settings
                             </button>
                         </div>
@@ -1492,6 +1473,8 @@
             // localStorage draft first so it doesn't replay over the freshly saved server value.
             _autoSaveAfterToggle() {
                 try { localStorage.removeItem('scada_settings_draft'); } catch { }
+                // Populate JSON inputs before submitting
+                this.syncParamJsonInputs();
                 // Defer one tick so Alpine has flushed :value bindings on hidden inputs.
                 setTimeout(() => {
                     const form = document.getElementById('settingsForm');
@@ -1522,6 +1505,22 @@
                         soapParamRows: stripIds(this.soapParamRows)
                     }));
                 } catch { }
+            },
+
+            // Populate hidden JSON inputs before form submit so the server receives
+            // RestHeadersJson / RestBodyParamsJson / SoapPlaceholdersJson as List<SmsParam>.
+            syncParamJsonInputs() {
+                function toParamList(rows) {
+                    return rows
+                        .filter(function(r) { return r.enabled && r.key && r.key.trim(); })
+                        .map(function(r) { return { Key: r.key.trim(), Value: r.value || '', IsSecret: false }; });
+                }
+                var hEl = document.getElementById('restHeadersJsonInput');
+                var bEl = document.getElementById('restBodyParamsJsonInput');
+                var sEl = document.getElementById('soapPlaceholdersJsonInput');
+                if (hEl) hEl.value = JSON.stringify(toParamList(this.headerRows));
+                if (bEl) bEl.value = JSON.stringify(toParamList(this.paramRows));
+                if (sEl) sEl.value = JSON.stringify(toParamList(this.soapParamRows));
             },
 
             addParamRow()  { this.paramRows.push(makeRow()); this._saveDraft(); },
