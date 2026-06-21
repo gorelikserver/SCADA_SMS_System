@@ -13,6 +13,7 @@ namespace SCADASMSSystem.Web.Services
         private readonly IOptionsMonitor<SmsSettings> _smsMonitor;
         private readonly IServiceProvider _serviceProvider;
         private readonly SmsCallLog _callLog;
+        private readonly SoapXmlLog _soapXmlLog;
         private readonly ILogger<SmsService> _logger;
         private static readonly ConcurrentDictionary<string, DateTime> _lastMessageTimes = new();
         private static readonly ConcurrentDictionary<string, int> _rateLimitCounter = new();
@@ -25,12 +26,14 @@ namespace SCADASMSSystem.Web.Services
             IOptionsMonitor<SmsSettings> smsSettings,
             IServiceProvider serviceProvider,
             SmsCallLog callLog,
+            SoapXmlLog soapXmlLog,
             ILogger<SmsService> logger)
         {
             _httpClient = httpClient;
             _smsMonitor = smsSettings;
             _serviceProvider = serviceProvider;
             _callLog = callLog;
+            _soapXmlLog = soapXmlLog;
             _logger = logger;
 
             var timeout = Settings.TimeoutSeconds > 0 ? Settings.TimeoutSeconds : 30;
@@ -126,14 +129,6 @@ namespace SCADASMSSystem.Web.Services
 
             try
             {
-                // Parse API parameters from JSON
-                var apiParams = JsonSerializer.Deserialize<Dictionary<string, string>>(Settings.ApiParams);
-                if (apiParams == null)
-                {
-                    return new SmsApiResponse { Success = false, Message = "Invalid API parameters configuration" };
-                }
-
-                // Build parameter dictionary
                 var requestParams = new Dictionary<string, string>();
 
                 // Phase E: detect whether any param row resolves to the recipient's phone number.
@@ -142,69 +137,94 @@ namespace SCADASMSSystem.Web.Services
                 // derive phone from a header or path), but we log a warning so the operator notices.
                 bool anyPhoneMapped = false;
 
-                foreach (var param in apiParams)
+                if (Settings.RestBodyParams.Count > 0)
                 {
-                    string paramValue;
-                    switch (param.Value.ToLower())
+                    // New dynamic list path
+                    foreach (var param in Settings.RestBodyParams)
                     {
-                        case "message":
-                        case "msg":
-                        case "text":
-                        case "body":
-                            paramValue = message;
-                            break;
-                        case "phone":
-                        case "phonenumber":
-                        case "sendtophonenumbers":
-                        case "mobile":
-                        case "number":
-                            paramValue = phoneNumber;
+                        string resolvedValue;
+                        var kw = param.Value.ToLowerInvariant();
+                        if (kw is "message" or "msg" or "text" or "body")
+                            resolvedValue = message;
+                        else
+                        {
+                            resolvedValue = ResolveRestKeyword(param.Value, phoneNumber, recipient, ctx);
+                        }
+                        if (kw is "phone" or "phonenumber" or "sendtophonenumbers" or "mobile" or "number")
                             anyPhoneMapped = true;
-                            break;
-                        case "tz":
-                            paramValue = recipient.TZ ?? "";
-                            break;
-                        case "firstname":
-                            paramValue = recipient.FirstName ?? "";
-                            break;
-                        case "lastname":
-                            paramValue = recipient.LastName ?? "";
-                            break;
-                        case "group_id":
-                        case "groupid":
-                            paramValue = ctx?.GroupId?.ToString() ?? "";
-                            break;
-                        case "alarm_id":
-                        case "alarmid":
-                            paramValue = ctx?.AlarmId ?? "";
-                            break;
-                        case "priority":
-                            paramValue = ctx?.Priority ?? "";
-                            break;
-                        case "value":
-                            paramValue = ctx?.Value ?? "";
-                            break;
-                        case "username":
-                        case "user":
-                        case "userid":
-                            paramValue = Settings.Username ?? "";
-                            break;
-                        case "password":
-                        case "pass":
-                            paramValue = Settings.Password ?? "";
-                            break;
-                        case "sender_name":
-                        case "sendername":
-                        case "sender":
-                        case "from":
-                            paramValue = Settings.SenderName ?? "SCADA";
-                            break;
-                        default:
-                            paramValue = param.Value;
-                            break;
+                        requestParams[param.Key] = resolvedValue;
                     }
-                    
-                    requestParams[param.Key] = paramValue;
+                }
+                else
+                {
+                    // Legacy: parse ApiParams JSON string
+                    var apiParams = JsonSerializer.Deserialize<Dictionary<string, string>>(Settings.ApiParams ?? "{}");
+                    if (apiParams == null)
+                        return new SmsApiResponse { Success = false, Message = "Invalid API parameters configuration" };
+
+                    foreach (var param in apiParams)
+                    {
+                        string paramValue;
+                        switch (param.Value.ToLower())
+                        {
+                            case "message":
+                            case "msg":
+                            case "text":
+                            case "body":
+                                paramValue = message;
+                                break;
+                            case "phone":
+                            case "phonenumber":
+                            case "sendtophonenumbers":
+                            case "mobile":
+                            case "number":
+                                paramValue = phoneNumber;
+                                anyPhoneMapped = true;
+                                break;
+                            case "tz":
+                                paramValue = recipient.TZ ?? "";
+                                break;
+                            case "firstname":
+                                paramValue = recipient.FirstName ?? "";
+                                break;
+                            case "lastname":
+                                paramValue = recipient.LastName ?? "";
+                                break;
+                            case "group_id":
+                            case "groupid":
+                                paramValue = ctx?.GroupId?.ToString() ?? "";
+                                break;
+                            case "alarm_id":
+                            case "alarmid":
+                                paramValue = ctx?.AlarmId ?? "";
+                                break;
+                            case "priority":
+                                paramValue = ctx?.Priority ?? "";
+                                break;
+                            case "value":
+                                paramValue = ctx?.Value ?? "";
+                                break;
+                            case "username":
+                            case "user":
+                            case "userid":
+                                paramValue = Settings.Username ?? "";
+                                break;
+                            case "password":
+                            case "pass":
+                                paramValue = Settings.Password ?? "";
+                                break;
+                            case "sender_name":
+                            case "sendername":
+                            case "sender":
+                            case "from":
+                                paramValue = Settings.SenderName ?? "SCADA";
+                                break;
+                            default:
+                                paramValue = param.Value;
+                                break;
+                        }
+                        requestParams[param.Key] = paramValue;
+                    }
                 }
 
                 if (!anyPhoneMapped)
@@ -213,9 +233,14 @@ namespace SCADASMSSystem.Web.Services
                         "Add a row in Settings → Body Parameters with the dynamic value `phone`.", MaskPhoneNumber(phoneNumber));
                 }
 
-                // Parse custom request headers
                 var customHeaders = new Dictionary<string, string>();
-                if (!string.IsNullOrEmpty(Settings.ApiHeaders))
+                if (Settings.RestHeaders.Count > 0)
+                {
+                    foreach (var h in Settings.RestHeaders)
+                        if (!string.IsNullOrWhiteSpace(h.Key))
+                            customHeaders[h.Key] = h.Value;
+                }
+                else if (!string.IsNullOrEmpty(Settings.ApiHeaders))
                 {
                     try
                     {
@@ -496,12 +521,20 @@ namespace SCADASMSSystem.Web.Services
 
                 // Build SOAP header block based on auth type
                 var authType = Settings.SoapAuthType ?? "WSSecurity";
+
+                var wsUser = Settings.SoapPlaceholders
+                    .FirstOrDefault(p => p.Key.Equals("Username", StringComparison.OrdinalIgnoreCase))?.Value
+                    ?? Settings.Username ?? "";
+                var wsPass = Settings.SoapPlaceholders
+                    .FirstOrDefault(p => p.Key.Equals("Password", StringComparison.OrdinalIgnoreCase))?.Value
+                    ?? Settings.Password ?? "";
+
                 var soapHeader = authType.Equals("WSSecurity", StringComparison.OrdinalIgnoreCase)
                     ? $@"  <soapenv:Header>
     <Security xmlns=""http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd"">
       <UsernameToken>
-        <Username>{SecurityElement(Settings.Username ?? "")}</Username>
-        <Password Type=""http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-username-token-profile-1.0#PasswordText"">{SecurityElement(Settings.Password ?? "")}</Password>
+        <Username>{SecurityElement(wsUser)}</Username>
+        <Password Type=""http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-username-token-profile-1.0#PasswordText"">{SecurityElement(wsPass)}</Password>
       </UsernameToken>
     </Security>
   </soapenv:Header>"
@@ -534,26 +567,35 @@ namespace SCADASMSSystem.Web.Services
 
                 var soapBodyContent = Settings.SoapBodyTemplate;
 
-                if (!string.IsNullOrWhiteSpace(Settings.SoapParams))
+                var phoneKws = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "phone", "phonenumber", "mobile" };
+
+                if (Settings.SoapPlaceholders.Count > 0)
                 {
-                    // Dynamic KV-table resolution: SoapParams JSON maps placeholder → keyword/value
+                    // New dynamic list path
+                    if (!Settings.SoapPlaceholders.Any(p => phoneKws.Contains(p.Value ?? "")))
+                    {
+                        _logger.LogWarning("No 'phone' placeholder mapped in SOAP SoapPlaceholders — recipient {PhoneNumber} may not receive SMS. " +
+                            "Add a row in Settings → SOAP → Placeholder Resolvers with value `phone`.", MaskPhoneNumber(phone));
+                    }
+                    foreach (var param in Settings.SoapPlaceholders)
+                        soapBodyContent = soapBodyContent.Replace($"{{{param.Key}}}", ResolveSoapValue(param.Value));
+                }
+                else if (!string.IsNullOrWhiteSpace(Settings.SoapParams))
+                {
+                    // Legacy SoapParams JSON string
                     var soapParamMap = JsonSerializer.Deserialize<Dictionary<string, string>>(Settings.SoapParams)
                                        ?? new Dictionary<string, string>();
-
-                    // Phase E: warn if no row maps the recipient phone.
-                    var phoneKws = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "phone", "phonenumber", "mobile" };
                     if (!soapParamMap.Values.Any(v => phoneKws.Contains(v ?? "")))
                     {
                         _logger.LogWarning("No 'phone' placeholder mapped in SOAP SoapParams — recipient {PhoneNumber} may not receive SMS. " +
-                            "Add a row in Settings → SOAP Body Parameters with the dynamic value `phone`.", MaskPhoneNumber(phone));
+                            "Add a row in Settings → Body Parameters with the dynamic value `phone`.", MaskPhoneNumber(phone));
                     }
-
                     foreach (var (token, value) in soapParamMap)
                         soapBodyContent = soapBodyContent.Replace($"{{{token}}}", ResolveSoapValue(value));
                 }
                 else
                 {
-                    // Legacy hardcoded replacements (backward-compatible when SoapParams not configured)
+                    // Legacy hardcoded replacements (backward-compatible)
                     soapBodyContent = soapBodyContent
                         .Replace("{Message}",       SecurityElement(message))
                         .Replace("{Phone}",         SecurityElement(phone))
@@ -580,6 +622,9 @@ namespace SCADASMSSystem.Web.Services
   </soapenv:Body>
 </soapenv:Envelope>";
 
+                if (Settings.LogSoapXml)
+                    _soapXmlLog.Push(MaskPhoneNumber(phone), soapEnvelope);
+
                 _logger.LogDebug("Sending SOAP SMS to {PhoneNumber} via {Endpoint} (auth={AuthType})",
                     MaskPhoneNumber(phone), Settings.ApiEndpoint, authType);
 
@@ -591,7 +636,7 @@ namespace SCADASMSSystem.Web.Services
                 if (authType.Equals("HttpBasic", StringComparison.OrdinalIgnoreCase))
                 {
                     var credentials = Convert.ToBase64String(
-                        Encoding.UTF8.GetBytes($"{Settings.Username}:{Settings.Password}"));
+                        Encoding.UTF8.GetBytes($"{wsUser}:{wsPass}"));
                     request.Headers.TryAddWithoutValidation("Authorization", $"Basic {credentials}");
                 }
 
@@ -845,6 +890,41 @@ namespace SCADASMSSystem.Web.Services
             }
             
             return $"{phoneNumber.Substring(0, 3)}***{phoneNumber.Substring(phoneNumber.Length - 3)}";
+        }
+
+        private string ResolveRestKeyword(string keyword, string phoneNumber, SmsRecipient recipient, SmsCallContext? ctx)
+        {
+            switch (keyword.ToLowerInvariant())
+            {
+                case "message": case "msg": case "text": case "body":
+                    // Caller must supply the message separately — return keyword untouched here.
+                    // The call sites that call this pass message through the loop variable.
+                    return keyword;
+                case "phone": case "phonenumber": case "sendtophonenumbers": case "mobile": case "number":
+                    return phoneNumber;
+                case "tz":
+                    return recipient.TZ ?? "";
+                case "firstname":
+                    return recipient.FirstName ?? "";
+                case "lastname":
+                    return recipient.LastName ?? "";
+                case "group_id": case "groupid":
+                    return ctx?.GroupId?.ToString() ?? "";
+                case "alarm_id": case "alarmid":
+                    return ctx?.AlarmId ?? "";
+                case "priority":
+                    return ctx?.Priority ?? "";
+                case "value":
+                    return ctx?.Value ?? "";
+                case "username": case "user": case "userid":
+                    return Settings.Username ?? "";
+                case "password": case "pass":
+                    return Settings.Password ?? "";
+                case "sender_name": case "sendername": case "sender": case "from":
+                    return Settings.SenderName ?? "SCADA";
+                default:
+                    return keyword; // literal value
+            }
         }
 
         private bool CheckRateLimit()
