@@ -385,7 +385,6 @@
                 <input type="hidden" asp-for="SmsSettingsInput.RestFailurePattern"     :value="failurePattern" />
                 <input type="hidden" asp-for="SmsSettingsInput.SoapSuccessPattern"     :value="soapSuccessPattern" />
                 <input type="hidden" asp-for="SmsSettingsInput.SoapErrorPattern"       :value="soapErrorPattern" />
-                <input type="hidden" asp-for="SmsSettingsInput.SoapParams"             :value="rowsToJson(soapParamRows)" />
                 <input type="hidden" asp-for="SmsSettingsInput.TestMode"               :value="testMode ? 'true' : 'false'" />
                 <input type="hidden" asp-for="SmsSettingsInput.RestAuthType"           :value="restAuthType" />
                 <input type="hidden" asp-for="RestHeadersJson"      id="restHeadersJsonInput" />
