@@ -375,8 +375,6 @@
                 <input type="hidden" asp-for="SmsSettingsInput.ApiEndpoint"            :value="endpoint" />
                 <input type="hidden" asp-for="SmsSettingsInput.HttpMethod"             :value="httpMethod" />
                 <input type="hidden" asp-for="SmsSettingsInput.ContentType"            :value="contentType" />
-                <input type="hidden" asp-for="SmsSettingsInput.ApiParams"              :value="rowsToJson(paramRows)" />
-                <input type="hidden" asp-for="SmsSettingsInput.ApiHeaders"             :value="rowsToJson(headerRows)" />
                 <input type="hidden" asp-for="SmsSettingsInput.SoapAction"             :value="soapAction" />
                 <input type="hidden" asp-for="SmsSettingsInput.SoapAuthType"           :value="soapAuthType" />
                 <textarea style="display:none" asp-for="SmsSettingsInput.SoapBodyTemplate" :value="soapTemplate"></textarea>
@@ -390,9 +388,9 @@
                 <input type="hidden" asp-for="SmsSettingsInput.SoapParams"             :value="rowsToJson(soapParamRows)" />
                 <input type="hidden" asp-for="SmsSettingsInput.TestMode"               :value="testMode ? 'true' : 'false'" />
                 <input type="hidden" asp-for="SmsSettingsInput.RestAuthType"           :value="restAuthType" />
-                <input type="hidden" name="RestHeadersJson"      id="restHeadersJsonInput" />
-                <input type="hidden" name="RestBodyParamsJson"   id="restBodyParamsJsonInput" />
-                <input type="hidden" name="SoapPlaceholdersJson" id="soapPlaceholdersJsonInput" />
+                <input type="hidden" asp-for="RestHeadersJson"      id="restHeadersJsonInput" />
+                <input type="hidden" asp-for="RestBodyParamsJson"   id="restBodyParamsJsonInput" />
+                <input type="hidden" asp-for="SoapPlaceholdersJson" id="soapPlaceholdersJsonInput" />
 
                 <!-- Tab navigation -->
                 <div class="card config-card mb-0" style="border-radius:12px 12px 0 0; border-bottom:none;">
@@ -624,7 +622,13 @@
                                                                 <input type="checkbox" x-model="row.enabled" class="pm-row-check" />
                                                                 <input type="text" x-model="row.key" class="pm-kv-key" placeholder="Header-Name" />
                                                                 <div class="pm-value-cell">
-                                                                    <input type="text" x-model="row.value" class="pm-kv-val-input" placeholder="value" />
+                                                                    <input :type="row.isSecret ? 'password' : 'text'" x-model="row.value" class="pm-kv-val-input" placeholder="value" autocomplete="new-password" />
+                                                                    <button type="button" class="btn btn-sm px-2"
+                                                                            :class="row.isSecret ? 'btn-warning' : 'btn-outline-secondary'"
+                                                                            @@click.prevent="row.isSecret = !row.isSecret"
+                                                                            title="Toggle secret (masks value in UI; sent as literal in request)">
+                                                                        <i class="fas fa-lock"></i>
+                                                                    </button>
                                                                 </div>
                                                                 <button type="button" class="pm-row-del" @@click="removeHeaderRow(i)" title="Remove">
                                                                     <i class="fas fa-times"></i>
@@ -637,79 +641,15 @@
                                                     </button>
                                                 </div>
 
-                                                <!-- AUTH tab — auth method drives which security inputs appear -->
+                                                <!-- AUTH tab — configure auth type; credential fields managed via Headers tab -->
                                                 <div x-show="restTab==='auth'">
                                                     <div class="row g-3 mt-1">
                                                         <div class="col-12">
-                                                            <label class="form-label" style="font-size:.78rem;">Auth Type</label>
-                                                            <select x-model="restAuthType" class="form-select form-select-sm">
-                                                                <option value="None">No Auth</option>
-                                                                <option value="Basic">Basic Auth (Username + Password)</option>
-                                                                <option value="Bearer">Bearer Token</option>
-                                                                <option value="ApiKey">API Key (Header or Query)</option>
-                                                            </select>
-                                                            <small class="text-muted d-block mt-1">
-                                                                Selected method is applied automatically by the SMS service — no need to add the Authorization header manually.
-                                                            </small>
+                                                            <div class="info-box">
+                                                                <i class="fas fa-info-circle me-1"></i>
+                                                                Authentication credentials (username, password, bearer token, API key) are configured via the <strong>Headers</strong> tab. Add the appropriate Authorization header directly as a static or secret header value.
+                                                            </div>
                                                         </div>
-
-                                                        <!-- Basic -->
-                                                        <template x-if="restAuthType==='Basic'">
-                                                            <div class="col-12">
-                                                                <div class="row g-2">
-                                                                    <div class="col-md-6">
-                                                                        <label class="form-label" for="restBasicUser" style="font-size:.78rem;">Username</label>
-                                                                        <input id="restBasicUser" name="SmsSettingsInput.Username" value="@Model.SmsSettingsInput.Username" class="form-control form-control-sm" placeholder="api_user" autocomplete="off" />
-                                                                    </div>
-                                                                    <div class="col-md-6">
-                                                                        <label class="form-label" for="restBasicPass" style="font-size:.78rem;">Password</label>
-                                                                        <input id="restBasicPass" name="SmsSettingsInput.Password" value="@Model.SmsSettingsInput.Password" type="password" class="form-control form-control-sm" placeholder="••••••••" autocomplete="new-password" />
-                                                                    </div>
-                                                                </div>
-                                                                <small class="text-muted">Sent as <code>Authorization: Basic base64(username:password)</code>. Shares Username/Password with SOAP credentials.</small>
-                                                            </div>
-                                                        </template>
-
-                                                        <!-- Bearer -->
-                                                        <template x-if="restAuthType==='Bearer'">
-                                                            <div class="col-12">
-                                                                <label class="form-label" style="font-size:.78rem;">Bearer Token</label>
-                                                                <input asp-for="SmsSettingsInput.RestBearerToken" type="password" class="form-control form-control-sm font-monospace" placeholder="eyJhbGciOi…" autocomplete="off" />
-                                                                <small class="text-muted">Sent as <code>Authorization: Bearer {token}</code>.</small>
-                                                            </div>
-                                                        </template>
-
-                                                        <!-- API Key -->
-                                                        <template x-if="restAuthType==='ApiKey'">
-                                                            <div class="col-12">
-                                                                <div class="row g-2">
-                                                                    <div class="col-md-5">
-                                                                        <label class="form-label" style="font-size:.78rem;">Key Name</label>
-                                                                        <input asp-for="SmsSettingsInput.RestApiKeyName" class="form-control form-control-sm" placeholder="X-API-Key" autocomplete="off" />
-                                                                    </div>
-                                                                    <div class="col-md-5">
-                                                                        <label class="form-label" style="font-size:.78rem;">Key Value</label>
-                                                                        <input asp-for="SmsSettingsInput.RestApiKeyValue" type="password" class="form-control form-control-sm font-monospace" placeholder="••••••••" autocomplete="off" />
-                                                                    </div>
-                                                                    <div class="col-md-2">
-                                                                        <label class="form-label" style="font-size:.78rem;">Send In</label>
-                                                                        <select asp-for="SmsSettingsInput.RestApiKeyLocation" class="form-select form-select-sm">
-                                                                            <option value="Header">Header</option>
-                                                                            <option value="Query">Query</option>
-                                                                        </select>
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-                                                        </template>
-
-                                                        <template x-if="restAuthType==='None'">
-                                                            <div class="col-12">
-                                                                <div class="info-box">
-                                                                    <i class="fas fa-info-circle me-1"></i>
-                                                                    No authentication will be applied. If your provider requires custom auth, add it via the <strong>Headers</strong> tab.
-                                                                </div>
-                                                            </div>
-                                                        </template>
                                                     </div>
                                                 </div>
 
@@ -1266,7 +1206,31 @@
                         key: k,
                         value: String(v),
                         isDynamic: isDyn,
-                        paramType: detectType(v)
+                        paramType: detectType(v),
+                        isSecret: false
+                    };
+                });
+            } catch { return []; }
+        }
+
+        // Parse the new List<SmsParam> JSON format: [{Key, Value, IsSecret}, ...]
+        function parseParamListToRows(jsonStr) {
+            if (!jsonStr || jsonStr.trim() === '' || jsonStr.trim() === '[]') return [];
+            try {
+                const arr = JSON.parse(jsonStr);
+                if (!Array.isArray(arr)) return parseJsonToRows(jsonStr); // fallback for legacy dict format
+                return arr.map(p => {
+                    const v = String(p.Value || p.value || '');
+                    const k = String(p.Key || p.key || '');
+                    const isDyn = DYNAMIC_KEYWORDS.includes(v.toLowerCase().trim());
+                    return {
+                        _id: nextRowId(),
+                        enabled: true,
+                        key: k,
+                        value: v,
+                        isDynamic: isDyn,
+                        paramType: detectType(v),
+                        isSecret: !!(p.IsSecret || p.isSecret)
                     };
                 });
             } catch { return []; }
@@ -1281,7 +1245,7 @@
         }
 
         function makeRow() {
-            return { _id: nextRowId(), enabled: true, key: '', value: '', isDynamic: false, paramType: 'static' };
+            return { _id: nextRowId(), enabled: true, key: '', value: '', isDynamic: false, paramType: 'static', isSecret: false };
         }
 
         function q(name) { return document.querySelector('[name="' + name + '"]'); }
@@ -1330,9 +1294,9 @@
                 this.testMode = tmEl ? /^(true|on|1)$/i.test(String(tmEl.value).trim()) : false;
                 this.restAuthType  = q('SmsSettingsInput.RestAuthType')?.value || 'None';
 
-                this.paramRows     = parseJsonToRows(q('SmsSettingsInput.ApiParams')?.value  || '');
-                this.headerRows    = parseJsonToRows(q('SmsSettingsInput.ApiHeaders')?.value || '');
-                this.soapParamRows = parseJsonToRows(q('SmsSettingsInput.SoapParams')?.value || '');
+                this.paramRows     = parseParamListToRows(document.getElementById('restBodyParamsJsonInput')?.value  || '');
+                this.headerRows    = parseParamListToRows(document.getElementById('restHeadersJsonInput')?.value || '');
+                this.soapParamRows = parseParamListToRows(document.getElementById('soapPlaceholdersJsonInput')?.value || '');
                 if (!this.paramRows.length)  this.paramRows.push(makeRow());
                 if (!this.headerRows.length) this.headerRows.push(makeRow());
                 if (!this.soapParamRows.length) {
@@ -1513,7 +1477,7 @@
                 function toParamList(rows) {
                     return rows
                         .filter(function(r) { return r.enabled && r.key && r.key.trim(); })
-                        .map(function(r) { return { Key: r.key.trim(), Value: r.value || '', IsSecret: false }; });
+                        .map(function(r) { return { Key: r.key.trim(), Value: r.value || '', IsSecret: r.isSecret || false }; });
                 }
                 var hEl = document.getElementById('restHeadersJsonInput');
                 var bEl = document.getElementById('restBodyParamsJsonInput');
