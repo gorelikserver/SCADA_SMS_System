@@ -87,5 +87,21 @@ namespace SCADASMSSystem.Web.Models
         // ─── Test mode ───────────────────────────────────────────────────────────
         // When true, SMS calls are routed to in-process mock at /mock/sms/*
         public bool TestMode { get; set; } = false;
+
+        // ─── Dynamic param lists ─────────────────────────────────────────────────────
+        // When non-empty these replace the legacy ApiHeaders/ApiParams/SoapParams strings.
+        public List<SmsParam> RestHeaders      { get; set; } = new();
+        public List<SmsParam> RestBodyParams   { get; set; } = new();
+        public List<SmsParam> SoapPlaceholders { get; set; } = new();
+
+        // ─── SOAP XML logging ────────────────────────────────────────────────────────
+        public bool LogSoapXml { get; set; } = false;
+    }
+
+    public class SmsParam
+    {
+        public string Key    { get; set; } = string.Empty;
+        public string Value  { get; set; } = string.Empty;
+        public bool IsSecret { get; set; } = false;
     }
 }
