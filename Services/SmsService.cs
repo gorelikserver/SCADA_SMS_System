@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Options;
 using SCADASMSSystem.Web.Models;
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
@@ -13,8 +14,8 @@ namespace SCADASMSSystem.Web.Services
         private readonly IServiceProvider _serviceProvider;
         private readonly SmsCallLog _callLog;
         private readonly ILogger<SmsService> _logger;
-        private static readonly Dictionary<string, DateTime> _lastMessageTimes = new();
-        private static readonly Dictionary<string, int> _rateLimitCounter = new();
+        private static readonly ConcurrentDictionary<string, DateTime> _lastMessageTimes = new();
+        private static readonly ConcurrentDictionary<string, int> _rateLimitCounter = new();
         private static DateTime _lastRateLimitReset = DateTime.Now;
 
         private SmsSettings Settings => _smsMonitor.CurrentValue;
@@ -901,7 +902,7 @@ namespace SCADASMSSystem.Web.Services
 
             foreach (var keyToRemove in keysToRemove)
             {
-                _lastMessageTimes.Remove(keyToRemove);
+                _lastMessageTimes.TryRemove(keyToRemove, out _);
             }
         }
     }
