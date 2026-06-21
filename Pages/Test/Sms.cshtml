@@ -750,6 +750,18 @@
                             </div>
                         </template>
 
+                        <!-- Outbound XML panel -->
+                        <div x-show="outboundXml" class="mb-3">
+                            <details>
+                                <summary class="fw-semibold text-secondary" style="cursor:pointer;user-select:none;">
+                                    <i class="fas fa-code me-1 text-info"></i>Outbound XML
+                                    <span class="badge bg-secondary ms-1" style="font-size:.65rem;">sent</span>
+                                </summary>
+                                <pre class="mt-2 p-3 bg-dark text-light rounded small" style="overflow-x:auto;white-space:pre-wrap;word-break:break-all;"
+                                     x-text="outboundXml"></pre>
+                            </details>
+                        </div>
+
                         <!-- Response body -->
                         <template x-if="lastStatusCode !== null">
                             <div>
@@ -1157,6 +1169,7 @@
                 lastResponseBody: '',
                 lastEchoEnvelope: '',
                 showEcho: false,
+                outboundXml: '',
                 saving: false,
 
                 // ── Init ───────────────────────────────────────
@@ -1306,6 +1319,7 @@ ${body}
                     this.lastErrorMessage = null;
                     this.lastResponseBody = '';
                     this.lastEchoEnvelope = '';
+                    this.outboundXml = '';
                     this.showEcho = false;
                     try {
                         const envelope = this.editorTab === 'raw' ? this.rawEnvelope : this.assembledEnvelope;
@@ -1330,6 +1344,7 @@ ${body}
                         this.lastErrorMessage = data.errorMessage ?? null;
                         this.lastResponseBody = data.body ?? '';
                         this.lastEchoEnvelope = data.echoEnvelope ?? '';
+                        this.outboundXml = data.echoEnvelope || '';
                     } catch (e) {
                         this.lastErrorMessage = 'Network error: ' + e.message;
                         this.lastResponseBody = '';
