@@ -1186,6 +1186,14 @@
                     this.inputs.senderName = s.senderName || '';
                     try { this.soapParams = s.soapParams ? JSON.parse(s.soapParams) : {}; } catch { this.soapParams = {}; }
                     this.rawEnvelope = this.assembledEnvelope;
+                    // Auto-refresh when user returns from Settings tab (same debounce as smsPreviewer)
+                    let _lastFocus = 0;
+                    window.addEventListener('focus', () => {
+                        const now = Date.now();
+                        if (now - _lastFocus < 1500) return;
+                        _lastFocus = now;
+                        this.loadFromSettings(true);
+                    });
                 },
 
                 // ── Computed: assembled full envelope ──────────
@@ -1356,7 +1364,7 @@ ${body}
                 },
 
                 // ── Load from settings ─────────────────────────
-                async loadFromSettings() {
+                async loadFromSettings(silent = false) {
                     try {
                         const res = await fetch('/Settings?handler=Snapshot', {
                             headers: { Accept: 'application/json' },
@@ -1375,7 +1383,7 @@ ${body}
                         this.inputs.senderName = s.senderName || '';
                         try { this.soapParams = s.soapParams ? JSON.parse(s.soapParams) : {}; } catch { this.soapParams = {}; }
                         this.rawEnvelope = this.assembledEnvelope;
-                        if (window.SCADAUtils) SCADAUtils.showToast('Loaded from settings', 'success');
+                        if (!silent && window.SCADAUtils) SCADAUtils.showToast('Loaded from settings', 'success');
                     } catch (e) {
                         if (window.SCADAUtils) SCADAUtils.showToast('Failed to load settings: ' + e.message, 'danger');
                     }
