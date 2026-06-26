@@ -18,6 +18,7 @@ namespace SCADASMSSystem.Web.Services
         private static readonly ConcurrentDictionary<string, DateTime> _lastMessageTimes = new();
         private static readonly ConcurrentDictionary<string, int> _rateLimitCounter = new();
         private static DateTime _lastRateLimitReset = DateTime.Now;
+        private static readonly object _rateLimitLock = new();
 
         private SmsSettings Settings => _smsMonitor.CurrentValue;
 
@@ -44,8 +45,7 @@ namespace SCADASMSSystem.Web.Services
         {
             try
             {
-                var success = true;
-                var tasks = new List<Task>();
+                var tasks = new List<Task<bool>>();
 
                 foreach (var recipient in recipients)
                 {
@@ -64,8 +64,11 @@ namespace SCADASMSSystem.Web.Services
                     tasks.Add(SendSingleSmsAsync(message, recipient, alarmId, groupId, priority, value));
                 }
 
-                await Task.WhenAll(tasks);
-                return success;
+                if (tasks.Count == 0)
+                    return true;
+
+                var results = await Task.WhenAll(tasks);
+                return results.All(r => r);
             }
             catch (Exception ex)
             {
@@ -418,7 +421,7 @@ namespace SCADASMSSystem.Web.Services
             }
         }
 
-        private async Task SendSingleSmsAsync(string message, SmsRecipient recipient, string alarmId, int? groupId = null, string? priority = null, string? value = null)
+        private async Task<bool> SendSingleSmsAsync(string message, SmsRecipient recipient, string alarmId, int? groupId = null, string? priority = null, string? value = null)
         {
             var phoneNumber = recipient.PhoneNumber;
             try
@@ -499,6 +502,8 @@ namespace SCADASMSSystem.Web.Services
                 {
                     UpdateDuplicateTracking(message, phoneNumber);
                 }
+
+                return response.Success;
             }
             catch (Exception ex)
             {
@@ -943,26 +948,19 @@ namespace SCADASMSSystem.Web.Services
         private bool CheckRateLimit()
         {
             var now = DateTime.Now;
-            
-            // Reset rate limit counter if window has passed
-            if ((now - _lastRateLimitReset).TotalSeconds >= Settings.RateWindow)
+
+            lock (_rateLimitLock)
             {
-                _rateLimitCounter.Clear();
-                _lastRateLimitReset = now;
+                if ((now - _lastRateLimitReset).TotalSeconds >= Settings.RateWindow)
+                {
+                    _rateLimitCounter.Clear();
+                    _lastRateLimitReset = now;
+                }
             }
 
-            // Check current count
             var currentMinute = now.ToString("yyyy-MM-dd HH:mm");
-            _rateLimitCounter.TryGetValue(currentMinute, out int currentCount);
-            
-            if (currentCount >= Settings.RateLimit)
-            {
-                return false;
-            }
-
-            // Increment counter
-            _rateLimitCounter[currentMinute] = currentCount + 1;
-            return true;
+            var newCount = _rateLimitCounter.AddOrUpdate(currentMinute, 1, (_, c) => c + 1);
+            return newCount <= Settings.RateLimit;
         }
 
         private bool IsDuplicate(string message, string phoneNumber)

@@ -308,6 +308,10 @@ logs/
 config.ini
 SMS_credentials.txt
 
+# Build artifacts — ship via GitHub Releases, not git
+*.msi
+install_log.txt
+
 # Database files
 *.db
 *.sqlite
