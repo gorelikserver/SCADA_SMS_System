@@ -10,19 +10,19 @@ namespace SCADASMSSystem.Web.Controllers
     public class MockSmsController : ControllerBase
     {
         private readonly IMockSmsService _mock;
-        private readonly SmsSettings _settings;
+        private readonly IOptionsMonitor<SmsSettings> _settingsMonitor;
 
-        public MockSmsController(IMockSmsService mock, IOptions<SmsSettings> settings)
+        public MockSmsController(IMockSmsService mock, IOptionsMonitor<SmsSettings> settings)
         {
             _mock = mock;
-            _settings = settings.Value;
+            _settingsMonitor = settings;
         }
 
         [HttpGet("rest")]
         [HttpPost("rest")]
         public async Task<IActionResult> MockRest()
         {
-            if (!_settings.TestMode)
+            if (!_settingsMonitor.CurrentValue.TestMode)
                 return StatusCode(503, new { error = "Mock endpoint only active in TestMode" });
 
             // Accepts any params — simulate like a real provider
@@ -52,7 +52,7 @@ namespace SCADASMSSystem.Web.Controllers
         [HttpPost("soap")]
         public async Task<IActionResult> MockSoap()
         {
-            if (!_settings.TestMode)
+            if (!_settingsMonitor.CurrentValue.TestMode)
                 return StatusCode(503, new { error = "Mock endpoint only active in TestMode" });
 
             var body = await new StreamReader(Request.Body).ReadToEndAsync();
@@ -89,7 +89,7 @@ namespace SCADASMSSystem.Web.Controllers
         [HttpGet("status")]
         public IActionResult Status()
         {
-            if (!_settings.TestMode)
+            if (!_settingsMonitor.CurrentValue.TestMode)
                 return StatusCode(503, new { error = "Mock endpoint only active in TestMode" });
 
             return Ok(new
@@ -104,7 +104,7 @@ namespace SCADASMSSystem.Web.Controllers
         [HttpPost("reset")]
         public IActionResult Reset()
         {
-            if (!_settings.TestMode)
+            if (!_settingsMonitor.CurrentValue.TestMode)
                 return StatusCode(503, new { error = "Mock endpoint only active in TestMode" });
 
             _mock.Reset();
