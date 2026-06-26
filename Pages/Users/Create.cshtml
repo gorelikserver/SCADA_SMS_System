@@ -4,6 +4,20 @@
     ViewData["Title"] = "Create New User";
 }
 
+@section Breadcrumb {
+<div class="breadcrumb-bar">
+    <div class="container-fluid px-4">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a asp-page="/Index"><i class="fas fa-home me-1"></i>Dashboard</a></li>
+                <li class="breadcrumb-item"><a asp-page="/Users/Index">Users</a></li>
+                <li class="breadcrumb-item active">Create</li>
+            </ol>
+        </nav>
+    </div>
+</div>
+}
+
 <div class="container-fluid">
     <!-- Page Heading -->
     <div class="d-sm-flex align-items-center justify-content-between mb-4">
@@ -15,32 +29,36 @@
         </a>
     </div>
 
-    <div class="row">
+    <div class="row" x-data="userForm()">
         <div class="col-lg-8">
             <!-- User Creation Form -->
             <div class="card shadow mb-4">
-                <div class="card-header py-3">
-                    <h6 class="m-0 font-weight-bold text-primary">
+                <div class="card-header card-header-gradient py-3">
+                    <h6 class="m-0 fw-bold">
                         <i class="fas fa-user-cog me-2"></i>User Information
                     </h6>
                 </div>
                 <div class="card-body">
-                    <form method="post">
+                    <form method="post" @@submit="handleSubmit($event)">
                         <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
                         
                         <div class="row">
                             <div class="col-md-6 mb-3">
-                                <label asp-for="UserInput.UserName" class="form-label"></label>
+                                <label asp-for="UserInput.UserName" class="form-label required"></label>
                                 <input asp-for="UserInput.UserName" class="form-control" placeholder="Enter full name">
-                                <span asp-validation-for="UserInput.UserName" class="text-danger"></span>
+                                <span asp-validation-for="UserInput.UserName" class="text-danger small"></span>
                             </div>
                             <div class="col-md-6 mb-3">
-                                <label asp-for="UserInput.PhoneNumber" class="form-label"></label>
-                                <input asp-for="UserInput.PhoneNumber" type="tel" class="form-control" placeholder="555-0123">
-                                <span asp-validation-for="UserInput.PhoneNumber" class="text-danger"></span>
-                                <div class="form-text">
-                                    <i class="fas fa-mobile-alt me-1"></i>
-                                    Enter phone number for SMS alerts
+                                <label asp-for="UserInput.PhoneNumber" class="form-label required"></label>
+                                <input asp-for="UserInput.PhoneNumber" type="tel" class="form-control"
+                                       placeholder="555-0123"
+                                       x-ref="phone"
+                                       @@input="validatePhone($el)"
+                                       :class="phoneError ? 'is-invalid' : ''">
+                                <div class="invalid-feedback" x-text="phoneError"></div>
+                                <span asp-validation-for="UserInput.PhoneNumber" class="text-danger small"></span>
+                                <div class="form-text" x-show="!phoneError">
+                                    <i class="fas fa-mobile-alt me-1"></i>Enter phone number for SMS alerts
                                 </div>
                             </div>
                         </div>
@@ -92,12 +110,39 @@
 
                         <hr>
 
+                        <!-- Personal Data for SOAP SMS (optional) -->
+                        <div class="mb-3">
+                            <p class="text-muted mb-2" style="font-size:0.83rem;">
+                                <i class="fas fa-id-card me-1 text-info"></i>
+                                <strong>Personal Data</strong> — optional, used by SOAP SMS providers (e.g., Sheba Ensemble)
+                            </p>
+                            <div class="row g-3">
+                                <div class="col-md-3">
+                                    <label asp-for="UserInput.TZ" class="form-label"></label>
+                                    <input asp-for="UserInput.TZ" class="form-control" placeholder="e.g. 012345678" />
+                                    <span asp-validation-for="UserInput.TZ" class="text-danger small"></span>
+                                </div>
+                                <div class="col-md-3">
+                                    <label asp-for="UserInput.FirstName" class="form-label"></label>
+                                    <input asp-for="UserInput.FirstName" class="form-control" placeholder="First name" />
+                                </div>
+                                <div class="col-md-3">
+                                    <label asp-for="UserInput.LastName" class="form-label"></label>
+                                    <input asp-for="UserInput.LastName" class="form-control" placeholder="Last name" />
+                                </div>
+                            </div>
+                        </div>
+
+                        <hr>
+
                         <div class="d-flex justify-content-between">
                             <a href="/Users" class="btn btn-secondary">
                                 <i class="fas fa-times me-2"></i>Cancel
                             </a>
-                            <button type="submit" class="btn btn-primary">
-                                <i class="fas fa-save me-2"></i>Create User
+                            <button type="submit" class="btn btn-primary" x-ref="submitBtn" :disabled="loading">
+                                <span x-show="loading" class="spinner-border spinner-border-sm me-1" role="status"></span>
+                                <i class="fas fa-save me-2" x-show="!loading"></i>
+                                <span x-text="loading ? 'Creating...' : 'Create User'"></span>
                             </button>
                         </div>
                     </form>
@@ -108,8 +153,8 @@
         <div class="col-lg-4">
             <!-- Help & Guidelines -->
             <div class="card shadow mb-4">
-                <div class="card-header py-3">
-                    <h6 class="m-0 font-weight-bold text-info">
+                <div class="card-header card-header-gradient py-3">
+                    <h6 class="m-0 fw-bold">
                         <i class="fas fa-info-circle me-2"></i>User Creation Guidelines
                     </h6>
                 </div>
@@ -145,8 +190,8 @@
 
             <!-- Quick Stats -->
             <div class="card shadow">
-                <div class="card-header py-3">
-                    <h6 class="m-0 font-weight-bold text-success">
+                <div class="card-header card-header-gradient py-3">
+                    <h6 class="m-0 fw-bold">
                         <i class="fas fa-chart-bar me-2"></i>System Statistics
                     </h6>
                 </div>
@@ -171,42 +216,38 @@
 
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
-    
+    <script src="~/js/alpine.min.js" defer></script>
     <script>
-        // Load statistics on page load
-        document.addEventListener('DOMContentLoaded', function() {
-            loadUserStatistics();
-        });
-
-        async function loadUserStatistics() {
-            try {
-                // You can implement an API endpoint to get these stats
-                // For now, we'll show placeholder values
-                document.getElementById('totalUsersCount').textContent = '5';
-                document.getElementById('smsEnabledCount').textContent = '4';
-                document.getElementById('holidayWorkersCount').textContent = '3';
-            } catch (error) {
-                console.error('Error loading statistics:', error);
-            }
+        function userForm() {
+            return {
+                loading: false,
+                phoneError: '',
+                validatePhone(el) {
+                    const val = el.value;
+                    if (val && !/^[+\d\s\-()\u200f]+$/.test(val)) {
+                        this.phoneError = 'Only digits, +, spaces, and hyphens allowed';
+                    } else {
+                        this.phoneError = '';
+                        // Strip disallowed chars
+                        el.value = val.replace(/[^+\d\s\-()\u200f]/g, '');
+                    }
+                },
+                handleSubmit(e) {
+                    if (this.phoneError) {
+                        e.preventDefault();
+                        SCADAUtils.showToast('<i class="fas fa-exclamation-circle me-2"></i>Fix validation errors before submitting.', 'danger');
+                        return;
+                    }
+                    this.loading = true;
+                }
+            };
         }
 
-        // Phone number formatting - more flexible approach
-        document.querySelector('input[name="UserInput.PhoneNumber"]').addEventListener('input', function(e) {
-            // Don't auto-format - just clean up the input
-            let value = e.target.value;
-            
-            // Only allow valid phone number characters
-            value = value.replace(/[^+\d\s\-\(\)]/g, '');
-            
-            // Update the field with cleaned value
-            e.target.value = value;
-        });
-
-        // Form validation feedback
-        document.querySelector('form').addEventListener('submit', function(e) {
-            const submitBtn = e.target.querySelector('button[type="submit"]');
-            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Creating User...';
-            submitBtn.disabled = true;
+        document.addEventListener('DOMContentLoaded', function () {
+            // Placeholder stats
+            document.getElementById('totalUsersCount').textContent = '–';
+            document.getElementById('smsEnabledCount').textContent = '–';
+            document.getElementById('holidayWorkersCount').textContent = '–';
         });
     </script>
 }

@@ -202,7 +202,7 @@ namespace SCADASMSSystem.Web.Models
     /// Audit record for tracking alarm action modifications
     /// Stored in our own audit table
     /// </summary>
-    [Table("alarm_action_audit")]
+    [Table("scada_alarm_action_audit")]
     public class AlarmActionAudit
     {
         [Key]

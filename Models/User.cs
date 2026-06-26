@@ -3,7 +3,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace SCADASMSSystem.Web.Models
 {
-    [Table("users")]
+    [Table("scada_users")]
     public class User
     {
         [Key]
@@ -39,6 +39,22 @@ namespace SCADASMSSystem.Web.Models
         [Column("created_at")]
         [Display(Name = "Created")]
         public DateTime CreatedAt { get; set; } = DateTime.Now;
+
+        // Personal data for SOAP SMS providers (optional)
+        [Column("tz")]
+        [StringLength(20)]
+        [Display(Name = "ID Number (TZ)")]
+        public string? TZ { get; set; }
+
+        [Column("first_name")]
+        [StringLength(100)]
+        [Display(Name = "First Name")]
+        public string? FirstName { get; set; }
+
+        [Column("last_name")]
+        [StringLength(100)]
+        [Display(Name = "Last Name")]
+        public string? LastName { get; set; }
 
         // Navigation properties
         public virtual ICollection<GroupMember> GroupMembers { get; set; } = new List<GroupMember>();

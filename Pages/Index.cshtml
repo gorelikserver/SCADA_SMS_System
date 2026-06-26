@@ -4,6 +4,23 @@
     ViewData["Title"] = "SCADA SMS System Dashboard";
 }
 
+@if (Model.TestModeActive)
+{
+    <div class="alert alert-warning border-warning border-2 rounded-3 d-flex align-items-center gap-3 mx-4 mt-3" role="alert"
+         style="background:#fffbeb;">
+        <i class="fas fa-flask fa-lg text-warning"></i>
+        <div class="flex-grow-1">
+            <strong>TEST MODE ACTIVE</strong> &mdash; SMS is routed to the in-process mock. No real messages are sent.
+        </div>
+        <a href="/mock/sms/status" target="_blank" class="btn btn-sm btn-warning">
+            <i class="fas fa-list me-1"></i>Mock Log
+        </a>
+        <a href="/Settings" class="btn btn-sm btn-outline-warning">
+            <i class="fas fa-cogs me-1"></i>Settings
+        </a>
+    </div>
+}
+
 <div class="container-fluid">
     <!-- Branding and Header Row -->
     <div class="row mb-4">
@@ -253,7 +270,7 @@
             <div class="card shadow">
                 <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
                     <h6 class="m-0 font-weight-bold text-primary">Recent Activity</h6>
-                    <a href="/Activity" class="btn btn-sm btn-outline-primary">View All</a>
+                    <a href="/Audit" class="btn btn-sm btn-outline-primary">View All</a>
                 </div>
                 <div class="card-body">
                     <div class="table-responsive">

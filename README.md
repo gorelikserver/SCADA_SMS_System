@@ -72,18 +72,51 @@ The database schema is created automatically on first run with sample data for t
 
 ## SCADA Integration
 
+### Payload Contract
+
+The SCADA → SMS payload is a 5-field contract. Only `message` and `groupId` are
+required; the other three are optional and only travel through if present.
+
+| Field      | Required | Source                  | Available as dynamic var |
+|------------|----------|-------------------------|--------------------------|
+| `message`  | **yes**  | SCADA alarm text        | `message` / `msg` / `text` / `body` |
+| `groupId`  | **yes**  | SCADA group mapping     | `group_id` / `groupid`   |
+| `value`    | no       | Tag reading at trigger  | `value`                  |
+| `alarmId`  | no       | Correlation id          | `alarm_id` / `alarmid`   |
+| `priority` | no       | `normal` / `urgent` / `critical` | `priority`      |
+
+> **Phone is NOT a SCADA payload field.** It is a *per-recipient* variable
+> resolved server-side from the user record. Map it as a parameter row in
+> **Settings → Body Parameters** (key = whatever your gateway expects, value
+> dynamic = `phone`).
+
 ### Alarm Action Script
 
-Copy `Scripts\Scada_sms.bat` to your SCADA system and configure alarm actions:
+Copy `Scripts\Scada_sms.bat` to your SCADA system and configure alarm actions.
+
+Invocation order:
 
 ```
-'Run '+getalias('PCIMUTIL')+'Scada_sms.bat'+' "+'"+GetValue(...)
+Scada_sms.bat MESSAGE GROUP_ID [VALUE] [ALARM_ID] [PRIORITY]
 ```
 
-The script sends HTTP POST requests to the SMS API:
+Examples:
 
 ```cmd
-Scada_sms.bat "Compressor failure - Zone A" 1 "85.3 PSI"
+:: Minimal — just message + group
+Scada_sms.bat "Compressor failure - Zone A" 1
+
+:: With tag reading
+Scada_sms.bat "Pressure high" 1 "85.3 PSI"
+
+:: Full payload
+Scada_sms.bat "Pressure high" 1 "85.3 PSI" "ALM-2024-0142" urgent
+```
+
+WinCC OA usage pattern:
+
+```
+'Run '+getalias('PCIMUTIL')+'Scada_sms.bat'+' "'+messageText+'" '+groupId+' "'+GetValue(tag)+'"'
 ```
 
 ### API Endpoint
@@ -93,9 +126,64 @@ POST /api/sms/send
 Content-Type: application/json
 
 {
-  "message": "Equipment failure detected",
-  "groupId": 1,
-  "priority": "high"
+  "message":  "Equipment failure detected",
+  "groupId":  1,
+  "value":    "85.3 PSI",
+  "alarmId":  "ALM-2024-0142",
+  "priority": "urgent"
+}
+```
+
+### Dynamic Variables (REST & SOAP body templates)
+
+In **Settings → Body Parameters** (REST) or **SOAP Body Parameters**, each row
+maps a provider-side key/placeholder to one of the dynamic keywords below. At
+send time the resolver substitutes the runtime value.
+
+| Category | Keywords | Resolved from |
+|----------|----------|---------------|
+| **SCADA payload (mandatory)** | `message` | Locked row — admins choose the provider key only |
+| **SCADA payload (optional)**  | `group_id`, `value`, `alarm_id`, `priority` | Always shown in the UI, ship disabled — toggle on per gateway |
+| **User (per-recipient)**      | `phone`, `tz`, `firstname`, `lastname` | The user record being notified |
+| **Platform (from Settings)**  | `username`, `password`, `sender_name`, `sendingsystem`, `messagetype` | Saved provider credentials/identity |
+| **Custom literal**            | any other text | Sent verbatim as a static value |
+
+#### REST example
+
+`apiParams` JSON:
+
+```json
+{
+  "to":      "phone",
+  "text":    "message",
+  "user":    "username",
+  "pass":    "password",
+  "alertId": "alarm_id",
+  "tag":     "value"
+}
+```
+
+#### SOAP example
+
+`soapBodyTemplate`:
+
+```xml
+<sms:SendMessage>
+  <sms:To>{Phone}</sms:To>
+  <sms:Body>{Message}</sms:Body>
+  <sms:Reading>{Value}</sms:Reading>
+  <sms:Correlation>{AlarmId}</sms:Correlation>
+</sms:SendMessage>
+```
+
+`soapParams` JSON (placeholder → keyword):
+
+```json
+{
+  "Phone":       "phone",
+  "Message":     "message",
+  "Value":       "value",
+  "AlarmId":     "alarm_id"
 }
 ```
 

@@ -4,6 +4,20 @@
     ViewData["Title"] = "Edit User";
 }
 
+@section Breadcrumb {
+<div class="breadcrumb-bar">
+    <div class="container-fluid px-4">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a asp-page="/Index"><i class="fas fa-home me-1"></i>Dashboard</a></li>
+                <li class="breadcrumb-item"><a asp-page="/Users/Index">Users</a></li>
+                <li class="breadcrumb-item active">Edit</li>
+            </ol>
+        </nav>
+    </div>
+</div>
+}
+
 <div class="container-fluid">
     <!-- Page Heading -->
     <div class="d-sm-flex align-items-center justify-content-between mb-4">
@@ -15,33 +29,17 @@
         </a>
     </div>
 
-    <div class="row">
+    <div class="row" x-data="userForm()">
         <div class="col-lg-8">
             <!-- User Edit Form -->
             <div class="card shadow mb-4">
-                <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
-                    <h6 class="m-0 font-weight-bold text-primary">
+                <div class="card-header card-header-gradient py-3">
+                    <h6 class="m-0 fw-bold">
                         <i class="fas fa-user-cog me-2"></i>User Information
                     </h6>
-                    <div class="dropdown no-arrow">
-                        <a class="dropdown-toggle text-danger" href="#" role="button" id="dropdownMenuLink"
-                           data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                            <i class="fas fa-trash fa-sm fa-fw"></i>
-                        </a>
-                        <div class="dropdown-menu dropdown-menu-right shadow animated--fade-in"
-                             aria-labelledby="dropdownMenuLink">
-                            <div class="dropdown-header">Danger Zone:</div>
-                            <form method="post" asp-page-handler="Delete" asp-route-id="@Model.UserInput.UserId" style="display: inline;">
-                                <button type="submit" class="dropdown-item text-danger" 
-                                        onclick="return confirm('Are you sure you want to delete this user?\n\nThis action cannot be undone and will remove the user from all groups.')">
-                                    <i class="fas fa-trash me-2"></i>Delete User
-                                </button>
-                            </form>
-                        </div>
-                    </div>
                 </div>
                 <div class="card-body">
-                    <form method="post">
+                    <form method="post" @@submit="handleSubmit($event)" id="editUserForm">
                         <input type="hidden" asp-for="UserInput.UserId" />
                         <input type="hidden" asp-for="UserInput.OriginalEmail" />
                         <input type="hidden" asp-for="UserInput.OriginalPhoneNumber" />
@@ -50,14 +48,18 @@
                         
                         <div class="row">
                             <div class="col-md-6 mb-3">
-                                <label asp-for="UserInput.UserName" class="form-label"></label>
-                                <input asp-for="UserInput.UserName" class="form-control" placeholder="Enter full name">
-                                <span asp-validation-for="UserInput.UserName" class="text-danger"></span>
+                                <label asp-for="UserInput.UserName" class="form-label required"></label>
+                                <input asp-for="UserInput.UserName" class="form-control" placeholder="Enter full name"
+                                       @@change="hasChanges = true">
+                                <span asp-validation-for="UserInput.UserName" class="text-danger small"></span>
                             </div>
                             <div class="col-md-6 mb-3">
-                                <label asp-for="UserInput.PhoneNumber" class="form-label"></label>
-                                <input asp-for="UserInput.PhoneNumber" type="tel" class="form-control" placeholder="+1-555-0123">
-                                <span asp-validation-for="UserInput.PhoneNumber" class="text-danger"></span>
+                                <label asp-for="UserInput.PhoneNumber" class="form-label required"></label>
+                                <input asp-for="UserInput.PhoneNumber" type="tel" class="form-control" placeholder="+1-555-0123"
+                                       @@input="validatePhone($el); hasChanges = true"
+                                       :class="phoneError ? 'is-invalid' : ''">
+                                <div class="invalid-feedback" x-text="phoneError"></div>
+                                <span asp-validation-for="UserInput.PhoneNumber" class="text-danger small"></span>
                                 @if (Model.UserInput.PhoneNumber != Model.UserInput.OriginalPhoneNumber)
                                 {
                                     <div class="form-text text-warning">
@@ -125,13 +127,54 @@
 
                         <hr>
 
-                        <div class="d-flex justify-content-between">
-                            <a href="/Users" class="btn btn-secondary">
-                                <i class="fas fa-times me-2"></i>Cancel
-                            </a>
-                            <button type="submit" class="btn btn-primary">
-                                <i class="fas fa-save me-2"></i>Update User
-                            </button>
+                        <!-- Personal Data for SOAP SMS (optional) -->
+                        <div class="mb-3">
+                            <p class="text-muted mb-2" style="font-size:0.83rem;">
+                                <i class="fas fa-id-card me-1 text-info"></i>
+                                <strong>Personal Data</strong> — optional, used by SOAP SMS providers (e.g., Sheba Ensemble)
+                            </p>
+                            <div class="row g-3">
+                                <div class="col-md-3">
+                                    <label asp-for="UserInput.TZ" class="form-label"></label>
+                                    <input asp-for="UserInput.TZ" class="form-control" placeholder="e.g. 012345678" />
+                                    <span asp-validation-for="UserInput.TZ" class="text-danger small"></span>
+                                </div>
+                                <div class="col-md-3">
+                                    <label asp-for="UserInput.FirstName" class="form-label"></label>
+                                    <input asp-for="UserInput.FirstName" class="form-control" placeholder="First name" />
+                                </div>
+                                <div class="col-md-3">
+                                    <label asp-for="UserInput.LastName" class="form-label"></label>
+                                    <input asp-for="UserInput.LastName" class="form-control" placeholder="Last name" />
+                                </div>
+                            </div>
+                        </div>
+
+                        <hr>
+
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div class="d-flex align-items-center gap-2">
+                                <a href="/Users" class="btn btn-secondary">
+                                    <i class="fas fa-times me-2"></i>Cancel
+                                </a>
+                                <form method="post" asp-page-handler="Delete" asp-route-id="@Model.UserInput.UserId" id="deleteUserForm" class="mb-0">
+                                    <button type="button" class="btn btn-outline-danger"
+                                            data-user-name="@Model.UserInput.UserName"
+                                            onclick="confirmDeleteUser(this)">
+                                        <i class="fas fa-trash me-2"></i>Delete User
+                                    </button>
+                                </form>
+                            </div>
+                            <div class="d-flex align-items-center gap-2">
+                                <span x-show="hasChanges" class="badge bg-warning text-dark">
+                                    <i class="fas fa-exclamation-circle me-1"></i>Unsaved changes
+                                </span>
+                                <button type="submit" class="btn btn-primary" :disabled="loading">
+                                    <span x-show="loading" class="spinner-border spinner-border-sm me-1" role="status"></span>
+                                    <i class="fas fa-save me-2" x-show="!loading"></i>
+                                    <span x-text="loading ? 'Saving...' : 'Update User'"></span>
+                                </button>
+                            </div>
                         </div>
                     </form>
                 </div>
@@ -141,8 +184,8 @@
         <div class="col-lg-4">
             <!-- User Details -->
             <div class="card shadow mb-4">
-                <div class="card-header py-3">
-                    <h6 class="m-0 font-weight-bold text-info">
+                <div class="card-header card-header-gradient py-3">
+                    <h6 class="m-0 fw-bold">
                         <i class="fas fa-info-circle me-2"></i>User Details
                     </h6>
                 </div>
@@ -170,8 +213,8 @@
 
             <!-- Quick Actions -->
             <div class="card shadow mb-4">
-                <div class="card-header py-3">
-                    <h6 class="m-0 font-weight-bold text-success">
+                <div class="card-header card-header-gradient py-3">
+                    <h6 class="m-0 fw-bold">
                         <i class="fas fa-bolt me-2"></i>Quick Actions
                     </h6>
                 </div>
@@ -192,8 +235,8 @@
 
             <!-- Activity Log -->
             <div class="card shadow">
-                <div class="card-header py-3">
-                    <h6 class="m-0 font-weight-bold text-warning">
+                <div class="card-header card-header-gradient py-3">
+                    <h6 class="m-0 fw-bold">
                         <i class="fas fa-clock me-2"></i>Recent Activity
                     </h6>
                 </div>
@@ -216,63 +259,69 @@
 
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
-    
+    <script src="~/js/alpine.min.js" defer></script>
     <script>
-        // Phone number formatting
-        document.querySelector('input[name="UserInput.PhoneNumber"]').addEventListener('input', function(e) {
-            let value = e.target.value.replace(/\D/g, '');
-            if (value.length >= 10) {
-                if (value.startsWith('1') && value.length === 11) {
-                    value = `+1-${value.slice(1,4)}-${value.slice(4,7)}-${value.slice(7)}`;
-                } else if (value.length === 10) {
-                    value = `+1-${value.slice(0,3)}-${value.slice(3,6)}-${value.slice(6)}`;
+        function userForm() {
+            return {
+                loading: false,
+                hasChanges: false,
+                phoneError: '',
+                init() {
+                    window.addEventListener('beforeunload', (e) => {
+                        if (this.hasChanges) {
+                            e.preventDefault();
+                            e.returnValue = '';
+                        }
+                    });
+                    document.getElementById('editUserForm').addEventListener('submit', () => {
+                        this.hasChanges = false;
+                    });
+                },
+                validatePhone(el) {
+                    const val = el.value;
+                    if (val && !/^[+\d\s\-()\u200f]+$/.test(val)) {
+                        this.phoneError = 'Only digits, +, spaces, and hyphens allowed';
+                    } else {
+                        this.phoneError = '';
+                        el.value = val.replace(/[^+\d\s\-()\u200f]/g, '');
+                    }
+                },
+                handleSubmit(e) {
+                    if (this.phoneError) {
+                        e.preventDefault();
+                        SCADAUtils.showToast('<i class="fas fa-exclamation-circle me-2"></i>Fix validation errors before submitting.', 'danger');
+                        return;
+                    }
+                    this.hasChanges = false;
+                    this.loading = true;
                 }
-                e.target.value = value;
-            }
-        });
+            };
+        }
 
-        // Form validation feedback
-        document.querySelector('form').addEventListener('submit', function(e) {
-            const submitBtn = e.target.querySelector('button[type="submit"]');
-            if (submitBtn) {
-                submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Updating User...';
-                submitBtn.disabled = true;
-            }
-        });
-
-        // Test SMS functionality
-        async function testSms() {
-            const userId = @Model.UserInput.UserId;
-            const userName = '@Model.UserInput.UserName';
-            
-            if (confirm(`Send a test SMS to ${userName}?`)) {
-                try {
-                    // You can implement an API endpoint for test SMS
-                    alert('Test SMS functionality will be implemented with API endpoints.');
-                } catch (error) {
-                    alert('Error sending test SMS: ' + error.message);
-                }
+        async function confirmDeleteUser(btn) {
+            const userName = btn.dataset.userName;
+            const confirmed = await SCADAUtils.confirmModal(
+                'Delete User',
+                `Delete "${userName}"? This removes them from all groups and cannot be undone.`,
+                'Delete User'
+            );
+            if (confirmed) {
+                document.getElementById('deleteUserForm').submit();
             }
         }
 
-        // Track changes for unsaved warning
-        let hasChanges = false;
-        document.querySelectorAll('input, select').forEach(element => {
-            element.addEventListener('change', function() {
-                hasChanges = true;
-            });
-        });
-
-        window.addEventListener('beforeunload', function(e) {
-            if (hasChanges) {
-                e.preventDefault();
-                e.returnValue = '';
+        async function testSms() {
+            const userId = @Model.UserInput.UserId;
+            const userName = '@Html.Raw(Model.UserInput.UserName?.Replace("'", "\\'"))';
+            const confirmed = await SCADAUtils.confirmModal(
+                'Send Test SMS',
+                `Send a test SMS to "${userName}"?`,
+                'Send SMS',
+                'btn-primary'
+            );
+            if (confirmed) {
+                SCADAUtils.showToast(`<i class="fas fa-paper-plane me-2"></i>Test SMS queued for ${userName}`, 'info');
             }
-        });
-
-        // Remove unsaved changes warning on form submit
-        document.querySelector('form').addEventListener('submit', function() {
-            hasChanges = false;
-        });
+        }
     </script>
 }

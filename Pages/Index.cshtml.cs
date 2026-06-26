@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.Extensions.Options;
+using SCADASMSSystem.Web.Models;
 using SCADASMSSystem.Web.Services;
 
 namespace SCADASMSSystem.Web.Pages;
@@ -10,20 +12,24 @@ public class IndexModel : PageModel
     private readonly SmsBackgroundService _smsBackgroundService;
     private readonly IUserService _userService;
     private readonly IGroupService _groupService;
+    private readonly SmsSettings _smsSettings;
 
     public IndexModel(
-        ILogger<IndexModel> logger, 
+        ILogger<IndexModel> logger,
         SmsBackgroundService smsBackgroundService,
         IUserService userService,
-        IGroupService groupService)
+        IGroupService groupService,
+        IOptions<SmsSettings> smsSettings)
     {
         _logger = logger;
         _smsBackgroundService = smsBackgroundService;
         _userService = userService;
         _groupService = groupService;
+        _smsSettings = smsSettings.Value;
     }
 
     public DashboardData Dashboard { get; set; } = new();
+    public bool TestModeActive => _smsSettings.TestMode;
 
     public async Task OnGetAsync()
     {

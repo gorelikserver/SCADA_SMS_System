@@ -156,9 +156,10 @@
                                             <td>
                                                 <form method="post" asp-page-handler="RemoveMember" 
                                                       asp-route-groupId="@Model.GroupInput.GroupId" 
-                                                      asp-route-userId="@member.UserId" style="display: inline;">
-                                                    <button type="submit" class="btn btn-sm btn-outline-danger" 
-                                                            onclick="return confirm('Remove @member.UserName from this group?')">
+                                                      asp-route-userId="@member.UserId" style="display: inline;"
+                                                      class="js-remove-member-form"
+                                                      data-username="@member.UserName">
+                                                    <button type="button" class="btn btn-sm btn-outline-danger js-remove-member-btn">
                                                         <i class="fas fa-user-minus"></i> Remove
                                                     </button>
                                                 </form>
@@ -276,6 +277,25 @@
     <partial name="_ValidationScriptsPartial" />
     
     <script>
+        // Themed confirmation modal for "Remove member" buttons (replaces native confirm()).
+        document.addEventListener('click', async function (ev) {
+            const btn = ev.target.closest('.js-remove-member-btn');
+            if (!btn) return;
+            const form = btn.closest('.js-remove-member-form');
+            if (!form) return;
+            ev.preventDefault();
+            const username = form.dataset.username || 'this member';
+            if (window.SCADAUtils && SCADAUtils.confirmModal) {
+                const ok = await SCADAUtils.confirmModal(
+                    'Remove Group Member',
+                    `Remove ${username} from this group?`,
+                    'Remove', 'btn-danger');
+                if (ok) form.submit();
+            } else if (window.confirm(`Remove ${username} from this group?`)) {
+                form.submit();
+            }
+        });
+
         // Real-time search for available users
         const availableUsersSearch = document.getElementById('availableUsersSearch');
         if (availableUsersSearch) {

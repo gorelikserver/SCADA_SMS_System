@@ -98,9 +98,9 @@ echo.
 REM ------------------------------------------
 REM Step 3: Restore Dependencies
 REM ------------------------------------------
-echo [3/8] Restoring NuGet packages...
+echo [3/9] Restoring NuGet packages...
 
-dotnet restore --verbosity quiet
+dotnet restore SCADASMSSystem.Web.csproj --verbosity quiet
 if %ERRORLEVEL% NEQ 0 (
     echo      [ERROR] Package restore failed
     pause
@@ -113,9 +113,9 @@ echo.
 REM ------------------------------------------
 REM Step 4: Build Application (Self-Contained - AIR-GAP COMPATIBLE)
 REM ------------------------------------------
-echo [4/8] Building self-contained application (R2R disabled for air-gap)...
+echo [4/9] Building self-contained application (R2R disabled for air-gap)...
 
-dotnet publish ^
+dotnet publish SCADASMSSystem.Web.csproj ^
     --configuration Release ^
     --runtime win-x64 ^
     --self-contained true ^
@@ -150,7 +150,7 @@ echo.
 REM ------------------------------------------
 REM Step 5: Create Package Structure
 REM ------------------------------------------
-echo [5/8] Creating deployment package structure...
+echo [5/9] Creating deployment package structure...
 
 REM Create folder structure
 mkdir deployment_package\Scripts 2>nul
@@ -164,7 +164,7 @@ echo.
 REM ------------------------------------------
 REM Step 6: Copy Service Management Scripts and Tools
 REM ------------------------------------------
-echo [6/8] Copying service management scripts and tools...
+echo [6/9] Copying service management scripts and tools...
 
 REM Copy curl.exe to Tools folder if available
 if exist "temp_curl\curl.exe" (
@@ -258,7 +258,7 @@ echo.
 REM ------------------------------------------
 REM Step 7: Create Documentation
 REM ------------------------------------------
-echo [7/8] Creating deployment documentation...
+echo [7/9] Creating deployment documentation...
 
 REM Copy existing documentation
 if exist WINDOWS_SERVICE_GUIDE.md (
@@ -410,9 +410,50 @@ if exist "temp_curl\curl.exe" (
 echo.
 
 REM ------------------------------------------
-REM Step 8: Create ZIP Archive
+REM Step 8: Build MSI Installer (WiX v4)
 REM ------------------------------------------
-echo [8/8] Creating ZIP archive...
+echo [8/9] Building MSI installer...
+
+REM Stage installer source: separate AppExe and appsettings.json from the rest
+REM (WiX v4 Files glob needs them in different dirs to avoid duplicate component errors)
+echo      Staging installer source files...
+if exist deployment_package\InstallerSrc rmdir /s /q deployment_package\InstallerSrc 2>nul
+mkdir deployment_package\InstallerSrc\Main 2>nul
+
+xcopy /E /I /Y "deployment_package\Application\*" "deployment_package\InstallerSrc\Main\" >nul
+move /Y "deployment_package\InstallerSrc\Main\SCADASMSSystem.Web.exe" "deployment_package\InstallerSrc\" >nul
+move /Y "deployment_package\InstallerSrc\Main\appsettings.json"       "deployment_package\InstallerSrc\" >nul
+echo      [OK] Installer source staged
+
+REM Ensure WiX toolset is installed as a dotnet global tool
+dotnet tool install --global wix >nul 2>&1 || dotnet tool update --global wix >nul 2>&1
+wix extension add WixToolset.UI.wixext WixToolset.Util.wixext WixToolset.Firewall.wixext >nul 2>&1
+
+if exist "Installer\SCADASMSInstaller.wixproj" (
+    REM Pre-generate file harvest before WiX compile
+    mkdir Installer\obj\Release 2>nul
+    powershell -ExecutionPolicy Bypass -File "Installer\Scripts\Generate-HarvestedFiles.ps1" ^
+        -SourceDir "deployment_package\InstallerSrc\Main" ^
+        -OutputFile "Installer\obj\Release\HarvestedFiles.wxs" >> build.log 2>&1
+    dotnet build Installer\SCADASMSInstaller.wixproj -c Release --verbosity minimal >> build.log 2>&1
+    if %ERRORLEVEL% EQU 0 (
+        for %%F in (Installer\bin\Release\*.msi) do (
+            copy /Y "%%F" deployment_package\ >nul
+            echo      [OK] MSI installer: %%~nxF
+        )
+    ) else (
+        echo      [WARNING] MSI build failed - check build.log
+        echo      [INFO] Deployment package still usable with ServiceScripts
+    )
+) else (
+    echo      [INFO] Installer project not found - skipping MSI build
+)
+echo.
+
+REM ------------------------------------------
+REM Step 9: Create ZIP Archive
+REM ------------------------------------------
+echo [9/9] Creating ZIP archive...
 
 set "TIMESTAMP=%DATE:~-4%%DATE:~3,2%%DATE:~0,2%_%TIME:~0,2%%TIME:~3,2%"
 set "TIMESTAMP=%TIMESTAMP: =0%"

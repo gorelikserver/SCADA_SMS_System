@@ -31,7 +31,8 @@ namespace SCADASMSSystem.Web.Controllers
                     request.Message, 
                     request.GroupId, 
                     request.AlarmId ?? Guid.NewGuid().ToString(), 
-                    request.Priority ?? "normal");
+                    request.Priority ?? "normal",
+                    request.Value);
 
                 if (success)
                 {
@@ -192,7 +193,8 @@ namespace SCADASMSSystem.Web.Controllers
                     request.Message, 
                     request.GroupId, 
                     request.AlarmId ?? Guid.NewGuid().ToString(), 
-                    request.Priority ?? "normal");
+                    request.Priority ?? "normal",
+                    request.Value);
 
                 if (success)
                 {
@@ -252,6 +254,10 @@ namespace SCADASMSSystem.Web.Controllers
 
         [RegularExpression("^(normal|urgent|critical)$", ErrorMessage = "Priority must be normal, urgent, or critical")]
         public string? Priority { get; set; } = "normal";
+
+        // Optional measurement value forwarded by SCADA (e.g. tag reading at the time of the alarm).
+        // Available as the {Value} / value dynamic placeholder in REST and SOAP body templates.
+        public string? Value { get; set; }
     }
 
     public class SmsTestRequest

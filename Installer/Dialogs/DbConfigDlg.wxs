@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+
+  <Fragment>
+    <UI>
+      <!-- Radio button options for DB_AUTH must be declared outside the dialog -->
+      <RadioButtonGroup Property="DB_AUTH">
+        <RadioButton Value="SQL"     X="0"   Y="0" Width="130" Height="17"
+                     Text="SQL Server Authentication" />
+        <RadioButton Value="WINDOWS" X="140" Y="0" Width="130" Height="17"
+                     Text="Windows Authentication" />
+      </RadioButtonGroup>
+
+      <Dialog Id="DbConfigDlg" Width="370" Height="270" Title="Database Configuration">
+
+        <Control Id="BannerBitmap" Type="Bitmap" X="0" Y="0" Width="370" Height="44"
+                 TabSkip="no" Text="WixUI_Bmp_Banner" />
+        <Control Id="BannerLine"   Type="Line"   X="0" Y="44" Width="370" Height="0" />
+
+        <Control Id="Title" Type="Text" X="15" Y="6" Width="200" Height="15"
+                 Transparent="yes" NoPrefix="yes">
+          <Text Value="{\WixUI_Font_Title}Database Configuration" />
+        </Control>
+        <Control Id="Description" Type="Text" X="25" Y="23" Width="280" Height="15"
+                 Transparent="yes" NoPrefix="yes">
+          <Text Value="Configure the SQL Server database connection." />
+        </Control>
+
+        <Control Id="DbServerLabel" Type="Text" X="20" Y="58" Width="120" Height="10" NoPrefix="yes">
+          <Text Value="&amp;SQL Server Instance:" />
+        </Control>
+        <Control Id="DbServerEdit" Type="Edit" X="20" Y="70" Width="220" Height="17"
+                 Property="DB_SERVER" />
+
+        <Control Id="DbNameLabel" Type="Text" X="20" Y="94" Width="120" Height="10" NoPrefix="yes">
+          <Text Value="&amp;Database Name:" />
+        </Control>
+        <Control Id="DbNameEdit" Type="Edit" X="20" Y="106" Width="220" Height="17"
+                 Property="DB_NAME" />
+
+        <Control Id="AuthLabel" Type="Text" X="20" Y="130" Width="120" Height="10" NoPrefix="yes">
+          <Text Value="Authentication:" />
+        </Control>
+        <!-- RadioButtonGroup control — items defined above -->
+        <Control Id="AuthGroup" Type="RadioButtonGroup" X="20" Y="142" Width="300" Height="17"
+                 Property="DB_AUTH" />
+
+        <!-- SQL auth credentials — enable/disable via property condition -->
+        <Control Id="DbUserLabel" Type="Text" X="20" Y="165" Width="80" Height="10" NoPrefix="yes"
+                 EnableCondition="DB_AUTH = &quot;SQL&quot;"
+                 DisableCondition="NOT DB_AUTH = &quot;SQL&quot;">
+          <Text Value="&amp;Username:" />
+        </Control>
+        <Control Id="DbUserEdit" Type="Edit" X="20" Y="177" Width="100" Height="17"
+                 Property="DB_USER"
+                 EnableCondition="DB_AUTH = &quot;SQL&quot;"
+                 DisableCondition="NOT DB_AUTH = &quot;SQL&quot;" />
+
+        <Control Id="DbPasswordLabel" Type="Text" X="140" Y="165" Width="80" Height="10" NoPrefix="yes"
+                 EnableCondition="DB_AUTH = &quot;SQL&quot;"
+                 DisableCondition="NOT DB_AUTH = &quot;SQL&quot;">
+          <Text Value="&amp;Password:" />
+        </Control>
+        <Control Id="DbPasswordEdit" Type="Edit" X="140" Y="177" Width="100" Height="17"
+                 Property="DB_PASSWORD" Password="yes"
+                 EnableCondition="DB_AUTH = &quot;SQL&quot;"
+                 DisableCondition="NOT DB_AUTH = &quot;SQL&quot;" />
+
+        <Control Id="BottomLine" Type="Line" X="0" Y="234" Width="370" Height="0" />
+
+        <Control Id="Back"   Type="PushButton" X="180" Y="243" Width="56" Height="17" Text="&amp;Back" />
+        <Control Id="Next"   Type="PushButton" X="236" Y="243" Width="56" Height="17" Default="yes" Text="&amp;Next" />
+        <Control Id="Cancel" Type="PushButton" X="304" Y="243" Width="56" Height="17" Cancel="yes" Text="Cancel">
+          <Publish Event="SpawnDialog" Value="CancelDlg" Condition="1" />
+        </Control>
+      </Dialog>
+    </UI>
+  </Fragment>
+</Wix>
