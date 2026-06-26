@@ -164,8 +164,9 @@
     .pm-kv-row:hover { background:#fafbff; }
     .pm-row-disabled { opacity:.45; }
     .pm-row-check { accent-color:#4361ee; margin:0; }
-    .pm-kv-key,.pm-kv-val-input { border:none; background:transparent; font-size:.82rem; padding:.28rem .25rem; outline:none; width:100%; color:#212529; }
-    .pm-kv-key:focus,.pm-kv-val-input:focus { background:#f0f4ff; border-radius:4px; }
+    .pm-kv-key,.pm-kv-val-input { border:none; border-bottom:1px solid transparent; background:transparent; font-size:.82rem; padding:.28rem .25rem; outline:none; width:100%; color:#212529; transition:border-color .15s; }
+    .pm-kv-key:hover,.pm-kv-val-input:hover { border-bottom-color:#ced4da; }
+    .pm-kv-key:focus,.pm-kv-val-input:focus { background:#f0f4ff; border-radius:4px; border-bottom-color:#4361ee; }
     .pm-kv-val-select-sm { font-size:.78rem; border:1px solid #dee2e6; border-radius:4px; padding:.18rem .35rem; color:#495057; background:#fff; flex-shrink:0; }
     .pm-kv-dyn-picker { font-size:.78rem; border:1px solid #c8d0e7; border-radius:4px; padding:.18rem .2rem; color:#4361ee; background:#f0f4ff; width:36px; flex-shrink:0; cursor:pointer; }
     .pm-row-del { border:none; background:transparent; color:#adb5bd; font-size:.78rem; padding:.18rem; cursor:pointer; border-radius:4px; line-height:1; }
@@ -768,7 +769,7 @@
                                                                 <template x-if="row.isDynamic">
                                                                     <div class="d-flex align-items-center gap-1 w-100">
                                                                         <span class="pm-dynamic-pill"><i class="fas fa-bolt me-1" style="font-size:.65em;"></i><span x-text="row.value"></span></span>
-                                                                        <select x-model="row.value" @@change="onValueChange(row)" class="pm-kv-val-select-sm" :disabled="row.mandatory || row.scadaOptional">
+                                                                        <select x-model="row.value" @@change="onValueChange(row)" class="pm-kv-val-select-sm" :disabled="row.mandatory || row.scadaOptional" title="Select a dynamic keyword, or choose '↩ literal' to enter a fixed value">
                                                                             <option value="">↩ literal</option>
                                                                             <option value="message">message</option>
                                                                             <option value="phone">phone</option>
