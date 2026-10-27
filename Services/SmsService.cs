@@ -901,19 +901,14 @@ namespace SCADASMSSystem.Web.Services
 
                 if (response.IsSuccessStatusCode)
                 {
-                    var responseXml = ParseXmlSecurely(responseContent, "SOAP response");
-                    var fault = responseXml.Descendants().FirstOrDefault(e =>
-                        e.Name.LocalName.Equals("Fault", StringComparison.OrdinalIgnoreCase));
                     var successPattern = Settings.SoapSuccessPattern?.Trim();
                     if (string.IsNullOrWhiteSpace(successPattern))
                         throw new InvalidOperationException("SOAP Success Pattern is required for provider acceptance confirmation.");
 
-                    var configuredError = FindSoapError(responseXml, Settings.SoapErrorPattern);
-                    var success = fault == null && !configuredError.Found &&
-                                  MatchesSoapPattern(responseXml, responseContent, successPattern);
-                    var errorMessage = fault != null
-                        ? ExtractSoapFault(fault)
-                        : configuredError.Message;
+                    var acceptance = EvaluateSoapResponse(
+                        responseContent, successPattern, Settings.SoapErrorPattern);
+                    var success = acceptance.Success;
+                    var errorMessage = acceptance.ErrorMessage;
 
                     if (success)
                     {
@@ -994,6 +989,29 @@ namespace SCADASMSSystem.Web.Services
             }
         }
 
+        internal static SoapAcceptanceResult EvaluateSoapResponse(
+            string responseContent,
+            string successPattern,
+            string? errorPattern)
+        {
+            if (string.IsNullOrWhiteSpace(successPattern))
+                throw new InvalidOperationException("SOAP Success Pattern is required for provider acceptance confirmation.");
+
+            var responseXml = ParseXmlSecurely(responseContent, "SOAP response");
+            var fault = responseXml.Descendants().FirstOrDefault(e =>
+                e.Name.LocalName.Equals("Fault", StringComparison.OrdinalIgnoreCase));
+            if (fault != null)
+                return new SoapAcceptanceResult(false, ExtractSoapFault(fault));
+
+            var configuredError = FindSoapError(responseXml, errorPattern);
+            if (configuredError.Found)
+                return new SoapAcceptanceResult(false, configuredError.Message);
+
+            return MatchesSoapPattern(responseXml, responseContent, successPattern)
+                ? new SoapAcceptanceResult(true, string.Empty)
+                : new SoapAcceptanceResult(false, "SOAP provider response did not confirm acceptance");
+        }
+
         private static bool MatchesSoapPattern(XDocument document, string rawXml, string pattern)
         {
             if (pattern.StartsWith('<'))
@@ -1054,7 +1072,7 @@ namespace SCADASMSSystem.Web.Services
             return (hasDetails, message);
         }
 
-        private static void ValidateRequiredSoapMapping(
+        internal static void ValidateRequiredSoapMapping(
             string template,
             IEnumerable<SmsParam> mappings,
             HashSet<string> acceptedKeywords,
@@ -1067,7 +1085,7 @@ namespace SCADASMSSystem.Web.Services
             RequireSingleToken(template, mapping.Key, fieldName);
         }
 
-        private static void RequireSingleToken(string template, string tokenName, string fieldName)
+        internal static void RequireSingleToken(string template, string tokenName, string fieldName)
         {
             var token = $"{{{tokenName}}}";
             var count = Regex.Matches(template, Regex.Escape(token), RegexOptions.CultureInvariant).Count;
@@ -1356,4 +1374,5 @@ namespace SCADASMSSystem.Web.Services
     /// from a context that does not have these fields (e.g. test pages).
     /// </summary>
     public sealed record SmsCallContext(int? GroupId, string? AlarmId, string? Priority, string? Value);
+    public sealed record SoapAcceptanceResult(bool Success, string ErrorMessage);
 }
