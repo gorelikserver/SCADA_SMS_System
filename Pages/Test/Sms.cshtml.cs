@@ -18,8 +18,7 @@ namespace SCADASMSSystem.Web.Pages.Test
         private readonly ILogger<SmsModel> _logger;
         private readonly IOptionsMonitor<SmsSettings> _smsMonitor;
         private readonly IHttpClientFactory _httpClientFactory;
-        private readonly IWebHostEnvironment _env;
-        private readonly IConfiguration _configuration;
+        private readonly ISettingsStore _settingsStore;
 
         private SmsSettings Settings => _smsMonitor.CurrentValue;
 
@@ -29,16 +28,14 @@ namespace SCADASMSSystem.Web.Pages.Test
             ILogger<SmsModel> logger,
             IOptionsMonitor<SmsSettings> smsSettings,
             IHttpClientFactory httpClientFactory,
-            IWebHostEnvironment env,
-            IConfiguration configuration)
+            ISettingsStore settingsStore)
         {
             _smsBackgroundService = smsBackgroundService;
             _groupService = groupService;
             _logger = logger;
             _smsMonitor = smsSettings;
             _httpClientFactory = httpClientFactory;
-            _env = env;
-            _configuration = configuration;
+            _settingsStore = settingsStore;
         }
 
         [BindProperty]
@@ -72,6 +69,7 @@ namespace SCADASMSSystem.Web.Pages.Test
                     soapAuthType = Settings.SoapAuthType ?? "WSSecurity",
                     soapBodyTemplate = Settings.SoapBodyTemplate ?? "",
                     soapParams = Settings.SoapParams ?? "",
+                    soapPlaceholders = Settings.SoapPlaceholders.Select(p => new { key = p.Key, value = p.IsSecret ? "***" : p.Value, isSecret = p.IsSecret }),
                     soapEnvelopeNamespaces = Settings.SoapEnvelopeNamespaces ?? "",
                     soapSendingSystem = Settings.SoapSendingSystem ?? "SCADA",
                     soapMessageType = Settings.SoapMessageType ?? "SmsType1",
@@ -302,33 +300,24 @@ namespace SCADASMSSystem.Web.Pages.Test
         {
             try
             {
-                var appSettingsPath = Path.Combine(_env.ContentRootPath, "appsettings.json");
-                var json = await System.IO.File.ReadAllTextAsync(appSettingsPath);
-                var root = JsonNode.Parse(json)!.AsObject();
-
-                // Clone existing SmsSettings node so non-SOAP fields are preserved
-                var existing = root["SmsSettings"]?.AsObject() ?? new JsonObject();
-
-                existing["ProviderType"]           = "SOAP";
-                existing["ApiEndpoint"]            = req.ApiEndpoint;
-                existing["SoapAction"]             = req.SoapAction;
-                existing["SoapBodyTemplate"]       = req.SoapBodyTemplate;
-                existing["SoapParams"]             = req.SoapParams;
-                existing["SoapEnvelopeNamespaces"] = req.SoapEnvelopeNamespaces;
-                existing["SoapAuthType"]           = req.SoapAuthType;
-                existing["SoapSendingSystem"]      = req.SoapSendingSystem;
-                existing["SoapMessageType"]        = req.SoapMessageType;
-                existing["Username"]               = req.Username;
-                if (!string.IsNullOrEmpty(req.Password))
-                    existing["Password"]           = req.Password;
-
-                root["SmsSettings"] = existing;
-
-                var writeOptions = new JsonSerializerOptions { WriteIndented = true };
-                await System.IO.File.WriteAllTextAsync(appSettingsPath, root.ToJsonString(writeOptions));
-
-                if (_configuration is IConfigurationRoot configRoot)
-                    configRoot.Reload();
+                // Merge into the stored section; non-SOAP fields are preserved.
+                await _settingsStore.UpdateSmsSettingsAsync(existing =>
+                {
+                    existing["ProviderType"]           = "SOAP";
+                    existing["ApiEndpoint"]            = req.ApiEndpoint;
+                    existing["SoapAction"]             = req.SoapAction;
+                    existing["SoapBodyTemplate"]       = req.SoapBodyTemplate;
+                    existing["SoapParams"]             = req.SoapParams;
+                    existing["SoapEnvelopeNamespaces"] = req.SoapEnvelopeNamespaces;
+                    existing["SoapAuthType"]           = req.SoapAuthType;
+                    existing["SoapSendingSystem"]      = req.SoapSendingSystem;
+                    existing["SoapMessageType"]        = req.SoapMessageType;
+                    // Blank credentials keep the stored values; a blank field must never wipe auth.
+                    if (!string.IsNullOrEmpty(req.Username))
+                        existing["Username"]           = req.Username;
+                    if (!SmsSettingsMerge.IsBlankOrMasked(req.Password))
+                        existing["Password"]           = req.Password;
+                });
 
                 _logger.LogInformation("SOAP config saved from workbench by user");
                 return new JsonResult(new { success = true });

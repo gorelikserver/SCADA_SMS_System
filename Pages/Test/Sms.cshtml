@@ -1003,7 +1003,11 @@
                     let body = this.settings.soapBodyTemplate ||
                         `<Phone>${phone}</Phone>\n<Message>${msg}</Message>`;
 
-                    if (this.settings.soapParams) {
+                    if (Array.isArray(this.settings.soapPlaceholders) && this.settings.soapPlaceholders.length > 0) {
+                        const map = Object.fromEntries(this.settings.soapPlaceholders.map(p => [p.key, p.value]));
+                        for (const [token, kw] of Object.entries(map))
+                            body = body.replaceAll(`{${token}}`, this.resolveValue(kw, msg, phone));
+                    } else if (this.settings.soapParams) {
                         try {
                             const map = JSON.parse(this.settings.soapParams);
                             for (const [token, kw] of Object.entries(map))
@@ -1184,7 +1188,11 @@
                     this.inputs.sendingSystem = s.soapSendingSystem || 'SCADA';
                     this.inputs.messageType = s.soapMessageType || 'SmsType1';
                     this.inputs.senderName = s.senderName || '';
-                    try { this.soapParams = s.soapParams ? JSON.parse(s.soapParams) : {}; } catch { this.soapParams = {}; }
+                    if (Array.isArray(s.soapPlaceholders) && s.soapPlaceholders.length > 0) {
+                        this.soapParams = Object.fromEntries(s.soapPlaceholders.map(p => [p.key, p.value]));
+                    } else {
+                        try { this.soapParams = s.soapParams ? JSON.parse(s.soapParams) : {}; } catch { this.soapParams = {}; }
+                    }
                     this.rawEnvelope = this.assembledEnvelope;
                     // Auto-refresh when user returns from Settings tab (same debounce as smsPreviewer)
                     let _lastFocus = 0;
@@ -1208,19 +1216,19 @@
                                 : this.resolveKeyword(keyword);
                             body = body.replaceAll(`{${token}}`, value);
                         }
-                    } else {
-                        body = body
-                            .replaceAll('{Message}',       this.escXml(this.inputs.message))
-                            .replaceAll('{Phone}',         this.escXml(this.inputs.phone))
-                            .replaceAll('{TZ}',            this.escXml(this.inputs.tz))
-                            .replaceAll('{FirstName}',     this.escXml(this.inputs.firstName))
-                            .replaceAll('{LastName}',      this.escXml(this.inputs.lastName))
-                            .replaceAll('{Username}',      '***')
-                            .replaceAll('{Password}',      '***')
-                            .replaceAll('{SenderName}',    this.escXml(this.inputs.senderName))
-                            .replaceAll('{SendingSystem}', this.escXml(this.inputs.sendingSystem))
-                            .replaceAll('{MessageType}',   this.escXml(this.inputs.messageType));
                     }
+                    // Fallback for well-known SCADA tokens not covered by soapParams
+                    body = body
+                        .replaceAll('{Message}',       this.escXml(this.inputs.message))
+                        .replaceAll('{Phone}',         this.escXml(this.inputs.phone))
+                        .replaceAll('{TZ}',            this.escXml(this.inputs.tz))
+                        .replaceAll('{FirstName}',     this.escXml(this.inputs.firstName))
+                        .replaceAll('{LastName}',      this.escXml(this.inputs.lastName))
+                        .replaceAll('{Username}',      '***')
+                        .replaceAll('{Password}',      '***')
+                        .replaceAll('{SenderName}',    this.escXml(this.inputs.senderName))
+                        .replaceAll('{SendingSystem}', this.escXml(this.inputs.sendingSystem))
+                        .replaceAll('{MessageType}',   this.escXml(this.inputs.messageType));
                     const ns = this.soapEnvelopeNamespaces ? ' ' + this.soapEnvelopeNamespaces.trim() : '';
                     const header = this.authType === 'WSSecurity'
                         ? `  <soapenv:Header>
@@ -1381,7 +1389,11 @@ ${body}
                         this.inputs.sendingSystem = s.soapSendingSystem || 'SCADA';
                         this.inputs.messageType = s.soapMessageType || 'SmsType1';
                         this.inputs.senderName = s.senderName || '';
-                        try { this.soapParams = s.soapParams ? JSON.parse(s.soapParams) : {}; } catch { this.soapParams = {}; }
+                        if (Array.isArray(s.soapPlaceholders) && s.soapPlaceholders.length > 0) {
+                            this.soapParams = Object.fromEntries(s.soapPlaceholders.map(p => [p.key, p.value]));
+                        } else {
+                            try { this.soapParams = s.soapParams ? JSON.parse(s.soapParams) : {}; } catch { this.soapParams = {}; }
+                        }
                         this.rawEnvelope = this.assembledEnvelope;
                         if (!silent && window.SCADAUtils) SCADAUtils.showToast('Loaded from settings', 'success');
                     } catch (e) {

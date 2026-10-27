@@ -1359,7 +1359,7 @@
                 } catch { }
                 // Strip any mandatory/scadaOptional flags from ALL rows before re-enforcing.
                 // Stale drafts may have these flags set incorrectly (e.g. all rows locked).
-                const stripFlags = r => { delete r.mandatory; delete r.scadaOptional; };
+                const stripFlags = r => { r.mandatory = false; r.scadaOptional = false; };
                 this.paramRows.forEach(stripFlags);
                 this.soapParamRows.forEach(stripFlags);
                 this._enforceMandatory(this.paramRows,     restMandatory, scadaOptional);
@@ -1616,13 +1616,22 @@
             },
 
             get soapPreview() {
+                const SAMPLE_VALS = {
+                    phone: '+1234567890', message: 'Test alarm from SCADA',
+                    tz: 'UTC+2', firstname: 'John', lastname: 'Doe',
+                    username: '(username)', password: '***',
+                    sender_name: 'SCADA', sendingsystem: 'SCADA', messagetype: 'SmsType1',
+                    group_id: '42', value: '85.3', alarm_id: 'ALARM-001', priority: 'normal',
+                };
                 const ns = this.soapNamespaces ? '\n    ' + this.soapNamespaces : '';
                 let bodyContent = this.soapTemplate ||
                     '<ns1:SendSMS xmlns:ns1="http://tempuri.org/">\n  <ns1:Message>{Message}</ns1:Message>\n  <ns1:Phone>{Phone}</ns1:Phone>\n  <ns1:UserName>{Username}</ns1:UserName>\n  <ns1:Password>{Password}</ns1:Password>\n  <ns1:SenderName>{SenderName}</ns1:SenderName>\n  <ns1:MessageType>' + (this.soapMsgType || '{MessageType}') + '</ns1:MessageType>\n  <ns1:SendingSystem>' + (this.soapSendingSys || '{SendingSystem}') + '</ns1:SendingSystem>\n</ns1:SendSMS>';
 
-                // Apply KV table mappings: dynamic keywords shown as {keyword}, static shown inline
+                // Apply KV table mappings: dynamic keywords substituted with sample values for visibility
                 this.soapParamRows.filter(r => r.enabled && r.key.trim()).forEach(r => {
-                    const resolved = r.isDynamic ? '{' + r.value + '}' : r.value;
+                    const resolved = r.isDynamic
+                        ? (SAMPLE_VALS[r.value.toLowerCase()] ?? r.value)
+                        : r.value;
                     bodyContent = bodyContent.replaceAll('{' + r.key.trim() + '}', resolved);
                 });
 

@@ -375,3 +375,5 @@ NEW_FILES_*.md
 
 # Commit helper scripts (temporary, not needed in repo)
 commit_*.bat
+# Settings backups written by SettingsStore
+settings-backups/

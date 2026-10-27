@@ -106,6 +106,7 @@ try
     builder.Services.AddScoped<IHolidayService, HolidayService>();
     builder.Services.AddScoped<IAuditService, AuditService>();
     builder.Services.AddScoped<IAlarmActionService, AlarmActionService>();
+    builder.Services.AddSingleton<ISettingsStore, SettingsStore>();
 
     // In-process mock SMS service (singleton — holds test log state)
     builder.Services.AddSingleton<IMockSmsService, MockSmsService>();

@@ -30,6 +30,11 @@
     <Content Remove="Installer\**" />
     <EmbeddedResource Remove="Installer\**" />
     <None Remove="Installer\**" />
+    <!-- Exclude test projects (xUnit + Playwright) from web build -->
+    <Compile Remove="tests\**" />
+    <Content Remove="tests\**" />
+    <EmbeddedResource Remove="tests\**" />
+    <None Remove="tests\**" />
   </ItemGroup>
 
   <ItemGroup>

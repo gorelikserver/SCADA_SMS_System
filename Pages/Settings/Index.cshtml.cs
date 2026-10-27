@@ -18,6 +18,7 @@ namespace SCADASMSSystem.Web.Pages.Settings
         private readonly IHolidayService _holidayService;
         private readonly IWebHostEnvironment _env;
         private readonly IConfiguration _configuration;
+        private readonly ISettingsStore _settingsStore;
         private readonly ILogger<IndexModel> _logger;
 
         public IndexModel(
@@ -28,6 +29,7 @@ namespace SCADASMSSystem.Web.Pages.Settings
             IHolidayService holidayService,
             IWebHostEnvironment env,
             IConfiguration configuration,
+            ISettingsStore settingsStore,
             ILogger<IndexModel> logger)
         {
             _smsSettings = smsSettings;
@@ -37,6 +39,7 @@ namespace SCADASMSSystem.Web.Pages.Settings
             _holidayService = holidayService;
             _env = env;
             _configuration = configuration;
+            _settingsStore = settingsStore;
             _logger = logger;
         }
 
@@ -136,10 +139,6 @@ namespace SCADASMSSystem.Web.Pages.Settings
 
             try
             {
-                var appSettingsPath = Path.Combine(_env.ContentRootPath, "appsettings.json");
-                var json = await System.IO.File.ReadAllTextAsync(appSettingsPath);
-                var root = JsonNode.Parse(json)!.AsObject();
-
                 // Validate JSON fields before saving
                 if (!string.IsNullOrEmpty(SmsSettingsInput.ApiParams))
                 {
@@ -174,68 +173,30 @@ namespace SCADASMSSystem.Web.Pages.Settings
                     return Page();
                 }
 
-                var restHeaders      = TryDeserializeParamList(RestHeadersJson);
-                var restBodyParams   = TryDeserializeParamList(RestBodyParamsJson);
-                var soapPlaceholders = TryDeserializeParamList(SoapPlaceholdersJson);
+                // Merge only what the form actually posted. Fields the form does not render
+                // (legacy credentials, ApiParams, tokens, ...) must keep their stored values.
+                const string prefix = "SmsSettingsInput.";
+                var postedFields = Request.Form.Keys
+                    .Where(k => k.StartsWith(prefix, StringComparison.Ordinal))
+                    .Select(k => k.Substring(prefix.Length))
+                    .ToList();
+                string? Posted(string key, string value) => Request.Form.ContainsKey(key) ? value : null;
 
-                var smsNode = new JsonObject
+                await _settingsStore.UpdateSmsSettingsAsync(section =>
                 {
-                    // Core
-                    ["ProviderType"]      = SmsSettingsInput.ProviderType,
-                    ["ApiEndpoint"]       = SmsSettingsInput.ApiEndpoint,
-                    ["HttpMethod"]        = SmsSettingsInput.HttpMethod,
-                    ["ContentType"]       = SmsSettingsInput.ContentType,
-                    ["ApiParams"]         = SmsSettingsInput.ApiParams,
-                    ["Username"]          = SmsSettingsInput.Username,
-                    ["Password"]          = SmsSettingsInput.Password,
-                    ["SenderName"]        = SmsSettingsInput.SenderName,
-                    ["RateLimit"]         = SmsSettingsInput.RateLimit,
-                    ["RateWindow"]        = SmsSettingsInput.RateWindow,
-                    ["DuplicateWindow"]   = SmsSettingsInput.DuplicateWindow,
-                    ["TimeoutSeconds"]    = SmsSettingsInput.TimeoutSeconds,
-                    ["RetryAttempts"]     = SmsSettingsInput.RetryAttempts,
-                    ["ScadaPcimObjectId"] = SmsSettingsInput.ScadaPcimObjectId,
-                    // REST extras
-                    ["ApiHeaders"]          = SmsSettingsInput.ApiHeaders,
-                    ["RestAuthType"]        = SmsSettingsInput.RestAuthType,
-                    ["RestBearerToken"]     = SmsSettingsInput.RestBearerToken,
-                    ["RestApiKeyName"]      = SmsSettingsInput.RestApiKeyName,
-                    ["RestApiKeyValue"]     = SmsSettingsInput.RestApiKeyValue,
-                    ["RestApiKeyLocation"]  = SmsSettingsInput.RestApiKeyLocation,
-                    ["RestSuccessPattern"]  = SmsSettingsInput.RestSuccessPattern,
-                    ["RestFailurePattern"]  = SmsSettingsInput.RestFailurePattern,
-                    // SOAP
-                    ["SoapAction"]          = SmsSettingsInput.SoapAction,
-                    ["SoapMessageType"]     = SmsSettingsInput.SoapMessageType,
-                    ["SoapSendingSystem"]   = SmsSettingsInput.SoapSendingSystem,
-                    ["SoapAuthType"]        = SmsSettingsInput.SoapAuthType,
-                    ["SoapBodyTemplate"]    = SmsSettingsInput.SoapBodyTemplate,
-                    ["SoapEnvelopeNamespaces"] = SmsSettingsInput.SoapEnvelopeNamespaces,
-                    ["SoapSuccessPattern"]  = SmsSettingsInput.SoapSuccessPattern,
-                    ["SoapErrorPattern"]    = SmsSettingsInput.SoapErrorPattern,
-                    ["SoapParams"]          = SmsSettingsInput.SoapParams,
-                    // Test mode
-                    ["TestMode"]            = SmsSettingsInput.TestMode,
-                    // Dynamic param lists
-                    ["RestHeaders"]         = JsonNode.Parse(JsonSerializer.Serialize(restHeaders)),
-                    ["RestBodyParams"]      = JsonNode.Parse(JsonSerializer.Serialize(restBodyParams)),
-                    ["SoapPlaceholders"]    = JsonNode.Parse(JsonSerializer.Serialize(soapPlaceholders)),
-                    ["LogSoapXml"]          = SmsSettingsInput.LogSoapXml
-                };
-
-                root["SmsSettings"] = smsNode;
-
-                var writeOptions = new JsonSerializerOptions { WriteIndented = true };
-                await System.IO.File.WriteAllTextAsync(appSettingsPath,
-                    root.ToJsonString(writeOptions));
-
-                // Force immediate config reload so IOptionsMonitor.CurrentValue reflects new values
-                // before the redirect GET request arrives (avoids file-watcher race condition).
-                if (_configuration is IConfigurationRoot configRoot)
-                    configRoot.Reload();
+                    SmsSettingsMerge.ApplyPostedFields(section, SmsSettingsInput, postedFields);
+                    SmsSettingsMerge.ApplyParamList(section, nameof(SmsSettings.RestHeaders),      Posted(nameof(RestHeadersJson), RestHeadersJson));
+                    SmsSettingsMerge.ApplyParamList(section, nameof(SmsSettings.RestBodyParams),   Posted(nameof(RestBodyParamsJson), RestBodyParamsJson));
+                    SmsSettingsMerge.ApplyParamList(section, nameof(SmsSettings.SoapPlaceholders), Posted(nameof(SoapPlaceholdersJson), SoapPlaceholdersJson));
+                });
 
                 _logger.LogInformation("SMS settings saved to appsettings.json by user");
                 TempData["SuccessMessage"] = "Settings saved successfully. Changes are active immediately.";
+            }
+            catch (JsonException ex)
+            {
+                _logger.LogError(ex, "Rejected settings save: posted parameter list is not valid JSON");
+                TempData["ErrorMessage"] = $"Settings not saved: a parameter list was not valid JSON ({ex.Message}). Stored settings are unchanged.";
             }
             catch (Exception ex)
             {
@@ -353,11 +314,6 @@ namespace SCADASMSSystem.Web.Pages.Settings
             SoapPlaceholdersJson = JsonSerializer.Serialize(SmsSettingsInput.SoapPlaceholders);
         }
 
-        private static List<SmsParam> TryDeserializeParamList(string json)
-        {
-            try { return JsonSerializer.Deserialize<List<SmsParam>>(json) ?? new(); }
-            catch { return new(); }
-        }
 
         private async Task LoadSystemInformationAsync()
         {
