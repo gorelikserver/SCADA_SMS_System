@@ -148,6 +148,7 @@ if "%REMOVE_LOGS%"=="1" (
 ) else (
     echo  Logs folder    : KEPT                    ^(%LOGS_DIR%^)
 )
+echo  Spool and log  : KEPT                    ^(%ProgramData%\SCADA_SMS - undelivered alarms^)
 echo =====================================================================
 echo.
 
