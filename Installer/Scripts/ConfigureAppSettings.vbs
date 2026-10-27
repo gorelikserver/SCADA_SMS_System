@@ -1,7 +1,7 @@
 On Error Resume Next
 
 Dim data, pairs, pair, kv
-Dim installDir, dbServer, dbName, dbAuth, dbUser, dbPassword, port, logDir, pcimDir
+Dim installDir, dbServer, dbName, dbAuth, dbUser, dbPassword, port, logDir, pcimDir, configDir
 
 Set props = CreateObject("Scripting.Dictionary")
 data = Session.Property("CustomActionData")
@@ -40,6 +40,25 @@ port = CStr(CLng(port))
 logDir = Trim(logDir)
 If Len(logDir) > 0 And Right(logDir, 1) <> "\" Then logDir = logDir & "\"
 
+' The DB password is kept in CONFIGDIR (SYSTEM and Administrators only), not in the registry.
+' On upgrade the dialog starts empty; empty means "keep the saved password".
+Set fso = CreateObject("Scripting.FileSystemObject")
+' The CONFIGDIR the MSI creates with that ACL, also where the app keeps settings.json.
+configDir = CreateObject("WScript.Shell").ExpandEnvironmentStrings("%ProgramData%") & "\SCADA_SMS\config\"
+Dim pwFile : pwFile = configDir & "installer-db-password.txt"
+Dim pwStream
+If Len(dbPassword) = 0 And fso.FileExists(pwFile) Then
+    Set pwStream = fso.OpenTextFile(pwFile, 1, False, -1)
+    If Not pwStream.AtEndOfStream Then dbPassword = pwStream.ReadAll
+    pwStream.Close
+End If
+If Len(configDir) > 0 Then
+    CreateFolders configDir
+    Set pwStream = fso.CreateTextFile(pwFile, True, True)
+    pwStream.Write dbPassword
+    pwStream.Close
+End If
+
 Dim connStr
 If UCase(Trim(dbAuth)) = "WINDOWS" Then
     connStr = "Server=" & dbServer & ";Database=" & dbName & _
@@ -50,7 +69,7 @@ Else
               ";TrustServerCertificate=true;Connect Timeout=5;"
 End If
 
-Dim connStrJson : connStrJson = Replace(connStr, "\", "\\")
+Dim connStrJson : connStrJson = JsonEscape(connStr)
 
 Dim Q : Q = Chr(34)
 Dim NL : NL = Chr(13) & Chr(10)
@@ -63,15 +82,14 @@ json = json & "  }," & NL
 json = json & "  " & Q & "Urls" & Q & ": " & Q & "http://localhost:" & port & Q & "," & NL
 If Len(logDir) > 0 Then
     json = json & "  " & Q & "Logging" & Q & ": { " & Q & "File" & Q & ": { " & Q & "Path" & Q & ": " & _
-           Q & Replace(Replace(logDir & "scada-sms-.log", "\", "\\"), Q, "\" & Q) & Q & " } }," & NL
+           Q & JsonEscape(logDir & "scada-sms-.log") & Q & " } }," & NL
 End If
 ' Tells the app where Akara runs Scada_sms.bat from, so it can warn when that copy is stale.
 json = json & "  " & Q & "Scada" & Q & ": {" & NL
-json = json & "    " & Q & "PcimUtilDir" & Q & ": " & Q & Replace(Replace(pcimDir, "\", "\\"), Q, "\" & Q) & Q & NL
+json = json & "    " & Q & "PcimUtilDir" & Q & ": " & Q & JsonEscape(pcimDir) & Q & NL
 json = json & "  }" & NL
 json = json & "}" & NL
 
-Set fso = CreateObject("Scripting.FileSystemObject")
 Dim f
 If Len(logDir) > 0 Then CreateFolders logDir
 Set f = fso.CreateTextFile(installDir & "appsettings.Production.json", True, False)
@@ -96,6 +114,27 @@ If Len(pcimDir) > 0 Then
     WriteIni pcimDir & "Scada_sms.ini", batUrl, curlPath
 End If
 Set fso = Nothing
+
+' The file is written as ASCII (FSO cannot write UTF-8), so anything else is escaped as
+' \uXXXX; a non-ASCII character would otherwise make the write fail and leave the file empty.
+Function JsonEscape(text)
+    Dim i, ch, code, out
+    out = ""
+    For i = 1 To Len(text)
+        ch = Mid(text, i, 1)
+        code = AscW(ch) And &HFFFF&
+        If ch = "\" Then
+            out = out & "\\"
+        ElseIf ch = Chr(34) Then
+            out = out & "\" & Chr(34)
+        ElseIf code < 32 Or code > 126 Then
+            out = out & "\u" & Right("000" & Hex(code), 4)
+        Else
+            out = out & ch
+        End If
+    Next
+    JsonEscape = out
+End Function
 
 ' CreateFolder needs the parent to exist; LOG_DIR may be several levels deep.
 Sub CreateFolders(path)

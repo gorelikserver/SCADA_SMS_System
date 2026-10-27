@@ -95,7 +95,9 @@ The MSI creates `%ProgramData%\SCADA_SMS\spool` with a protected, inherited ACL:
 
 The installer's HTTP port (`APP_PORT`, default 5000) is written as `Urls` (`http://localhost:<port>`) to `appsettings.Production.json` and as `URL=` to `Scada_sms.ini` next to the installed bat, so the service and the bat always agree.
 
-The installer's log folder (`LOG_DIR`, default `C:\SCADA\Logs`, remembered in `HKLM\Software\Afcon\Scada SMS\LogDir`) is written as `Logging:File:Path` (`<LOG_DIR>\scada-sms-.log`). That key drives the only Serilog file sink (`Program.cs`, daily files, 31 kept); `Serilog:WriteTo` must not add another file sink, or every line is logged twice. Logs are outside `%ProgramData%\SCADA_SMS` and survive uninstall.
+Upgrades keep the installer's choices: port, DB server/name/auth/user, log folder and PCIMUTIL folder are stored in `HKLM\Software\Afcon\Scada SMS` and fill the dialogs on the next run (AppSearch fills `REMEMBERED_*`; "first-sequence" SetProperty actions copy them only into properties the command line left empty, so `msiexec ... APP_PORT=9000` and dialog edits still win). The DB password is not in the registry: `ConfigureAppSettings` keeps it in `%ProgramData%\SCADA_SMS\config\installer-db-password.txt` (SYSTEM and Administrators only), the upgrade dialog starts empty, and an empty password means "keep the saved one". Fresh installs keep the old defaults.
+
+The installer's log folder (`LOG_DIR`, default `C:\SCADA\Logs`) is written as `Logging:File:Path` (`<LOG_DIR>\scada-sms-.log`). That key drives the only Serilog file sink (`Program.cs`, daily files, 31 kept); `Serilog:WriteTo` must not add another file sink, or every line is logged twice. Logs are outside `%ProgramData%\SCADA_SMS` and survive uninstall.
 
 Uninstall and major upgrades remove the install folder (bat, ini, curl, `appsettings.json`) and uninstall removes the event source, but never anything under `%ProgramData%\SCADA_SMS`: spool files, `Scada_sms.log` and `config\settings.json` (provider profile and UI settings) survive.
 

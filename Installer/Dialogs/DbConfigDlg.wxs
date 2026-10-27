@@ -66,6 +66,12 @@
                  EnableCondition="DB_AUTH = &quot;SQL&quot;"
                  DisableCondition="NOT DB_AUTH = &quot;SQL&quot;" />
 
+        <Control Id="DbPasswordKeepText" Type="Text" X="20" Y="200" Width="330" Height="20" NoPrefix="yes"
+                 Hidden="yes" ShowCondition="DB_PASSWORD_SAVED AND DB_AUTH = &quot;SQL&quot;"
+                 HideCondition="NOT DB_PASSWORD_SAVED OR NOT DB_AUTH = &quot;SQL&quot;">
+          <Text Value="Leave the password empty to keep the one saved by the previous installation." />
+        </Control>
+
         <Control Id="BottomLine" Type="Line" X="0" Y="234" Width="370" Height="0" />
 
         <Control Id="Back"   Type="PushButton" X="180" Y="243" Width="56" Height="17" Text="&amp;Back" />
