@@ -45,7 +45,7 @@ namespace SCADASMSSystem.Web.Services
     public interface IDeliveryAlertService
     {
         Task<DeliveryAlertSummary> GetSummaryAsync(CancellationToken ct = default);
-        Task AcknowledgeAsync(string alarmId, string? note, CancellationToken ct = default);
+        Task AcknowledgeAsync(string alarmId, string? note, string? acknowledgedBy, CancellationToken ct = default);
     }
 
     /// <summary>
@@ -167,11 +167,11 @@ namespace SCADASMSSystem.Web.Services
                 alarms.OrderByDescending(a => a.FirstSeen).ToList(), bad, emptyGroups, invalidPhones, _smsSettings.CurrentValue.TestMode);
         }
 
-        public async Task AcknowledgeAsync(string alarmId, string? note, CancellationToken ct = default)
+        public async Task AcknowledgeAsync(string alarmId, string? note, string? acknowledgedBy, CancellationToken ct = default)
         {
             if (await _db.AlarmAcknowledgements.AnyAsync(a => a.AlarmId == alarmId, ct))
                 return;
-            _db.AlarmAcknowledgements.Add(new AlarmAcknowledgement { AlarmId = alarmId, Note = note });
+            _db.AlarmAcknowledgements.Add(new AlarmAcknowledgement { AlarmId = alarmId, Note = note, AcknowledgedBy = acknowledgedBy });
             await _db.SaveChangesAsync(ct);
         }
 

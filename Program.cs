@@ -1,3 +1,5 @@
+using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using SCADASMSSystem.Web.Data;
 using SCADASMSSystem.Web.Services;
@@ -65,7 +67,35 @@ try
     }
 
     // Add services to the container.
-    builder.Services.AddRazorPages();
+    const string AdminPolicy = "AdminOnly";
+    builder.Services.AddRazorPages(options =>
+    {
+        // Viewers: dashboard, alerts, audit, calendar, help. Everything that changes who gets
+        // alarms or how they are sent is admin-only.
+        foreach (var folder in new[] { "/Settings", "/Users", "/Groups", "/Alarms", "/Test", "/Debug" })
+            options.Conventions.AuthorizeFolder(folder, AdminPolicy);
+        options.Conventions.AuthorizePage("/Account/Manage", AdminPolicy);
+        options.Conventions.AllowAnonymousToPage("/Error");
+    });
+
+    // Local accounts (air-gapped sites have no identity provider). Every page needs a sign-in;
+    // the SCADA API, mock provider, health check and static files stay anonymous.
+    builder.Services.AddScoped<IAccountService, AccountService>();
+    builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
+        .AddCookie(options =>
+        {
+            options.LoginPath = "/Account/Login";
+            options.AccessDeniedPath = "/Account/AccessDenied";
+            options.ExpireTimeSpan = TimeSpan.FromHours(12);
+            options.SlidingExpiration = true;
+            options.Cookie.HttpOnly = true;
+            options.Cookie.SameSite = SameSiteMode.Strict;
+        });
+    builder.Services.AddAuthorization(options =>
+    {
+        options.FallbackPolicy = new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build();
+        options.AddPolicy(AdminPolicy, policy => policy.RequireRole(AccountRoles.Admin));
+    });
 
     // Add API Controllers for SMS endpoints
     builder.Services.AddControllers();
@@ -238,9 +268,10 @@ try
 
     app.UseRouting();
 
+    app.UseAuthentication();
     app.UseAuthorization();
 
-    app.MapStaticAssets();
+    app.MapStaticAssets().AllowAnonymous();
     app.MapRazorPages()
        .WithStaticAssets();
 
@@ -248,7 +279,7 @@ try
     app.MapControllers();
 
     // Map health checks for monitoring
-    app.MapHealthChecks("/health");
+    app.MapHealthChecks("/health").AllowAnonymous();
 
     // Log startup information
     var appLogger = app.Services.GetRequiredService<ILogger<Program>>();

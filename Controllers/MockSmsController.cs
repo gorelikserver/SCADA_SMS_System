@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using SCADASMSSystem.Web.Models;
@@ -7,6 +8,7 @@ namespace SCADASMSSystem.Web.Controllers
 {
     [ApiController]
     [Route("mock/sms")]
+    [AllowAnonymous] // called by Scada_sms.bat / the app itself, never by a signed-in browser
     public class MockSmsController : ControllerBase
     {
         private readonly IMockSmsService _mock;

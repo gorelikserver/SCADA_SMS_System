@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SCADASMSSystem.Web.Services;
 using System.ComponentModel.DataAnnotations;
@@ -6,6 +7,7 @@ namespace SCADASMSSystem.Web.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
+    [AllowAnonymous] // called by Scada_sms.bat / the app itself, never by a signed-in browser
     public class SmsController : ControllerBase
     {
         private readonly SmsBackgroundService _smsBackgroundService;
@@ -204,6 +206,7 @@ namespace SCADASMSSystem.Web.Controllers
     // Legacy controller for root-level endpoints (Python compatibility)
     [ApiController]
     [Route("")]
+    [AllowAnonymous] // called by Scada_sms.bat / the app itself, never by a signed-in browser
     public class LegacySmsController : ControllerBase
     {
         private readonly SmsBackgroundService _smsBackgroundService;
