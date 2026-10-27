@@ -7,6 +7,9 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
+using System.Xml;
+using System.Xml.Linq;
 
 namespace SCADASMSSystem.Web.Services
 {
@@ -794,15 +797,13 @@ namespace SCADASMSSystem.Web.Services
                 var soapBodyContent = Settings.SoapBodyTemplate;
 
                 var phoneKws = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "phone", "phonenumber", "mobile" };
+                var messageKws = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "message", "msg", "text", "body" };
 
                 if (Settings.SoapPlaceholders.Count > 0)
                 {
                     // New dynamic list path
-                    if (!Settings.SoapPlaceholders.Any(p => phoneKws.Contains(p.Value ?? "")))
-                    {
-                        _logger.LogWarning("No 'phone' placeholder mapped in SOAP SoapPlaceholders — recipient {PhoneNumber} may not receive SMS. " +
-                            "Add a row in Settings → SOAP → Placeholder Resolvers with value `phone`.", MaskPhoneNumber(phone));
-                    }
+                    ValidateRequiredSoapMapping(soapBodyContent, Settings.SoapPlaceholders, phoneKws, "phone");
+                    ValidateRequiredSoapMapping(soapBodyContent, Settings.SoapPlaceholders, messageKws, "message");
                     foreach (var param in Settings.SoapPlaceholders)
                         soapBodyContent = soapBodyContent.Replace($"{{{param.Key}}}", ResolveSoapValue(param.Value));
                 }
@@ -811,16 +812,17 @@ namespace SCADASMSSystem.Web.Services
                     // Legacy SoapParams JSON string
                     var soapParamMap = JsonSerializer.Deserialize<Dictionary<string, string>>(Settings.SoapParams)
                                        ?? new Dictionary<string, string>();
-                    if (!soapParamMap.Values.Any(v => phoneKws.Contains(v ?? "")))
-                    {
-                        _logger.LogWarning("No 'phone' placeholder mapped in SOAP SoapParams — recipient {PhoneNumber} may not receive SMS. " +
-                            "Add a row in Settings → Body Parameters with the dynamic value `phone`.", MaskPhoneNumber(phone));
-                    }
+                    var legacyParams = soapParamMap.Select(p => new SmsParam { Key = p.Key, Value = p.Value }).ToList();
+                    ValidateRequiredSoapMapping(soapBodyContent, legacyParams, phoneKws, "phone");
+                    ValidateRequiredSoapMapping(soapBodyContent, legacyParams, messageKws, "message");
                     foreach (var (token, value) in soapParamMap)
                         soapBodyContent = soapBodyContent.Replace($"{{{token}}}", ResolveSoapValue(value));
                 }
                 else
                 {
+                    RequireSingleToken(soapBodyContent, "Phone", "phone");
+                    RequireSingleToken(soapBodyContent, "Message", "message");
+
                     // Legacy hardcoded replacements (backward-compatible)
                     soapBodyContent = soapBodyContent
                         .Replace("{Message}",       SecurityElement(message))
@@ -835,6 +837,9 @@ namespace SCADASMSSystem.Web.Services
                         .Replace("{MessageType}",   SecurityElement(Settings.SoapMessageType ?? "SmsType1"));
                 }
 
+                if (System.Text.RegularExpressions.Regex.IsMatch(soapBodyContent, @"\{[^{}]+\}"))
+                    throw new InvalidOperationException("SOAP Body Template contains unresolved placeholders.");
+
                 // Extra namespace declarations (e.g. xmlns:ns1="http://myprovider.com")
                 var extraNs = string.IsNullOrWhiteSpace(Settings.SoapEnvelopeNamespaces)
                     ? ""
@@ -847,6 +852,8 @@ namespace SCADASMSSystem.Web.Services
 {soapBodyContent}
   </soapenv:Body>
 </soapenv:Envelope>";
+
+                ParseXmlSecurely(soapEnvelope, "SOAP request");
 
                 if (Settings.LogSoapXml)
                 {
@@ -873,7 +880,7 @@ namespace SCADASMSSystem.Web.Services
 
                 using var request = new HttpRequestMessage(HttpMethod.Post, Settings.ApiEndpoint);
                 request.Content = new StringContent(soapEnvelope, Encoding.UTF8, "text/xml");
-                request.Headers.Add("SOAPAction", $"\"{Settings.SoapAction}\"");
+                request.Headers.TryAddWithoutValidation("SOAPAction", $"\"{Settings.SoapAction}\"");
 
                 // HTTP Basic auth header (alternative to WS-Security)
                 if (authType.Equals("HttpBasic", StringComparison.OrdinalIgnoreCase))
@@ -894,19 +901,19 @@ namespace SCADASMSSystem.Web.Services
 
                 if (response.IsSuccessStatusCode)
                 {
-                    var successPattern = Settings.SoapSuccessPattern;
-                    var success = responseContent.Contains(successPattern, StringComparison.OrdinalIgnoreCase);
-                    var errorMessage = string.Empty;
+                    var responseXml = ParseXmlSecurely(responseContent, "SOAP response");
+                    var fault = responseXml.Descendants().FirstOrDefault(e =>
+                        e.Name.LocalName.Equals("Fault", StringComparison.OrdinalIgnoreCase));
+                    var successPattern = Settings.SoapSuccessPattern?.Trim();
+                    if (string.IsNullOrWhiteSpace(successPattern))
+                        throw new InvalidOperationException("SOAP Success Pattern is required for provider acceptance confirmation.");
 
-                    if (!success)
-                    {
-                        var errorPattern = Settings.SoapErrorPattern;
-                        var closeTag = errorPattern.TrimStart('<').TrimEnd('>');
-                        var errorStart = responseContent.IndexOf(errorPattern, StringComparison.OrdinalIgnoreCase);
-                        var errorEnd = responseContent.IndexOf($"</{closeTag}>", StringComparison.OrdinalIgnoreCase);
-                        if (errorStart >= 0 && errorEnd > errorStart)
-                            errorMessage = responseContent.Substring(errorStart + errorPattern.Length, errorEnd - errorStart - errorPattern.Length);
-                    }
+                    var configuredError = FindSoapError(responseXml, Settings.SoapErrorPattern);
+                    var success = fault == null && !configuredError.Found &&
+                                  MatchesSoapPattern(responseXml, responseContent, successPattern);
+                    var errorMessage = fault != null
+                        ? ExtractSoapFault(fault)
+                        : configuredError.Message;
 
                     if (success)
                     {
@@ -916,7 +923,15 @@ namespace SCADASMSSystem.Web.Services
                     else
                     {
                         _logger.LogError("SOAP SMS failed for {PhoneNumber}: {Error}", MaskPhoneNumber(phone), errorMessage);
-                        soapResult = new SmsApiResponse { Success = false, Message = $"SOAP provider error: {errorMessage}", Response = responseContent, StatusCode = (int)response.StatusCode };
+                        soapResult = new SmsApiResponse
+                        {
+                            Success = false,
+                            Message = string.IsNullOrWhiteSpace(errorMessage)
+                                ? "SOAP provider response did not confirm acceptance"
+                                : $"SOAP provider error: {errorMessage}",
+                            Response = responseContent,
+                            StatusCode = (int)response.StatusCode
+                        };
                     }
                 }
                 else
@@ -932,7 +947,7 @@ namespace SCADASMSSystem.Web.Services
                     Endpoint      = Settings.ApiEndpoint,
                     HttpMethod    = "POST",
                     PhoneNumber   = MaskPhoneNumber(phone),
-                    AlarmId       = string.Empty,
+                    AlarmId       = ctx?.AlarmId ?? string.Empty,
                     RequestSummary= $"SOAPAction={Settings.SoapAction}",
                     FullResponse  = responseContent,
                     StatusCode    = (int)response.StatusCode,
@@ -958,6 +973,107 @@ namespace SCADASMSSystem.Web.Services
                 });
                 return new SmsApiResponse { Success = false, Message = ex.Message, Response = ex.ToString(), StatusCode = 0 };
             }
+        }
+
+        private static XDocument ParseXmlSecurely(string xml, string description)
+        {
+            try
+            {
+                var settings = new XmlReaderSettings
+                {
+                    DtdProcessing = DtdProcessing.Prohibit,
+                    XmlResolver = null
+                };
+                using var stringReader = new StringReader(xml);
+                using var xmlReader = XmlReader.Create(stringReader, settings);
+                return XDocument.Load(xmlReader, LoadOptions.None);
+            }
+            catch (XmlException ex)
+            {
+                throw new InvalidOperationException($"{description} is not valid XML: {ex.Message}", ex);
+            }
+        }
+
+        private static bool MatchesSoapPattern(XDocument document, string rawXml, string pattern)
+        {
+            if (pattern.StartsWith('<'))
+            {
+                XElement expected;
+                try
+                {
+                    expected = XElement.Parse(pattern);
+                }
+                catch (XmlException ex)
+                {
+                    throw new InvalidOperationException(
+                        "SOAP Success Pattern must be valid XML. Namespace prefixes require xmlns declarations.", ex);
+                }
+
+                var matches = document.Descendants().Where(actual =>
+                    actual.Name == expected.Name &&
+                    actual.Value.Trim().Equals(expected.Value.Trim(), StringComparison.OrdinalIgnoreCase) &&
+                    expected.Attributes().Where(a => !a.IsNamespaceDeclaration).All(expectedAttribute =>
+                        actual.Attributes().Any(actualAttribute =>
+                            !actualAttribute.IsNamespaceDeclaration &&
+                            actualAttribute.Name == expectedAttribute.Name &&
+                            actualAttribute.Value.Equals(expectedAttribute.Value, StringComparison.OrdinalIgnoreCase))));
+
+                // Ambiguous duplicate signals are not sufficient proof of provider acceptance.
+                return matches.Take(2).Count() == 1;
+            }
+
+            return rawXml.Contains(pattern, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static string ExtractSoapFault(XElement fault)
+        {
+            return fault.Descendants().FirstOrDefault(e =>
+                       e.Name.LocalName is "faultstring" or "Text" or "Reason")?.Value.Trim()
+                   ?? fault.Value.Trim();
+        }
+
+        private static (bool Found, string Message) FindSoapError(XDocument document, string? configuredPattern)
+        {
+            if (string.IsNullOrWhiteSpace(configuredPattern))
+                return (false, string.Empty);
+
+            var localName = configuredPattern.Trim().TrimStart('<').TrimEnd('>');
+            var separator = localName.IndexOfAny([' ', '/', '>']);
+            if (separator >= 0)
+                localName = localName[..separator];
+            if (localName.Contains(':'))
+                localName = localName[(localName.IndexOf(':') + 1)..];
+
+            var element = document.Descendants().FirstOrDefault(e =>
+                e.Name.LocalName.Equals(localName, StringComparison.OrdinalIgnoreCase));
+            if (element == null)
+                return (false, string.Empty);
+
+            var message = element.Value.Trim();
+            var hasDetails = message.Length > 0 || element.Attributes().Any(a => !a.IsNamespaceDeclaration);
+            return (hasDetails, message);
+        }
+
+        private static void ValidateRequiredSoapMapping(
+            string template,
+            IEnumerable<SmsParam> mappings,
+            HashSet<string> acceptedKeywords,
+            string fieldName)
+        {
+            var mapping = mappings.SingleOrDefault(p => acceptedKeywords.Contains(p.Value ?? string.Empty));
+            if (mapping == null)
+                throw new InvalidOperationException($"SOAP configuration must map one placeholder to '{fieldName}'.");
+
+            RequireSingleToken(template, mapping.Key, fieldName);
+        }
+
+        private static void RequireSingleToken(string template, string tokenName, string fieldName)
+        {
+            var token = $"{{{tokenName}}}";
+            var count = Regex.Matches(template, Regex.Escape(token), RegexOptions.CultureInvariant).Count;
+            if (count != 1)
+                throw new InvalidOperationException(
+                    $"SOAP Body Template must contain exactly one {token} token for '{fieldName}'.");
         }
 
         private static readonly HashSet<string> _sensitiveHeaderNames = new(StringComparer.OrdinalIgnoreCase)
