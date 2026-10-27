@@ -119,6 +119,10 @@ try
     builder.Services.AddSingleton<SmsBackgroundService>();
     builder.Services.AddHostedService<SmsBackgroundService>(provider => provider.GetService<SmsBackgroundService>()!);
 
+    // Re-sends alarms Scada_sms.bat left in the spool (service was down or delivery incomplete)
+    builder.Services.Configure<SpoolOptions>(builder.Configuration.GetSection("ScadaSpool"));
+    builder.Services.AddHostedService<SpoolIngestService>();
+
     // Configure SMS settings
     builder.Services.Configure<SmsSettings>(
         builder.Configuration.GetSection("SmsSettings"));
