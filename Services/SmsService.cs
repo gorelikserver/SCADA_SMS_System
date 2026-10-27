@@ -174,17 +174,21 @@ namespace SCADASMSSystem.Web.Services
                     continue;
                 }
 
-                if (delivery.Status is CriticalDeliveryStatus.Sending or CriticalDeliveryStatus.Indeterminate)
+                // Failed, indeterminate and stale SENDING rows are re-sent: a duplicate SMS beats a
+                // missed alarm. Only a fresh SENDING row (another request is on it) is skipped.
+                var staleBefore = CriticalDeliveryPolicy.StaleBefore(DateTime.Now);
+                if (delivery.Status == CriticalDeliveryStatus.Sending && delivery.UpdatedAt >= staleBefore)
                 {
                     results.Add(new SmsRecipientDeliveryResult(
                         recipient.UserId, MaskPhoneNumber(recipient.PhoneNumber), false,
                         delivery.ProviderStatusCode, delivery.Attempts,
-                        "Delivery already active or outcome is indeterminate"));
+                        "Delivery already in progress for this alarm"));
                     continue;
                 }
 
                 var claimed = await dbContext.CriticalSmsDeliveries
-                    .Where(d => d.DeliveryId == delivery.DeliveryId && d.Status == CriticalDeliveryStatus.Failed)
+                    .Where(d => d.DeliveryId == delivery.DeliveryId)
+                    .Where(CriticalDeliveryPolicy.Claimable(staleBefore))
                     .ExecuteUpdateAsync(setters => setters
                         .SetProperty(d => d.Status, CriticalDeliveryStatus.Sending)
                         .SetProperty(d => d.UpdatedAt, DateTime.Now), cancellationToken);
@@ -209,7 +213,7 @@ namespace SCADASMSSystem.Web.Services
                     var context = new SmsCallContext(groupId, alarmId, priority, value);
                     response = await SendSmsApiCallAsync(timestampedMessage, recipient, context, cancellationToken);
 
-                    if (response.Success || !IsTransientFailure(response) || attempts >= maxAttempts)
+                    if (!CriticalDeliveryPolicy.IsRetryable(response) || attempts >= maxAttempts)
                         break;
 
                     var delay = TimeSpan.FromMilliseconds(250 * Math.Pow(2, attempts - 1));
@@ -260,11 +264,6 @@ namespace SCADASMSSystem.Web.Services
             var acceptedCount = results.Count(r => r.Accepted);
             return new CriticalSmsDeliveryResult(alarmId, results.Count, acceptedCount, results);
         }
-
-        private static bool IsTransientFailure(SmsApiResponse response) =>
-            // Retry only explicit provider throttling. Timeout, transport loss, and 5xx
-            // can occur after acceptance and are unsafe without provider idempotency.
-            response.StatusCode == 429;
 
         private static string? Truncate(string? value, int maxLength) =>
             value is null || value.Length <= maxLength ? value : value[..maxLength];

@@ -83,7 +83,7 @@ The file must remain **UTF-8 with BOM and CRLF line endings**.
 
 ### Service side
 
-- `SmsController` `/api/sms/send` calls `ISmsService.SendCriticalSmsToGroupAsync` synchronously. Each recipient is claimed in `scada_critical_sms_deliveries` with a unique `(AlarmId, PhoneNumber)` key. Re-sending the same AlarmId skips recipients already accepted and retries only `FAILED` ones; `SENDING`/`INDETERMINATE` recipients are not re-sent automatically (a timeout may have been accepted by the provider).
+- `SmsController` `/api/sms/send` calls `ISmsService.SendCriticalSmsToGroupAsync` synchronously. Each recipient is claimed in `scada_critical_sms_deliveries` with a unique `(AlarmId, PhoneNumber)` key. Re-sending the same AlarmId skips recipients already accepted and re-sends `FAILED`, `INDETERMINATE` (timeout or transport loss) and `SENDING` rows older than 5 minutes (crashed request). A duplicate SMS is preferred over a missed alarm. Within one request, status 0, 429 and 5xx are retried up to `RetryAttempts` times; other 4xx are permanent. Rules live in `CriticalDeliveryPolicy`.
 - `SpoolIngestService` (`ScadaSpool` section in `appsettings.json`) scans the spool every `PollSeconds`. Files older than `MinAgeSeconds` (must exceed the batch `MAXTIME`) are re-sent with their original AlarmId. Fully accepted files are deleted; files older than `MaxAgeMinutes` move to `spool\failed` with a critical log entry; malformed files move to `spool\bad`.
 - The spool root in `ScadaSpool:Root` and the batch `SPOOL_ROOT` must point to the same folder.
 
