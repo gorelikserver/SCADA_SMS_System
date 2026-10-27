@@ -57,6 +57,7 @@
       <!-- Default SPOOL_ROOT of Scada_sms.bat and ScadaSpool:Root of the service -->
       <Directory Id="SCADASMSDATADIR" Name="SCADA_SMS">
         <Directory Id="SPOOLDIR" Name="spool" />
+        <Directory Id="CONFIGDIR" Name="config" />
       </Directory>
     </StandardDirectory>
 
@@ -199,6 +200,19 @@
       <Component Id="SpoolDirComponent" Directory="SPOOLDIR"
                  Guid="CA5BC481-E456-47FC-A1B5-5F9C124A1F2E">
         <CreateFolder />
+      </Component>
+      <!--
+        %ProgramData%\SCADA_SMS\config\settings.json holds the settings edited in the UI,
+        including the provider profile and its secrets. It lives outside INSTALLDIR because a
+        major upgrade deletes INSTALLDIR. Protected DACL without BUILTIN\Users: only SYSTEM
+        (the service) and Administrators may read it. Never removed on uninstall while it
+        holds files (MSI owns none).
+      -->
+      <Component Id="ConfigDirComponent" Directory="CONFIGDIR"
+                 Guid="5514E956-289F-466D-8A99-9FF4227AED5A">
+        <CreateFolder>
+          <PermissionEx Sddl="D:PAI(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)" />
+        </CreateFolder>
       </Component>
 
     </ComponentGroup>

@@ -92,7 +92,7 @@ namespace SCADASMSSystem.Web.Services.Providers
 
         /// <summary>
         /// Hard cutover for a site upgraded from the pre-profile version: converts its old provider
-        /// fields into Profile and removes them from <paramref name="section"/> (appsettings.json).
+        /// fields into Profile and removes them from <paramref name="section"/> (the UI settings file).
         /// <paramref name="effective"/> is the old configuration as the app actually saw it (all
         /// settings files and environment variables), so the profile matches what was in use.
         /// Returns the new profile, or null when nothing changed (a profile already exists, or no

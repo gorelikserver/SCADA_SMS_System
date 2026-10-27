@@ -22,6 +22,9 @@ var configuration = new ConfigurationBuilder()
     .AddEnvironmentVariables()
     .Build();
 
+// Settings edited in the UI live outside the install folder, which an MSI upgrade deletes.
+var settingsFile = SettingsLocation.Resolve(configuration[SettingsLocation.ConfigKey], pathToContentRoot);
+
 // Configure Serilog with file logging
 Log.Logger = new LoggerConfiguration()
     .ReadFrom.Configuration(configuration)
@@ -38,11 +41,47 @@ try
 {
     Log.Information("Starting SCADA SMS System from {ContentRoot}", pathToContentRoot);
 
+    try
+    {
+        // Restrict the folder before the first secret is written into it.
+        var settingsDir = Path.GetDirectoryName(settingsFile)!;
+        if (!Directory.Exists(settingsDir))
+        {
+            Directory.CreateDirectory(settingsDir);
+            SettingsLocation.RestrictFolderIfService(settingsFile);
+        }
+        if (SettingsLocation.EnsureSeeded(settingsFile, Path.Combine(pathToContentRoot, "appsettings.json")))
+        {
+            Log.Warning("Created {SettingsFile} from the SmsSettings in appsettings.json; settings edited in the UI are stored there from now on", settingsFile);
+        }
+    }
+    catch (Exception ex)
+    {
+        // Alarms keep working from appsettings.json; saving settings in the UI will fail until fixed.
+        Log.Error(ex, "Could not create the settings file {SettingsFile}", settingsFile);
+    }
+
     var builder = WebApplication.CreateBuilder(new WebApplicationOptions
     {
         Args = args,
         ContentRootPath = pathToContentRoot
     });
+
+    // UI-edited settings override appsettings*.json; environment variables and the command line
+    // still override everything.
+    {
+        var sources = builder.Configuration.Sources;
+        var lastAppSettings = sources.Select((s, i) => (s, i))
+            .Where(x => x.s is Microsoft.Extensions.Configuration.Json.JsonConfigurationSource json && (json.Path ?? "").StartsWith("appsettings", StringComparison.OrdinalIgnoreCase))
+            .Select(x => x.i).DefaultIfEmpty(sources.Count - 1).Max();
+        sources.Insert(lastAppSettings + 1, new Microsoft.Extensions.Configuration.Json.JsonConfigurationSource
+        {
+            FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(Path.GetDirectoryName(settingsFile)!),
+            Path = Path.GetFileName(settingsFile),
+            Optional = true,
+            ReloadOnChange = true,
+        });
+    }
 
     // Configure for Windows Service if running as service
     if (OperatingSystem.IsWindows())
@@ -136,7 +175,8 @@ try
     builder.Services.AddScoped<IHolidayService, HolidayService>();
     builder.Services.AddScoped<IAuditService, AuditService>();
     builder.Services.AddScoped<IAlarmActionService, AlarmActionService>();
-    builder.Services.AddSingleton<ISettingsStore, SettingsStore>();
+    builder.Services.AddSingleton<ISettingsStore>(sp => new SettingsStore(
+        settingsFile, sp.GetRequiredService<IConfiguration>(), sp.GetRequiredService<ILogger<SettingsStore>>()));
     builder.Services.AddScoped<ISettingsHistory, SettingsHistory>();
     builder.Services.AddScoped<SCADASMSSystem.Web.Services.Providers.IProviderProfileService, SCADASMSSystem.Web.Services.Providers.ProviderProfileService>();
     builder.Services.AddSingleton<IAlertNotifier, EventLogAlertNotifier>();
@@ -241,7 +281,7 @@ try
 
     // Hard cutover to provider profiles: SmsService sends only with SmsSettings:Profile. A site
     // upgraded from the pre-profile version has its old REST/SOAP fields converted into a profile
-    // and removed (the previous appsettings.json stays in settings-backups). A fresh install has no
+    // and removed (the previous settings file stays in settings-backups). A fresh install has no
     // profile until an admin activates one in Settings > Provider; until then alarms are refused
     // and the banner says so.
     {

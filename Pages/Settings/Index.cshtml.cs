@@ -128,7 +128,7 @@ namespace SCADASMSSystem.Web.Pages.Settings
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to save settings to appsettings.json");
+                _logger.LogError(ex, "Failed to save settings");
                 TempData["ErrorMessage"] = $"Failed to save settings: {ex.Message}";
             }
             return RedirectToPage();

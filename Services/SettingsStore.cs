@@ -6,7 +6,7 @@ using SCADASMSSystem.Web.Models;
 namespace SCADASMSSystem.Web.Services
 {
     /// <summary>
-    /// Single write path for the SmsSettings section of appsettings.json.
+    /// Single write path for the SmsSettings section of the UI settings file (see SettingsLocation).
     /// Changes are merged into the stored section (never replace it), secrets survive
     /// blank/masked posts, the previous file is backed up, and the write is atomic.
     /// </summary>
@@ -29,9 +29,6 @@ namespace SCADASMSSystem.Web.Services
         private readonly string _appSettingsPath;
         private readonly IConfiguration? _configuration;
         private readonly ILogger<SettingsStore> _logger;
-
-        public SettingsStore(IWebHostEnvironment env, IConfiguration configuration, ILogger<SettingsStore> logger)
-            : this(Path.Combine(env.ContentRootPath, "appsettings.json"), configuration, logger) { }
 
         public SettingsStore(string appSettingsPath, IConfiguration? configuration, ILogger<SettingsStore> logger)
         {
@@ -57,7 +54,7 @@ namespace SCADASMSSystem.Web.Services
             {
                 var json = await File.ReadAllTextAsync(_appSettingsPath, ct);
                 var root = JsonNode.Parse(json)?.AsObject()
-                    ?? throw new InvalidOperationException("appsettings.json is empty or not a JSON object");
+                    ?? throw new InvalidOperationException("The settings file is empty or not a JSON object");
 
                 if (root[SectionName] is not JsonObject section)
                 {
@@ -91,10 +88,10 @@ namespace SCADASMSSystem.Web.Services
             {
                 Directory.CreateDirectory(BackupDirectory);
                 var backupPath = Path.Combine(BackupDirectory,
-                    $"appsettings.{DateTime.Now:yyyyMMdd-HHmmss-fff}.json");
+                    $"settings.{DateTime.Now:yyyyMMdd-HHmmss-fff}.json");
                 File.Copy(_appSettingsPath, backupPath, overwrite: true);
 
-                foreach (var old in Directory.GetFiles(BackupDirectory, "appsettings.*.json")
+                foreach (var old in Directory.GetFiles(BackupDirectory, "settings.*.json")
                              .OrderByDescending(f => f, StringComparer.Ordinal)
                              .Skip(BackupsToKeep))
                 {
@@ -104,7 +101,7 @@ namespace SCADASMSSystem.Web.Services
             catch (Exception ex)
             {
                 // A failed backup must not block saving provider settings.
-                _logger.LogWarning(ex, "Could not back up appsettings.json before saving settings");
+                _logger.LogWarning(ex, "Could not back up the settings file before saving settings");
             }
         }
     }

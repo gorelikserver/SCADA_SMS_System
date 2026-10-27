@@ -95,7 +95,7 @@ The MSI creates `%ProgramData%\SCADA_SMS\spool` with a protected, inherited ACL:
 
 The installer's HTTP port (`APP_PORT`, default 5000) is written as `Urls` (`http://localhost:<port>`) to `appsettings.Production.json` and as `URL=` to `Scada_sms.ini` next to the installed bat, so the service and the bat always agree.
 
-Uninstall removes the install folder (bat, ini, curl) and the event source, but never the spool files or `Scada_sms.log` under `%ProgramData%\SCADA_SMS`, so undelivered alarms survive.
+Uninstall and major upgrades remove the install folder (bat, ini, curl, `appsettings.json`) and uninstall removes the event source, but never anything under `%ProgramData%\SCADA_SMS`: spool files, `Scada_sms.log` and `config\settings.json` (provider profile and UI settings) survive.
 
 **Akara calls the bat from its `PCIMUTIL` alias folder**, not from the install folder: point that alias to `[INSTALLDIR]Scripts\` or copy `Scada_sms.bat` and `Scada_sms.ini` there after installing.
 
@@ -136,7 +136,8 @@ Uninstall removes the install folder (bat, ini, curl) and the event source, but 
 - **Debug pages** return 404 outside Development.
 - **Group delete** is refused while any SCADA alarm action references the group, or when that check fails.
 - **Phone numbers** must have 7-15 digits (`PhoneNumberRules`); duplicates compare digits only.
-- **Secrets.** All settings writes go through `SettingsStore` (merge, not replace; backups in `settings-backups/`). Secret values reach the browser only as `***`; posting `***` back keeps the stored value. The SOAP workbench sends `{secret:Key}` tokens that the server resolves just before the call.
+- **Where UI settings live.** Everything edited in the UI (`SmsSettings`: provider profile, draft, verification, limits, test mode) is stored in `%ProgramData%\SCADA_SMS\config\settings.json`, not in the install folder, because an MSI major upgrade deletes `INSTALLDIR` (and with it the provider profile). The file loads above `appsettings*.json` and below environment variables; `SettingsFile` in config can redirect it (absolute or relative to the content root). On first start it is seeded from the `SmsSettings` section of the install folder's `appsettings.json` and never overwritten afterwards. The `config` folder is SYSTEM and Administrators only (MSI, `install_service.bat`, or the service itself when it creates the folder), because it holds provider secrets.
+- **Secrets.** All settings writes go through `SettingsStore` (merge, not replace; backups in `settings-backups/` next to the settings file). Secret values reach the browser only as `***`; posting `***` back keeps the stored value. The SOAP workbench sends `{secret:Key}` tokens that the server resolves just before the call.
 
 ## Startup and dependency wiring
 
