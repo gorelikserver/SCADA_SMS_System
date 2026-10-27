@@ -71,7 +71,7 @@ Scada_sms.bat MESSAGE GROUP_ID [VALUE] [ALARM_ID] [PRIORITY]
 ### Flow
 
 1. Validate arguments (exit `1` on missing message/group or non-numeric group).
-2. Read optional `Scada_sms.ini` next to the batch file (`URL=`, `SPOOL_ROOT=`, `MAXTIME=`). Defaults: `http://localhost:5000/api/sms/send`, `%ProgramData%\SCADA_SMS`, `120` seconds.
+2. Read optional `Scada_sms.ini` next to the batch file (`URL=`, `SPOOL_ROOT=`, `MAXTIME=`, `CURL=` full path of curl.exe). Defaults: `http://localhost:5000/api/sms/send`, `%ProgramData%\SCADA_SMS`, `120` seconds.
 3. One PowerShell call picks the AlarmId, serializes the JSON (Unicode, quotes and backslashes handled by `ConvertTo-Json`, values passed through environment variables) and writes it atomically (`.tmp` then rename) to `<SPOOL_ROOT>\spool\<AlarmId>.json`, including `ReceivedAt` (UTC).
 4. POST the spool file to the service with curl and wait. The service answers only after every provider call finished: `200` when every eligible recipient was accepted, `502` when any recipient failed or the group has no eligible recipients.
 5. Delete the spool file only on HTTP `200`. In every other case it stays for the service to retry.
@@ -97,7 +97,7 @@ The installer's HTTP port (`APP_PORT`, default 5000) is written as `Urls` (`http
 
 Uninstall and major upgrades remove the install folder (bat, ini, curl, `appsettings.json`) and uninstall removes the event source, but never anything under `%ProgramData%\SCADA_SMS`: spool files, `Scada_sms.log` and `config\settings.json` (provider profile and UI settings) survive.
 
-**Akara calls the bat from its `PCIMUTIL` alias folder**, not from the install folder: point that alias to `[INSTALLDIR]Scripts\` or copy `Scada_sms.bat` and `Scada_sms.ini` there after installing.
+**Akara calls the bat from its `PCIMUTIL` alias folder**, not from the install folder. The installer has an optional "Akara PCIMUTIL folder" field (`PCIMUTIL_DIR`, remembered in `HKLM\Software\Afcon\Scada SMS\PcimUtilDir` so upgrades reuse it). When set, the `ConfigureAppSettings` custom action copies `Scada_sms.bat` there on every install and upgrade and writes `Scada_sms.ini` next to it with `URL=` and `CURL=` (the bundled curl in `[INSTALLDIR]Tools`), keeping other lines an engineer added. The copy is deliberately not an MSI-owned file: uninstall and the remove step of a major upgrade leave it in place, so alarms raised while the service is down are still spooled and delivered after reinstall. The folder is passed to the app as `Scada:PcimUtilDir`; `ScadaLinkChecker` compares the copy with `[INSTALLDIR]Scripts\Scada_sms.bat` (SHA-256) and the ini's `URL=` with the service's `Urls`, and a missing, outdated or mis-pointed copy raises a red banner. Without the field, copy `Scada_sms.bat` and `Scada_sms.ini` by hand; the app then shows the link as not checked.
 
 ### Validation checklist
 

@@ -33,24 +33,29 @@ if not defined PRI set "PRI=normal"
 :: Validate group ID is numeric
 echo %GRP%| findstr /r "^[0-9][0-9]*$" >nul || exit /b 1
 
-:: Defaults, overridable by Scada_sms.ini next to this file (KEY=VALUE lines)
+:: Defaults, overridable by Scada_sms.ini next to this file (KEY=VALUE lines:
+:: URL, SPOOL_ROOT, MAXTIME, CURL = full path of curl.exe to use)
 set "URL=http://localhost:5000/api/sms/send"
 set "SPOOL_ROOT=%ProgramData%\SCADA_SMS"
 set "MAXTIME=120"
+set "CURL_INI="
 if exist "%~dp0Scada_sms.ini" (
     for /f "usebackq eol=; tokens=1,* delims==" %%A in ("%~dp0Scada_sms.ini") do (
         if /i "%%A"=="URL" set "URL=%%B"
         if /i "%%A"=="SPOOL_ROOT" set "SPOOL_ROOT=%%B"
         if /i "%%A"=="MAXTIME" set "MAXTIME=%%B"
+        if /i "%%A"=="CURL" set "CURL_INI=%%B"
     )
 )
 set "SPOOL_DIR=%SPOOL_ROOT%\spool"
 set "LOG_FILE=%SPOOL_ROOT%\Scada_sms.log"
 if not exist "%SPOOL_DIR%" mkdir "%SPOOL_DIR%" >nul 2>&1
 
-:: Smart curl detection: try bundled first, then system
+:: curl: CURL= from the ini (e.g. a copy in Akara's PCIMUTIL folder pointing at the bundled
+:: one), else bundled next to this file, else the one built into Windows.
 set "CURL_PATH=%~dp0..\Tools\curl.exe"
 if not exist "%CURL_PATH%" set "CURL_PATH=curl.exe"
+if defined CURL_INI if exist "%CURL_INI%" set "CURL_PATH=%CURL_INI%"
 
 :: One PowerShell call: pick the AlarmId (generated when SCADA gives none), serialize
 :: the JSON safely (Unicode, quotes, backslashes), write it to the spool atomically

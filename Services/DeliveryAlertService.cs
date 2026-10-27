@@ -37,10 +37,11 @@ namespace SCADASMSSystem.Web.Services
         IReadOnlyList<EmptyGroup> EmptyGroups,
         IReadOnlyList<InvalidPhoneUser> InvalidPhones,
         IReadOnlyList<string> ProfileErrors,
-        bool TestMode)
+        bool TestMode,
+        ScadaLinkStatus? ScadaLink = null)
     {
         public bool NeedsAttention =>
-            Alarms.Count > 0 || BadSpoolFiles.Count > 0 || EmptyGroups.Count > 0 || InvalidPhones.Count > 0 || ProfileErrors.Count > 0;
+            Alarms.Count > 0 || BadSpoolFiles.Count > 0 || EmptyGroups.Count > 0 || InvalidPhones.Count > 0 || ProfileErrors.Count > 0 || ScadaLink?.IsProblem == true;
     }
 
     public interface IDeliveryAlertService
@@ -64,19 +65,25 @@ namespace SCADASMSSystem.Web.Services
         private readonly IGroupService _groupService;
         private readonly IOptionsMonitor<SpoolOptions> _spoolOptions;
         private readonly IOptionsMonitor<SmsSettings> _smsSettings;
+        private readonly IConfiguration _configuration;
+        private readonly IWebHostEnvironment _env;
 
         public DeliveryAlertService(
             SCADADbContext db,
             IUserService userService,
             IGroupService groupService,
             IOptionsMonitor<SpoolOptions> spoolOptions,
-            IOptionsMonitor<SmsSettings> smsSettings)
+            IOptionsMonitor<SmsSettings> smsSettings,
+            IConfiguration configuration,
+            IWebHostEnvironment env)
         {
             _db = db;
             _userService = userService;
             _groupService = groupService;
             _spoolOptions = spoolOptions;
             _smsSettings = smsSettings;
+            _configuration = configuration;
+            _env = env;
         }
 
         public async Task<DeliveryAlertSummary> GetSummaryAsync(CancellationToken ct = default)
@@ -166,7 +173,25 @@ namespace SCADASMSSystem.Web.Services
 
             return new DeliveryAlertSummary(
                 alarms.OrderByDescending(a => a.FirstSeen).ToList(), bad, emptyGroups, invalidPhones,
-                Providers.ProfileValidator.Validate(_smsSettings.CurrentValue.Profile), _smsSettings.CurrentValue.TestMode);
+                Providers.ProfileValidator.Validate(_smsSettings.CurrentValue.Profile), _smsSettings.CurrentValue.TestMode,
+                CheckScadaLink(_configuration, _env));
+        }
+
+        /// <summary>State of the Scada_sms.bat copy in Akara's PCIMUTIL folder (Scada:PcimUtilDir, set by the installer).</summary>
+        public static ScadaLinkStatus CheckScadaLink(IConfiguration configuration, IWebHostEnvironment env)
+        {
+            try
+            {
+                return ScadaLinkChecker.Check(
+                    configuration["Scada:PcimUtilDir"],
+                    Path.Combine(env.ContentRootPath, "Scripts"),
+                    ScadaLinkChecker.ExpectedUrl(configuration["Urls"]));
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                return new ScadaLinkStatus(ScadaLinkState.Missing, configuration["Scada:PcimUtilDir"],
+                    "Cannot read the Scada_sms.bat copy in the PCIMUTIL folder: " + ex.Message);
+            }
         }
 
         public async Task AcknowledgeAsync(string alarmId, string? note, string? acknowledgedBy, CancellationToken ct = default)

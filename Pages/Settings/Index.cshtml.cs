@@ -57,6 +57,9 @@ namespace SCADASMSSystem.Web.Pages.Settings
         // Provider summary for the link card; editing happens on Settings/Provider.
         public ProfileEditorState ProviderState { get; private set; } = new(null, null, null, null);
 
+        // The Scada_sms.bat copy Akara actually runs (PCIMUTIL folder).
+        public ScadaLinkStatus? ScadaLink { get; private set; }
+
         public async Task OnGetAsync()
         {
             try
@@ -68,6 +71,7 @@ namespace SCADASMSSystem.Web.Pages.Settings
                 await LoadHealthStatusAsync();
 
                 SmsSettingsInput = CurrentSmsSettings;
+                ScadaLink = DeliveryAlertService.CheckScadaLink(_configuration, _env);
                 ProviderState = new ProfileEditorState(CurrentSmsSettings.Profile, CurrentSmsSettings.DraftProfile,
                     CurrentSmsSettings.Verification, CurrentSmsSettings.Activation);
 

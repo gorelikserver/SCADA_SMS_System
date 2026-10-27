@@ -449,6 +449,20 @@
                 <div class="card config-card mb-4">
                     <div class="card-header bg-white"><i class="fas fa-microchip text-secondary me-2"></i>SCADA integration</div>
                     <div class="card-body pt-3">
+                        @if (Model.ScadaLink != null)
+                        {
+                            var link = Model.ScadaLink;
+                            var (cls, icon, title) = link.State switch
+                            {
+                                SCADASMSSystem.Web.Services.ScadaLinkState.Ok => ("alert-success", "fa-check-circle", "Akara's Scada_sms.bat is up to date"),
+                                SCADASMSSystem.Web.Services.ScadaLinkState.NotConfigured or SCADASMSSystem.Web.Services.ScadaLinkState.NotInstalled => ("alert-secondary", "fa-info-circle", "Akara's Scada_sms.bat is not checked"),
+                                _ => ("alert-danger", "fa-link-slash", "Akara's Scada_sms.bat needs attention"),
+                            };
+                            <div class="alert @cls py-2 small mb-3">
+                                <i class="fas @icon me-1"></i><strong>@title.</strong> @link.Detail
+                                @if (link.PcimUtilDir != null) { <div class="font-monospace mt-1">PCIMUTIL: @link.PcimUtilDir</div> }
+                            </div>
+                        }
                         <div class="row g-3">
                             <div class="col-md-4">
                                 <label class="form-label">PCIM Object ID</label>

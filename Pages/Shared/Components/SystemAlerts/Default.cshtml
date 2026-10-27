@@ -9,6 +9,18 @@
     return;
 }
 
+@if (Model.ScadaLink?.IsProblem == true)
+{
+    <div class="alert alert-danger rounded-0 mb-0 py-2 px-4 d-flex align-items-center gap-3" role="alert">
+        <i class="fas fa-link-slash"></i>
+        <div class="flex-grow-1">
+            <strong>Akara's copy of Scada_sms.bat needs attention &mdash; alarms may not reach this system.</strong>
+            @Model.ScadaLink.Detail
+        </div>
+        <a href="/Settings" class="btn btn-sm btn-light">Settings</a>
+    </div>
+}
+
 @if (Model.ProfileErrors.Count > 0)
 {
     <div class="alert alert-danger rounded-0 mb-0 py-2 px-4 d-flex align-items-center gap-3" role="alert">

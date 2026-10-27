@@ -34,6 +34,12 @@
     <Property Id="DB_PASSWORD"   Value="pulse"              Secure="yes" Hidden="yes" />
     <Property Id="APP_PORT"      Value="$(DefaultPort)"     Secure="yes" />
     <Property Id="LOG_DIR"       Value="$(DefaultLogDir)"   Secure="yes" />
+    <!-- Akara's PCIMUTIL folder (optional). Remembered in the registry so an upgrade keeps
+         refreshing the copy there without asking again. -->
+    <Property Id="PCIMUTIL_DIR" Secure="yes">
+      <RegistrySearch Id="RememberPcimUtilDir" Root="HKLM" Key="Software\$(Manufacturer)\$(ProductName)"
+                      Name="PcimUtilDir" Type="raw" Bitness="always64" />
+    </Property>
     <Property Id="WIXUI_INSTALLDIR" Value="INSTALLDIR" />
     <WixVariable Id="WixUILicenseRtf" Value="Resources\License.rtf" />
 
@@ -197,6 +203,11 @@
           <PermissionEx Sddl="D:PAI(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)(A;OICI;0x1301bf;;;BU)" />
         </CreateFolder>
       </Component>
+      <Component Id="RememberPcimUtilComponent" Directory="INSTALLDIR"
+                 Guid="C0523584-DEB1-4811-AA15-3988264D6246" Bitness="always64">
+        <RegistryValue Root="HKLM" Key="Software\$(Manufacturer)\$(ProductName)"
+                       Name="PcimUtilDir" Type="string" Value="[PCIMUTIL_DIR]" KeyPath="yes" />
+      </Component>
       <Component Id="SpoolDirComponent" Directory="SPOOLDIR"
                  Guid="CA5BC481-E456-47FC-A1B5-5F9C124A1F2E">
         <CreateFolder />
@@ -236,7 +247,7 @@
     <SetProperty Id="ConfigureAppSettings"
       Before="ConfigureAppSettings"
       Sequence="execute"
-      Value="INSTALLDIR=[INSTALLDIR];DB_SERVER=[DB_SERVER];DB_NAME=[DB_NAME];DB_AUTH=[DB_AUTH];DB_USER=[DB_USER];DB_PASSWORD=[DB_PASSWORD];APP_PORT=[APP_PORT];LOG_DIR=[LOG_DIR]" />
+      Value="INSTALLDIR=[INSTALLDIR];DB_SERVER=[DB_SERVER];DB_NAME=[DB_NAME];DB_AUTH=[DB_AUTH];DB_USER=[DB_USER];DB_PASSWORD=[DB_PASSWORD];APP_PORT=[APP_PORT];LOG_DIR=[LOG_DIR];PCIMUTIL_DIR=[PCIMUTIL_DIR]" />
 
     <!--
       Deferred VBScript CA: patches appsettings.json with user-supplied DB/port/log settings.

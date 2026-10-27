@@ -35,20 +35,26 @@
           <Publish Event="SpawnDialog"      Value="BrowseDlg" Order="2" Condition="1" />
         </Control>
 
+        <!-- Akara PCIMUTIL folder: where Akara runs Scada_sms.bat from -->
+        <Control Id="PcimLabel" Type="Text" X="20" Y="134" Width="330" Height="10" NoPrefix="yes">
+          <Text Value="&amp;Akara PCIMUTIL folder (Scada_sms.bat is copied there; leave empty to copy by hand):" />
+        </Control>
+        <Control Id="PcimEdit" Type="Edit" X="20" Y="146" Width="300" Height="17" Property="PCIMUTIL_DIR" />
+
         <!-- Service info box -->
-        <Control Id="InfoBox" Type="GroupBox" X="15" Y="140" Width="340" Height="80">
+        <Control Id="InfoBox" Type="GroupBox" X="15" Y="168" Width="340" Height="62">
           <Text Value="Service Information" />
         </Control>
-        <Control Id="InfoText1" Type="Text" X="25" Y="155" Width="320" Height="10" NoPrefix="yes">
+        <Control Id="InfoText1" Type="Text" X="25" Y="180" Width="320" Height="10" NoPrefix="yes">
           <Text Value="Service Name: SCADASMSSystem" />
         </Control>
-        <Control Id="InfoText2" Type="Text" X="25" Y="168" Width="320" Height="10" NoPrefix="yes">
+        <Control Id="InfoText2" Type="Text" X="25" Y="191" Width="320" Height="10" NoPrefix="yes">
           <Text Value="Start Type: Automatic (auto-start on boot)" />
         </Control>
-        <Control Id="InfoText3" Type="Text" X="25" Y="181" Width="320" Height="10" NoPrefix="yes">
+        <Control Id="InfoText3" Type="Text" X="25" Y="202" Width="320" Height="10" NoPrefix="yes">
           <Text Value="Account: Local System" />
         </Control>
-        <Control Id="InfoText4" Type="Text" X="25" Y="194" Width="320" Height="10" NoPrefix="yes">
+        <Control Id="InfoText4" Type="Text" X="25" Y="213" Width="320" Height="10" NoPrefix="yes">
           <Text Value="Recovery: Auto-restart on failure (3 attempts, 1 min delay)" />
         </Control>
 
