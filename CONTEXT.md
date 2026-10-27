@@ -203,21 +203,82 @@ Migration failure stops startup in Development but is logged and tolerated in Pr
 
 Database table/column names are explicitly mapped and include legacy/SCADA-prefixed naming. Do not infer physical names solely from C# entity names; check `SCADADbContext.cs` and the latest migration.
 
-## UI map
+## UI (current state and redesign baseline)
 
-- `/` — dashboard and recent activity
-- `/Users` — users and SMS/holiday toggles
-- `/Groups` — groups and member assignment
-- `/Alarms/ManageGroups` — alarm-to-group mapping
-- `/Audit` — searchable delivery history and cleanup
-- `/Calendar` — holiday calendar
-- `/Settings` — provider/runtime settings and connectivity checks
-- `/Settings/History` — settings change history and provider profile rollback
-- `/Test/Sms` — end-to-end SMS test and SOAP workbench
-- `/Debug/*` — operational diagnostics
-- `/Help/Integration` — integration guidance
+This section describes the web UI as it is today, so a redesign can start from facts. Everything here was read from the code on `feat/critical-alarm-pipeline` (PR #1).
 
-This is a Razor Pages application, not MVC views or Blazor. Page behavior normally lives in a paired `.cshtml`/`.cshtml.cs` file and calls an injected service rather than using the DbContext directly.
+### Who uses it and what it must do
+
+- Operators and engineers at the plant, on the SCADA machine or a PC on the plant network. The service listens on `http://localhost:<port>` (default 5000). Sites are air-gapped.
+- The UI does not send alarms. Alarms arrive only through `Scada_sms.bat`. The UI decides **who** gets an alarm (users, groups, alarm-to-group mapping, holiday rules) and **how** it is sent (provider profile), and shows whether alarms were delivered.
+- The most important job of the UI is to make an undelivered critical alarm impossible to miss. Any redesign must keep the `SystemAlerts` banner on every signed-in page and keep `/Alerts` one click away.
+- Content is mixed English and Hebrew: alarm text, user names and holiday names can be Hebrew. The UI itself is English only and left-to-right; there is no `dir="auto"` on user content today.
+
+### Technology
+
+- Razor Pages (server-rendered `.cshtml` + `.cshtml.cs` page model per page). No SPA, no front-end build step. `npm` is used only for Playwright.
+- All assets are local in `wwwroot` because of air-gapped sites. No CDN, no web fonts from the internet.
+  - Bootstrap 5.3.3 (`wwwroot/lib/bootstrap`), jQuery 3.7.1 with jquery-validation (`wwwroot/lib`).
+  - Font Awesome Free 6.7.2 (`wwwroot/css/all.min.css`, `wwwroot/webfonts`).
+  - Alpine.js 3.14.1 (`wwwroot/js/alpine.min.js`), loaded per page only on `Users/Create`, `Users/Edit`, `Groups/Create` and `Settings/Provider`.
+  - `wwwroot/js/main.js`: `window.SCADAUtils` (`showToast`, `confirmModal`, `setButtonLoading`, date/phone helpers) and `BaseTableFilter` (client-side search, sort and CSV export of a table). Pages use `showToast` (14 calls), `confirmModal` (13) and `setButtonLoading` (5).
+  - `wwwroot/css/site.css` (183 lines): gradient card header, info/warning boxes, dark code preview, sortable headers, and Bootstrap 4 compatibility classes.
+- The MSI harvests `wwwroot` as is, so anything added there ships. A redesign that adds a CSS/JS build (Tailwind, Vite) must commit the built output or extend `build-release.ps1`.
+
+### Layout (`Pages/Shared/_Layout.cshtml`)
+
+- Top navbar: logo, then for signed-in users Dashboard; for admins Users, Groups, Alarm Groups, Settings, Test SMS; then a "More" menu (Delivery Alerts, Audit Log, Calendar, Integration Guide, About); a Debug menu for admins in Development; a user menu on the right (change password, Accounts for admins, sign out) with an Admin/Viewer badge.
+- Under the navbar: the `SystemAlerts` view component (`Pages/Shared/Components/SystemAlerts`) and an optional `Breadcrumb` section.
+- Body: `container-fluid`; footer with About and a `/health` link.
+- Global `#toastContainer` and `#confirmModal` used by `SCADAUtils`.
+- Styles come from four places: Bootstrap, `site.css`, an inline `<style>` block in the layout (navbar, Bootstrap 4 badge shims, table tints), and `_Layout.cshtml.css` (scoped CSS still holding the ASP.NET template colors, e.g. `#1b6ec2`, which conflict with the app's primary `#4361ee`).
+
+### Access rules the UI must respect
+
+`Program.cs` makes `/Settings`, `/Users`, `/Groups`, `/Alarms`, `/Test`, `/Debug` and `/Account/Manage` admin-only. Viewers see the dashboard, alerts (and can acknowledge), audit, calendar, help and about. The navbar hides admin links from viewers, but the server rule is what protects them: if pages move to new folders, update that list. `/Account/Login` and `/Account/Setup` are anonymous; Setup works only while no account exists. Debug pages return 404 outside Development.
+
+All POST handlers use antiforgery tokens. Forms include them automatically; `fetch` calls send the `RequestVerificationToken` header (see `Settings/Provider` and `Users/Index`).
+
+### Pages
+
+| Route | Who | What it does | Notes |
+|---|---|---|---|
+| `/` (`Index`) | all | Dashboard: four stat cards (SMS service, active users, active groups, messages sent), service details, quick actions, recent activity, system info | Refreshes stats every 30 s and activity every 60 s through `?handler=RefreshData` / `RecentActivity`. "System Online" is hard-coded; "Healthy" looks only at queue size; message counts are in-memory since the last restart. None of it reflects delivery alerts, provider state or the Akara link. |
+| `/Alerts` | all | Undelivered critical alarms (acknowledge with note), unreadable spool files, provider configuration errors, users with invalid phone numbers, groups with no eligible recipients | Acknowledge hides the banner; it does not stop retries. |
+| `/Users`, `/Users/Create`, `/Users/Edit/{id}` | admin | List with search and SMS filter; toggle SMS and holiday work inline; create/edit user name, phone, email, first/last name, TZ, SMS enabled, works on special days | Phone must be 7–15 digits (`PhoneNumberRules`). Deleting a user removes their group memberships and keeps their audit rows (user ID set to 0). |
+| `/Groups`, `/Groups/Create`, `/Groups/Edit/{id}` | admin | List with search; create with a two-list member picker (Alpine); edit name and add/remove members | Deleting a group that alarms still send to is blocked. |
+| `/Alarms/ManageGroups` | admin | Paged list of SCADA alarms (block, alarm ID, description) and the groups each one sends to; add/remove a group or bulk-assign | This mapping decides who gets each alarm. 59 lines of inline CSS. |
+| `/Calendar` | all | Upcoming Sabbath and holiday days with Hebrew dates, the SMS rule for each day, and how many users are available; refresh calendar | Users without "works on special days" get no SMS on these days. |
+| `/Audit` | all | Delivery history with date, status, user, group and text filters, quick filters, CSV export; admins can clean up old records (the handler checks the role, because viewers can open the page) | Largest page (670 lines, 173 lines of script). |
+| `/Settings` | admin | Tabs: dashboard (DB status, 24 h counts, system info, test DB, cleanup, refresh calendar), active provider summary with link to the editor, general settings (test mode, rate limit and window, duplicate window, timeout, retries), SCADA integration (Akara copy check, PCIM object ID, SOAP log) | 221 lines of inline CSS; its "dashboard" tab overlaps the home dashboard. |
+| `/Settings/Provider` | admin | Provider profile editor: start from template, edit request/auth/phone format/success rules, preview, verify with a real SMS, activate; import/export | Alpine app posting JSON. Activation is refused unless the exact draft was verified. |
+| `/Settings/History` | admin | Settings changes and provider profile versions; restore an old profile as a draft; export a version | |
+| `/Test/Sms` | admin | Send a test alarm to a group through the real delivery path and show the result per recipient | Sends real SMS unless test mode is on. |
+| `/Account/Login`, `/Account/Setup`, `/Account/Password`, `/Account/Manage`, `/Account/AccessDenied` | mixed | Sign in, first admin, change own password, manage accounts and roles | |
+| `/Help/Integration` | all | Integration guide for `Scada_sms.bat` and providers | **Out of date**: shows 5-argument calls, says the bat must be UTF-8 with BOM (it must be pure ASCII), and describes the removed ApiParams settings. Rewrite from the "Critical integration entry point" and "Provider profiles" sections above. |
+| `/About` | all | Feature list and technical specifications | Static marketing text. |
+| `/Debug/*` | admin, Development only | Audit diagnostics and fixes, group and alarm-group tests, call log, SOAP XML log | Not part of the product UI. |
+
+### Known UI problems (input for the redesign)
+
+- Two design systems mixed: Bootstrap 5 markup next to Bootstrap 4 classes (`no-gutters`, `mr-2`, `font-weight-bold`, `text-xs`, `btn-block`, `badge-*`) in 15 pages, kept alive by shims in `site.css` and the layout.
+- Styling is scattered: page-level `<style>` blocks (`Settings/Index` 221 lines, `Alarms/ManageGroups` 59, `Help/Integration` 29) and 49 inline `style=""` attributes. There are no design tokens; colors are hard-coded.
+- Page scripts are inline and large (Audit 173 lines, Index 128, Groups/Edit 119, Groups/Create 107); two client-side styles (jQuery and Alpine) are used for similar tasks.
+- The navigation hides important pages: Delivery Alerts and Audit are under "More".
+- The dashboard does not show what matters for critical alarms: undelivered alarms, whether an active verified provider exists, whether Akara's copy of the bat is current, the last successful alarm.
+- System status is duplicated between the home dashboard and the Settings dashboard tab.
+- Hebrew content has no `dir="auto"`, so mixed text can render in the wrong order.
+- The help page is out of date (see table).
+- No browser tests exist: `playwright.config.ts` points at `./tests` with base URL `http://localhost:5042`, but there are no `.spec.ts` files.
+
+### Constraints for the redesign
+
+- Keep it server-rendered Razor Pages, unless a change of stack is decided on purpose. Page models and services already hold the behavior; a redesign should mostly touch `.cshtml`, `site.css`, `main.js` and the layout.
+- Keep every asset local. Fonts must be shipped in `wwwroot` or be system fonts.
+- Keep the page routes, or update the admin folder list in `Program.cs`, links in `Index`, and anything that posts to a handler (`?handler=...`).
+- Keep these behaviors exactly: the alert banner on every signed-in page; acknowledge does not stop retries; the provider draft, preview, verify, activate flow; activation only of the verified draft; secrets never sent to the browser (masked values are restored on the server).
+- Test with Viewer and Admin accounts. Create a local admin with `/Account/Setup` on an empty `scada_accounts`, and delete test accounts afterwards.
+- Never send real SMS while testing: turn on test mode, or point the active profile at a mock provider.
 
 ## Configuration
 
