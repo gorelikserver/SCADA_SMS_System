@@ -10,12 +10,14 @@ namespace SCADASMSSystem.Web.Controllers
     {
         private readonly SmsBackgroundService _smsBackgroundService;
         private readonly ISmsService _smsService;
+        private readonly IAlertNotifier _alertNotifier;
         private readonly ILogger<SmsController> _logger;
 
-        public SmsController(SmsBackgroundService smsBackgroundService, ISmsService smsService, ILogger<SmsController> logger)
+        public SmsController(SmsBackgroundService smsBackgroundService, ISmsService smsService, IAlertNotifier alertNotifier, ILogger<SmsController> logger)
         {
             _smsBackgroundService = smsBackgroundService;
             _smsService = smsService;
+            _alertNotifier = alertNotifier;
             _logger = logger;
         }
 
@@ -64,6 +66,7 @@ namespace SCADASMSSystem.Web.Controllers
                 }
 
                 _logger.LogError("Critical alarm {AlarmId} failed or partially failed: {Accepted}/{RecipientCount} accepted", alarmId, result.AcceptedCount, result.RecipientCount);
+                _alertNotifier.DeliveryIncomplete(alarmId, request.GroupId, result.AcceptedCount, result.RecipientCount);
                 return StatusCode(StatusCodes.Status502BadGateway, response);
             }
             catch (Exception ex)

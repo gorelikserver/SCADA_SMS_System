@@ -96,6 +96,9 @@ if %ERRORLEVEL% EQU 0 (
 )
 echo.
 
+REM Register the event log source used for undelivered-alarm alerts
+powershell.exe -NoProfile -Command "if (-not [Diagnostics.EventLog]::SourceExists('SCADA SMS System')) { New-EventLog -LogName Application -Source 'SCADA SMS System' }" >nul 2>&1
+
 REM Create the service
 echo [3/8] Creating Windows Service...
 sc create SCADASMSSystem binPath= "%FULL_EXE_PATH%" DisplayName= "SCADA SMS Notification System" start= auto

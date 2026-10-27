@@ -107,6 +107,8 @@ try
     builder.Services.AddScoped<IAuditService, AuditService>();
     builder.Services.AddScoped<IAlarmActionService, AlarmActionService>();
     builder.Services.AddSingleton<ISettingsStore, SettingsStore>();
+    builder.Services.AddSingleton<IAlertNotifier, EventLogAlertNotifier>();
+    builder.Services.AddScoped<IDeliveryAlertService, DeliveryAlertService>();
 
     // In-process mock SMS service (singleton — holds test log state)
     builder.Services.AddSingleton<IMockSmsService, MockSmsService>();
@@ -217,6 +219,21 @@ try
     if (builder.Configuration.GetValue<bool>("Security:RequireHttps"))
     {
         app.UseHttpsRedirection();
+    }
+
+    // Debug pages create fake audits, change settings and send test SMS: never serve them
+    // outside Development, even if someone types the URL.
+    if (!app.Environment.IsDevelopment())
+    {
+        app.Use(async (context, next) =>
+        {
+            if (context.Request.Path.StartsWithSegments("/Debug", StringComparison.OrdinalIgnoreCase))
+            {
+                context.Response.StatusCode = StatusCodes.Status404NotFound;
+                return;
+            }
+            await next();
+        });
     }
 
     app.UseRouting();

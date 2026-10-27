@@ -39,15 +39,18 @@ namespace SCADASMSSystem.Web.Services
         private readonly SpoolOptions _options;
         private readonly Func<SpoolAlarm, CancellationToken, Task<CriticalSmsDeliveryResult>> _send;
         private readonly ILogger _logger;
+        private readonly IAlertNotifier? _notifier;
 
         public SpoolProcessor(
             SpoolOptions options,
             Func<SpoolAlarm, CancellationToken, Task<CriticalSmsDeliveryResult>> send,
-            ILogger logger)
+            ILogger logger,
+            IAlertNotifier? notifier = null)
         {
             _options = options;
             _send = send;
             _logger = logger;
+            _notifier = notifier;
         }
 
         public string SpoolDirectory => Path.Combine(_options.ResolveRoot(), "spool");
@@ -76,6 +79,7 @@ namespace SCADASMSSystem.Web.Services
                 catch (JsonException ex)
                 {
                     _logger.LogError(ex, "Spool file {File} is not valid JSON; moved to bad", Path.GetFileName(file));
+                    _notifier?.SpoolFileRejected(Path.GetFileName(file), "not valid JSON");
                     MoveTo(file, BadDirectory);
                     bad++;
                     continue;
@@ -85,6 +89,7 @@ namespace SCADASMSSystem.Web.Services
                     string.IsNullOrWhiteSpace(alarm.AlarmId))
                 {
                     _logger.LogError("Spool file {File} is missing Message, GroupId or AlarmId; moved to bad", Path.GetFileName(file));
+                    _notifier?.SpoolFileRejected(Path.GetFileName(file), "missing Message, GroupId or AlarmId");
                     MoveTo(file, BadDirectory);
                     bad++;
                     continue;
@@ -114,6 +119,7 @@ namespace SCADASMSSystem.Web.Services
                     _logger.LogCritical(
                         "Spooled alarm {AlarmId} for group {GroupId} gave up after {Minutes} min: {Accepted}/{Count} recipients accepted",
                         alarm.AlarmId, alarm.GroupId, _options.MaxAgeMinutes, result?.AcceptedCount ?? 0, result?.RecipientCount ?? 0);
+                    _notifier?.SpoolGaveUp(alarm.AlarmId, alarm.GroupId, _options.MaxAgeMinutes);
                     MoveTo(file, FailedDirectory);
                     failed++;
                 }
@@ -141,15 +147,18 @@ namespace SCADASMSSystem.Web.Services
     {
         private readonly IServiceScopeFactory _scopeFactory;
         private readonly IOptionsMonitor<SpoolOptions> _options;
+        private readonly IAlertNotifier _notifier;
         private readonly ILogger<SpoolIngestService> _logger;
 
         public SpoolIngestService(
             IServiceScopeFactory scopeFactory,
             IOptionsMonitor<SpoolOptions> options,
+            IAlertNotifier notifier,
             ILogger<SpoolIngestService> logger)
         {
             _scopeFactory = scopeFactory;
             _options = options;
+            _notifier = notifier;
             _logger = logger;
         }
 
@@ -160,7 +169,7 @@ namespace SCADASMSSystem.Web.Services
                 var options = _options.CurrentValue;
                 try
                 {
-                    var processor = new SpoolProcessor(options, SendAsync, _logger);
+                    var processor = new SpoolProcessor(options, SendAsync, _logger, _notifier);
                     await processor.ProcessOnceAsync(DateTime.UtcNow, stoppingToken);
                 }
                 catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)

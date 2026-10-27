@@ -22,6 +22,34 @@ namespace SCADASMSSystem.Web.Migrations
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
+            modelBuilder.Entity("SCADASMSSystem.Web.Models.AlarmAcknowledgement", b =>
+                {
+                    b.Property<string>("AlarmId")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)")
+                        .HasColumnName("alarm_id");
+
+                    b.Property<DateTime>("AcknowledgedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasColumnName("acknowledged_at")
+                        .HasDefaultValueSql("GETDATE()");
+
+                    b.Property<string>("AcknowledgedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)")
+                        .HasColumnName("acknowledged_by");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)")
+                        .HasColumnName("note");
+
+                    b.HasKey("AlarmId");
+
+                    b.ToTable("scada_alarm_acknowledgements");
+                });
+
             modelBuilder.Entity("SCADASMSSystem.Web.Models.AlarmAction", b =>
                 {
                     b.Property<int>("BlockId")

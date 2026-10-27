@@ -101,11 +101,16 @@
                         </li>
                         <!-- More dropdown: Audit, Calendar, About -->
                         <li class="nav-item dropdown">
-                            <a class="nav-link dropdown-toggle @(_isActive("/Audit")||_isActive("/Calendar")||_isActive("/About")||_isActive("/Help") ? "active" : "text-dark")"
+                            <a class="nav-link dropdown-toggle @(_isActive("/Audit")||_isActive("/Alerts")||_isActive("/Calendar")||_isActive("/About")||_isActive("/Help") ? "active" : "text-dark")"
                                href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                                 <i class="fas fa-ellipsis-h me-1"></i>More
                             </a>
                             <ul class="dropdown-menu shadow-sm border-0">
+                                <li>
+                                    <a class="dropdown-item @(_isActive("/Alerts") ? "active" : "")" asp-area="" asp-page="/Alerts/Index">
+                                        <i class="fas fa-bell me-2 text-muted"></i>Delivery Alerts
+                                    </a>
+                                </li>
                                 <li>
                                     <a class="dropdown-item @(_isActive("/Audit") ? "active" : "")" asp-area="" asp-page="/Audit/Index">
                                         <i class="fas fa-history me-2 text-muted"></i>Audit Log
@@ -148,6 +153,7 @@
                 </div>
             </div>
         </nav>
+        @await Component.InvokeAsync("SystemAlerts")
         @await RenderSectionAsync("Breadcrumb", required: false)
     </header>
     <div class="container-fluid">

@@ -125,6 +125,30 @@ public sealed class SpoolProcessorTests : IDisposable
     }
 
     [Fact]
+    public async Task GiveUpAndBadFile_RaiseExternalAlerts()
+    {
+        Spool("A8", AlarmJson("SCADA-A8", _now.AddMinutes(-61)), TimeSpan.FromMinutes(5));
+        Spool("B2", "{not json", TimeSpan.FromMinutes(5));
+        var notifier = new RecordingNotifier();
+        var processor = new SpoolProcessor(_options,
+            (alarm, _) => Task.FromResult(new CriticalSmsDeliveryResult(alarm.AlarmId, 2, 1, [])),
+            NullLogger.Instance, notifier);
+
+        await processor.ProcessOnceAsync(_now);
+
+        Assert.Contains("gaveup SCADA-A8 3 60", notifier.Events);
+        Assert.Contains("rejected B2.json", notifier.Events);
+    }
+
+    private sealed class RecordingNotifier : IAlertNotifier
+    {
+        public List<string> Events { get; } = new();
+        public void DeliveryIncomplete(string alarmId, int groupId, int accepted, int recipients) => Events.Add($"incomplete {alarmId}");
+        public void SpoolGaveUp(string alarmId, int groupId, int maxAgeMinutes) => Events.Add($"gaveup {alarmId} {groupId} {maxAgeMinutes}");
+        public void SpoolFileRejected(string fileName, string reason) => Events.Add($"rejected {fileName}");
+    }
+
+    [Fact]
     public async Task TempFilesFromBatch_AreIgnored()
     {
         var tmp = Path.Combine(_root, "spool", "A7.tmp");
