@@ -20,6 +20,8 @@ namespace SCADASMSSystem.Web.Data
         public DbSet<CriticalSmsDelivery> CriticalSmsDeliveries { get; set; }
         public DbSet<AlarmAcknowledgement> AlarmAcknowledgements { get; set; }
         public DbSet<Account> Accounts { get; set; }
+        public DbSet<SettingsChange> SettingsChanges { get; set; }
+        public DbSet<ProviderProfileVersion> ProviderProfileVersions { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -176,6 +178,16 @@ namespace SCADASMSSystem.Web.Data
             {
                 entity.HasIndex(a => a.UserName).IsUnique();
                 entity.Property(a => a.CreatedAt).HasDefaultValueSql("GETDATE()");
+            });
+
+            modelBuilder.Entity<SettingsChange>(entity =>
+            {
+                entity.HasIndex(c => c.ChangedAt);
+            });
+
+            modelBuilder.Entity<ProviderProfileVersion>(entity =>
+            {
+                entity.HasIndex(v => v.ProfileHash);
             });
         }
     }

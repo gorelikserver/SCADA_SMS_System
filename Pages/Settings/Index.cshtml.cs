@@ -20,6 +20,7 @@ namespace SCADASMSSystem.Web.Pages.Settings
         private readonly IWebHostEnvironment _env;
         private readonly IConfiguration _configuration;
         private readonly ISettingsStore _settingsStore;
+        private readonly ISettingsHistory _history;
         private readonly ILogger<IndexModel> _logger;
 
         public IndexModel(
@@ -31,6 +32,7 @@ namespace SCADASMSSystem.Web.Pages.Settings
             IWebHostEnvironment env,
             IConfiguration configuration,
             ISettingsStore settingsStore,
+            ISettingsHistory history,
             ILogger<IndexModel> logger)
         {
             _smsSettings = smsSettings;
@@ -41,6 +43,7 @@ namespace SCADASMSSystem.Web.Pages.Settings
             _env = env;
             _configuration = configuration;
             _settingsStore = settingsStore;
+            _history = history;
             _logger = logger;
         }
 
@@ -110,9 +113,18 @@ namespace SCADASMSSystem.Web.Pages.Settings
 
             try
             {
-                await _settingsStore.UpdateSmsSettingsAsync(section => SmsSettingsMerge.ApplyPostedFields(section, s, posted));
+                string? changes = null;
+                await _settingsStore.UpdateSmsSettingsAsync(section =>
+                {
+                    var before = SmsSettingsMerge.ToSettings(section);
+                    SmsSettingsMerge.ApplyPostedFields(section, s, posted);
+                    changes = SettingsChangeSummary.DiffGeneral(before, SmsSettingsMerge.ToSettings(section), GeneralFields);
+                });
                 _logger.LogWarning("{User} saved general SMS settings (test mode {TestMode})", User.Identity?.Name, s.TestMode);
                 TempData["SuccessMessage"] = "Settings saved. Changes are active immediately.";
+
+                if (changes != null)
+                    await _history.RecordChangeAsync(SettingsAreas.General, SettingsActions.GeneralSaved, changes, User.Identity?.Name);
             }
             catch (Exception ex)
             {

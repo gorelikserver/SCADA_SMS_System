@@ -137,6 +137,7 @@ try
     builder.Services.AddScoped<IAuditService, AuditService>();
     builder.Services.AddScoped<IAlarmActionService, AlarmActionService>();
     builder.Services.AddSingleton<ISettingsStore, SettingsStore>();
+    builder.Services.AddScoped<ISettingsHistory, SettingsHistory>();
     builder.Services.AddScoped<SCADASMSSystem.Web.Services.Providers.IProviderProfileService, SCADASMSSystem.Web.Services.Providers.ProviderProfileService>();
     builder.Services.AddSingleton<IAlertNotifier, EventLogAlertNotifier>();
     builder.Services.AddScoped<IDeliveryAlertService, DeliveryAlertService>();

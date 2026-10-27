@@ -19,6 +19,7 @@ public sealed class SettingsPageSaveTests : IDisposable
 {
     private readonly string _dir = Path.Combine(Path.GetTempPath(), "scada-page-" + Guid.NewGuid().ToString("N"));
     private readonly string _path;
+    private readonly FakeSettingsHistory _history = new();
 
     public SettingsPageSaveTests()
     {
@@ -46,7 +47,7 @@ public sealed class SettingsPageSaveTests : IDisposable
     private IndexModel CreatePage(SmsSettings posted, params string[] fields)
     {
         var store = new SettingsStore(_path, configuration: null, NullLogger<SettingsStore>.Instance);
-        var page = new IndexModel(null!, null!, null!, null!, null!, null!, null!, store, NullLogger<IndexModel>.Instance);
+        var page = new IndexModel(null!, null!, null!, null!, null!, null!, null!, store, _history, NullLogger<IndexModel>.Instance);
 
         var form = fields.ToDictionary(f => "SmsSettingsInput." + f, _ => new StringValues("x"));
         var http = new DefaultHttpContext();
@@ -76,6 +77,22 @@ public sealed class SettingsPageSaveTests : IDisposable
         Assert.Equal("keep-me", (string?)s["CustomKey"]);
         Assert.Equal("s3cret", (string?)s["Profile"]!["Variables"]![0]!["Value"]);
         Assert.Equal("Next", (string?)s["DraftProfile"]!["Name"]);
+
+        var change = Assert.Single(_history.Changes);
+        Assert.Equal(SettingsActions.GeneralSaved, change.Action);
+        Assert.Equal("RateLimit 10 → 25, TimeoutSeconds 30 → 20, TestMode false → true", change.Summary);
+    }
+
+    [Fact]
+    public async Task Save_WithoutChanges_RecordsNoHistory()
+    {
+        var page = CreatePage(new SmsSettings { RateLimit = 10, TimeoutSeconds = 30, TestMode = false },
+            "RateLimit", "TimeoutSeconds", "TestMode");
+
+        await page.OnPostSaveSettingsAsync();
+
+        Assert.NotNull(page.TempData["SuccessMessage"]);
+        Assert.Empty(_history.Changes);
     }
 
     [Fact]

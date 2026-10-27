@@ -14,6 +14,7 @@ public sealed class ProviderProfileServiceTests : IDisposable
     private readonly string _path;
     private readonly SettingsStore _store;
     private readonly FakeSms _sms = new();
+    private readonly FakeSettingsHistory _history = new();
     private readonly ProviderProfileService _service;
 
     public ProviderProfileServiceTests()
@@ -22,7 +23,7 @@ public sealed class ProviderProfileServiceTests : IDisposable
         _path = Path.Combine(_dir, "appsettings.json");
         File.WriteAllText(_path, """{ "SmsSettings": { "TestMode": true } }""");
         _store = new SettingsStore(_path, configuration: null, NullLogger<SettingsStore>.Instance);
-        _service = new ProviderProfileService(_store, _sms, NullLogger<ProviderProfileService>.Instance);
+        _service = new ProviderProfileService(_store, _sms, _history, NullLogger<ProviderProfileService>.Instance);
     }
 
     public void Dispose() => Directory.Delete(_dir, recursive: true);
@@ -125,7 +126,7 @@ public sealed class ProviderProfileServiceTests : IDisposable
         Assert.Null(_sms.LastProfile);
     }
 
-    private sealed class FakeSms : ISmsService
+    internal sealed class FakeSms : ISmsService
     {
         public bool Accept { get; set; } = true;
         public ProviderProfile? LastProfile { get; private set; }

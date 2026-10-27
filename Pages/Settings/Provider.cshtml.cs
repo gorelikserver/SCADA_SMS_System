@@ -2,6 +2,7 @@ using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using SCADASMSSystem.Web.Models;
+using SCADASMSSystem.Web.Services;
 using SCADASMSSystem.Web.Services.Providers;
 
 namespace SCADASMSSystem.Web.Pages.Settings
@@ -15,11 +16,13 @@ namespace SCADASMSSystem.Web.Pages.Settings
         private const long MaxImportBytes = 256 * 1024;
 
         private readonly IProviderProfileService _profiles;
+        private readonly ISettingsHistory _history;
         private readonly ILogger<ProviderModel> _logger;
 
-        public ProviderModel(IProviderProfileService profiles, ILogger<ProviderModel> logger)
+        public ProviderModel(IProviderProfileService profiles, ISettingsHistory history, ILogger<ProviderModel> logger)
         {
             _profiles = profiles;
+            _history = history;
             _logger = logger;
         }
 
@@ -101,7 +104,7 @@ namespace SCADASMSSystem.Web.Pages.Settings
 
         public async Task<IActionResult> OnPostDiscardAsync()
         {
-            await _profiles.DiscardDraftAsync();
+            await _profiles.DiscardDraftAsync(User.Identity?.Name);
             TempData["SuccessMessage"] = "Draft discarded. The active profile is unchanged.";
             return RedirectToPage();
         }
@@ -112,6 +115,8 @@ namespace SCADASMSSystem.Web.Pages.Settings
             if (starter == null)
                 return BadRequest();
             await _profiles.SaveDraftAsync(starter.Create());
+            await _history.RecordChangeAsync(SettingsAreas.Provider, SettingsActions.DraftStartedFromTemplate,
+                $"Started a draft from template '{starter.Title}'.", User.Identity?.Name);
             TempData["SuccessMessage"] = $"Draft started from '{starter.Title}'. Fill in the URL and secrets, then verify.";
             return RedirectToPage();
         }
@@ -140,6 +145,8 @@ namespace SCADASMSSystem.Web.Pages.Settings
                 var profile = ProfileManagement.Import(await reader.ReadToEndAsync());
                 var errors = await _profiles.SaveDraftAsync(profile);
                 _logger.LogWarning("{User} imported provider profile '{Name}' as draft", User.Identity?.Name, profile.Name);
+                await _history.RecordChangeAsync(SettingsAreas.Provider, SettingsActions.DraftImported,
+                    $"Imported {SettingsChangeSummary.Describe(profile)} from file '{Path.GetFileName(file.FileName)}' as the draft.", User.Identity?.Name);
                 TempData["SuccessMessage"] = errors.Count == 0
                     ? $"Imported '{profile.Name}' as the draft. Verify it before activating."
                     : $"Imported '{profile.Name}' as the draft. Fill in the missing values ({errors.Count} issue(s)), then verify.";
