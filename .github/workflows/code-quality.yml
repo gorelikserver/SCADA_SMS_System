@@ -69,3 +69,42 @@ jobs:
       with:
         name: dependency-audit-${{ github.sha }}
         path: package-audit.txt
+
+  # Code coverage disabled - no test project exists yet
+  # code-coverage:
+  #   name: Code Coverage Analysis
+  #   runs-on: windows-latest
+  #   steps:
+  #   - name: Checkout code
+  #     uses: actions/checkout@v4
+  #   ...
+
+  performance-test:
+    name: Performance Benchmarks
+    runs-on: windows-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+
+    - name: Run performance tests
+      run: |
+        echo "=== SCADA SMS System Performance Tests ==="
+        echo "Target Metrics:"
+        echo "- Startup time: < 2 seconds"
+        echo "- Memory usage: < 50MB"
+        echo "- Response time: < 150ms"
+        echo "- SMS throughput: 10 messages/minute"
+        echo ""
+        echo "Performance testing placeholder - implement actual benchmarks"
+        echo "Consider using NBomber, BenchmarkDotNet, or similar tools"
+
+    - name: Generate performance report
+      run: |
+        echo "Performance report generated - implement actual metrics collection"
