@@ -28,12 +28,8 @@ namespace SCADASMSSystem.Web.Services
             _smsSettings = smsSettings.Value;
         }
 
-        public async Task<IEnumerable<AlarmAction>> GetAllAlarmActionsAsync()
-        {
-            try
-            {
-                // Execute SQL query - exclude BLOCK_NAME from SELECT since it's NotMapped
-                var query = @"
+        // Exclude BLOCK_NAME from SELECT since it's NotMapped
+        private const string ActiveAlarmActionsSql = @"
                     SELECT 
                         ac.BLOCK_INDEX,
                         ac.ALARM_ID,
@@ -46,8 +42,27 @@ namespace SCADASMSSystem.Web.Services
                     WHERE ac.DELETED = 0
                     ORDER BY db.BLOCK_NAME";
 
+        public async Task<IReadOnlyList<string>> GetAlarmNamesUsingGroupAsync(int groupId)
+        {
+            // No try/catch: when the SCADA tables cannot be read the caller must fail closed,
+            // not conclude that no alarm uses the group.
+            var alarms = await _context.Set<AlarmAction>().FromSqlRaw(ActiveAlarmActionsSql).ToListAsync();
+            var blockNames = (await _context.Set<DBListBlock>().ToListAsync())
+                .GroupBy(b => b.BlockIndex)
+                .ToDictionary(g => g.Key, g => g.First().BlockName);
+
+            return alarms
+                .Where(a => a.AssignedGroupIds.Contains(groupId))
+                .Select(a => blockNames.GetValueOrDefault(a.BlockId) ?? $"Block {a.BlockId}")
+                .ToList();
+        }
+
+        public async Task<IEnumerable<AlarmAction>> GetAllAlarmActionsAsync()
+        {
+            try
+            {
                 var alarms = await _context.Set<AlarmAction>()
-                    .FromSqlRaw(query)
+                    .FromSqlRaw(ActiveAlarmActionsSql)
                     .ToListAsync();
 
                 _logger.LogInformation("Retrieved {Count} alarm actions from SCADA database", alarms.Count);

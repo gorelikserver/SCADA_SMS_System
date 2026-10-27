@@ -94,6 +94,7 @@ namespace SCADASMSSystem.Web.Services
     public interface IAlarmActionService
     {
         Task<IEnumerable<AlarmAction>> GetAllAlarmActionsAsync();
+        Task<IReadOnlyList<string>> GetAlarmNamesUsingGroupAsync(int groupId);
         Task<AlarmAction?> GetAlarmActionByIdAsync(int blockId);
         Task<AlarmGroupAssignment?> GetAlarmGroupAssignmentAsync(int blockId);
         Task<bool> AddGroupToAlarmAsync(int blockId, int groupId, string modifiedBy, string? ipAddress = null);

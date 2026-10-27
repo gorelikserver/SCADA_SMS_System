@@ -9,12 +9,14 @@ namespace SCADASMSSystem.Web.Pages.Groups
     {
         private readonly IGroupService _groupService;
         private readonly IUserService _userService;
+        private readonly IAlarmActionService _alarmActionService;
         private readonly ILogger<IndexModel> _logger;
 
-        public IndexModel(IGroupService groupService, IUserService userService, ILogger<IndexModel> logger)
+        public IndexModel(IGroupService groupService, IUserService userService, IAlarmActionService alarmActionService, ILogger<IndexModel> logger)
         {
             _groupService = groupService;
             _userService = userService;
+            _alarmActionService = alarmActionService;
             _logger = logger;
         }
 
@@ -89,6 +91,26 @@ namespace SCADASMSSystem.Web.Pages.Groups
                 if (group == null)
                 {
                     return NotFound();
+                }
+
+                // Akara keeps calling Scada_sms.bat with this group ID: deleting a group that alarms
+                // still use would make those alarms reach nobody, silently.
+                IReadOnlyList<string> usedBy;
+                try
+                {
+                    usedBy = await _alarmActionService.GetAlarmNamesUsingGroupAsync(groupId);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Could not check SCADA alarms before deleting group {GroupId}", groupId);
+                    TempData["ErrorMessage"] = "Group not deleted: could not check which SCADA alarms use it.";
+                    return RedirectToPage();
+                }
+                if (usedBy.Count > 0)
+                {
+                    TempData["ErrorMessage"] = $"Group '{group.GroupName}' not deleted: {usedBy.Count} SCADA alarm(s) still send to it " +
+                        $"({string.Join(", ", usedBy.Take(5))}{(usedBy.Count > 5 ? ", ..." : "")}). Remove it from those alarms first (Alarms page).";
+                    return RedirectToPage();
                 }
 
                 var success = await _groupService.DeleteGroupAsync(groupId);
