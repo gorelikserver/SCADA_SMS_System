@@ -110,6 +110,16 @@ The file must remain **UTF-8 with BOM and CRLF line endings**.
 - **Settings page** edits only general fields (test mode, rate/timeout/retry, PCIM id, SOAP log). **Test SMS** sends a test alarm to a group through the same synchronous path as `Scada_sms.bat` and shows each recipient's result.
 - Code: `Models/ProviderProfile.cs`, `Services/Providers/` (template, phone formatter, request builder, response evaluator, validator, converter).
 
+## Settings history and rollback
+
+`Settings > History` (`Pages/Settings/History`, admin only) shows what changed and lets an admin go back to an earlier provider profile.
+
+- **Change history** (`scada_settings_changes`): one row per meaningful change with time, user, area (`General`, `Provider`), action (`GeneralSaved`, `DraftImported`, `DraftStartedFromTemplate`, `DraftVerified`, `DraftDiscarded`, `ProfileActivated`, `ProfileRestoredAsDraft`) and a readable summary. General saves list the changed fields as `old → new` and write nothing when nothing changed. Profile summaries never contain secret values (only "secret X changed"); URL, body, headers and auth templates are reported as "changed" without values. Draft autosaves are not recorded.
+- **Profile versions** (`scada_provider_profile_versions`): every activation stores the full profile JSON (secrets included: this table is the rollback source, treat the database as sensitive), its SHA-256 hash, name, kind and who/when activated and verified. The row whose hash matches the active profile is marked active.
+- **Pre-existing active profile**: a profile that was active before history existed (converted at startup or activated in an earlier version) gets a version row, with a note, the first time the History page is opened or, at the latest, just before an activation replaces it. Its time is when history first saw it.
+- **Rollback is never direct**: "Restore as draft" copies a version into `DraftProfile` and removes any stored verification, so it goes live only after a new real test send and activation in the editor. "Export" uses `ProfileManagement.Export` (secrets empty).
+- History writes never fail or block a settings change: `SettingsHistory` logs database errors and continues. Summaries are built by the pure `SettingsChangeSummary` (`Services/SettingsHistory.cs`).
+
 ## Failure visibility, access control and secrets
 
 - **Delivery alerts.** `DeliveryAlertService` collects critical alarms that did not reach every recipient (from `scada_critical_sms_deliveries` and the spool folders), unreadable spool files, groups with no eligible recipients right now, and SMS-enabled users with an invalid phone number. The `SystemAlerts` view component shows them as a banner on every page; `/Alerts` lists them and lets a user acknowledge an alarm (`scada_alarm_acknowledgements`, records who). Acknowledging hides the banner; it does not stop retries.
@@ -152,7 +162,7 @@ Migration failure stops startup in Development but is logged and tolerated in Pr
 | `Models/` | EF entities and `SmsSettings` configuration model |
 | `Migrations/` | EF schema evolution, including SCADA-prefixed table renames |
 | `Pages/` | Razor Pages UI and page handlers |
-| `Pages/Settings/` | General settings (`Index`) and the provider profile editor (`Provider`) |
+| `Pages/Settings/` | General settings (`Index`), the provider profile editor (`Provider`) and change history/rollback (`History`) |
 | `Pages/Test/` | Send a test alarm to a group with per-recipient results |
 | `Pages/Debug/` | Diagnostics for calls, SOAP XML, groups, alarms, and audits |
 | `Installer/` | WiX installer project, fragments, and harvesting scripts |
@@ -189,6 +199,7 @@ Database table/column names are explicitly mapped and include legacy/SCADA-prefi
 - `/Audit` — searchable delivery history and cleanup
 - `/Calendar` — holiday calendar
 - `/Settings` — provider/runtime settings and connectivity checks
+- `/Settings/History` — settings change history and provider profile rollback
 - `/Test/Sms` — end-to-end SMS test and SOAP workbench
 - `/Debug/*` — operational diagnostics
 - `/Help/Integration` — integration guidance
