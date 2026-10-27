@@ -70,9 +70,12 @@ Move-Item "$Staging\Main\appsettings.json"        "$Staging\" -Force
 # SCADA integration: the canonical repo-root Scada_sms.bat (required) and curl (optional)
 $bat = "$Root\Scada_sms.bat"
 if (-not (Test-Path $bat)) { Die "Scada_sms.bat not found at $bat - the MSI must ship the SCADA entry point" }
-$head = [IO.File]::ReadAllBytes($bat)
-if ($head.Length -lt 3 -or $head[0] -ne 0xEF -or $head[1] -ne 0xBB -or $head[2] -ne 0xBF) {
-    Die "Scada_sms.bat must be UTF-8 with BOM (Hebrew alarm text breaks otherwise)"
+$batBytes = [IO.File]::ReadAllBytes($bat)
+# cmd.exe runs a BOM as part of the first command ("@echo off" fails under the default
+# code page) and reads non-ASCII bytes in the OEM code page; alarm text never passes
+# through the file itself, so it must stay plain ASCII.
+if (@($batBytes | Where-Object { $_ -gt 0x7F }).Count -gt 0) {
+    Die "Scada_sms.bat must be pure ASCII without a BOM"
 }
 New-Item -ItemType Directory -Path "$Staging\Scripts" -Force | Out-Null
 Copy-Item $bat "$Staging\Scripts\Scada_sms.bat" -Force

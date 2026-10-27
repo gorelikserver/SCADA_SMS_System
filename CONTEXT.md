@@ -79,7 +79,7 @@ Scada_sms.bat MESSAGE GROUP_ID [VALUE] [ALARM_ID] [PRIORITY]
 
 Exit codes: `0` all accepted, `1` bad arguments or spool write failed, `2` service unreachable or timed out, `3` delivery failed or partial, `4` rejected by the service.
 
-The file must remain **UTF-8 with BOM and CRLF line endings**.
+The file must stay **pure ASCII without a BOM, with CRLF line endings**. Under the default OEM code page `cmd.exe` runs a BOM as part of the first command, so `@echo off` fails and every command is echoed. Hebrew alarm text is unaffected: arguments arrive as Unicode and reach PowerShell through environment variables.
 
 ### Service side
 
@@ -89,7 +89,15 @@ The file must remain **UTF-8 with BOM and CRLF line endings**.
 
 ### Packaging
 
-`build.bat` copies the root `Scada_sms.bat` into `deployment_package\Scripts`. `build-release.ps1` (MSI) does not yet stage the batch file; verify the shipped copy matches the root file.
+`build.bat` copies the root `Scada_sms.bat` into `deployment_package\Scripts` (and `curl.exe` into `Tools` when available). The MSI (`build-release.ps1` -> `Installer/`) installs the same file byte for byte to `[INSTALLDIR]Scripts\Scada_sms.bat`. It bundles `curl.exe` into `[INSTALLDIR]Tools\` only when the build found one (`-CurlPath`, `temp_curl\curl.exe` or `deployment_package\Tools\curl.exe`); otherwise the bat uses the Windows built-in `curl.exe` (Windows 10 1803+ / Server 2019+). `build-release.ps1` fails if the bat is missing or not pure ASCII.
+
+The MSI creates `%ProgramData%\SCADA_SMS\spool` with a protected, inherited ACL: SYSTEM and Administrators get Full control and BUILTIN\Users get Modify, because the account Akara runs under is unknown. Trade-off: any local user can read, add or delete spool files and the log. `install_service.bat` applies the same ACL. The MSI also registers the `SCADA SMS System` Application event source.
+
+The installer's HTTP port (`APP_PORT`, default 5000) is written as `Urls` (`http://localhost:<port>`) to `appsettings.Production.json` and as `URL=` to `Scada_sms.ini` next to the installed bat, so the service and the bat always agree.
+
+Uninstall removes the install folder (bat, ini, curl) and the event source, but never the spool files or `Scada_sms.log` under `%ProgramData%\SCADA_SMS`, so undelivered alarms survive.
+
+**Akara calls the bat from its `PCIMUTIL` alias folder**, not from the install folder: point that alias to `[INSTALLDIR]Scripts\` or copy `Scada_sms.bat` and `Scada_sms.ini` there after installing.
 
 ### Validation checklist
 

@@ -1,11 +1,12 @@
-﻿@echo off
+@echo off
 chcp 65001 >nul 2>&1
 setlocal DisableDelayedExpansion
 :: SCADA SMS Integration - Hebrew & Unicode Support
 :: Akara calls:  Scada_sms.bat MESSAGE GROUP_ID VALUE
 :: Optional (manual/testing only): 4th = ALARM_ID, 5th = PRIORITY
-:: Example: scada_sms.bat "בדיקה" 3 "85.3"
-:: File must be saved as UTF-8 with BOM and CRLF line endings.
+:: Example: scada_sms.bat "Pump failure" 3 "85.3"   (Hebrew text works: values never pass through this file)
+:: Keep this file pure ASCII without a BOM, CRLF line endings: cmd.exe would run a BOM as
+:: part of the first command, so "@echo off" would fail.
 ::
 :: Delivery contract:
 ::   1. The alarm is written to the spool folder BEFORE anything else.
