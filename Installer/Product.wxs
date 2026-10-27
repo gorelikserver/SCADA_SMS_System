@@ -42,13 +42,21 @@
     ============================================================ -->
     <StandardDirectory Id="ProgramFiles64Folder">
       <Directory Id="ManufacturerFolder" Name="$(Manufacturer)">
-        <Directory Id="INSTALLDIR" Name="$(ProductName)" />
+        <Directory Id="INSTALLDIR" Name="$(ProductName)">
+          <!-- Scada_sms.bat looks for curl at %~dp0..\Tools\curl.exe -->
+          <Directory Id="SCRIPTSDIR" Name="Scripts" />
+          <Directory Id="TOOLSDIR" Name="Tools" />
+        </Directory>
       </Directory>
     </StandardDirectory>
 
     <StandardDirectory Id="CommonAppDataFolder">
       <Directory Id="SCADADataFolder" Name="SCADA">
         <Directory Id="LOGDIRFOLDER" Name="Logs" />
+      </Directory>
+      <!-- Default SPOOL_ROOT of Scada_sms.bat and ScadaSpool:Root of the service -->
+      <Directory Id="SCADASMSDATADIR" Name="SCADA_SMS">
+        <Directory Id="SPOOLDIR" Name="spool" />
       </Directory>
     </StandardDirectory>
 
@@ -139,12 +147,70 @@
     </ComponentGroup>
 
     <!-- ============================================================
+         SCADA INTEGRATION — Scada_sms.bat, optional curl.exe, spool
+         folder and the event log source used for delivery alerts
+    ============================================================ -->
+    <ComponentGroup Id="ScadaIntegration">
+
+      <!-- Copy of the repo-root Scada_sms.bat (UTF-8 BOM, CRLF), byte for byte.
+           Scada_sms.ini next to it is written by the ConfigureAppSettings CA. -->
+      <Component Id="ScadaSmsBatComponent" Directory="SCRIPTSDIR"
+                 Guid="31B3D710-55EC-4F23-B8FF-8E2FEB59D995">
+        <File Id="ScadaSmsBat" Source="$(ScadaBatFile)" KeyPath="yes" />
+      </Component>
+
+<?if $(BundleCurl) = "true" ?>
+      <!-- Bundled curl for sites without the Windows built-in curl.exe -->
+      <Component Id="CurlExeComponent" Directory="TOOLSDIR"
+                 Guid="B8B06F8F-EDEA-4989-A8DC-C5226F5426E7">
+        <File Id="CurlExe" Source="$(CurlExeFile)" KeyPath="yes" />
+      </Component>
+<?endif?>
+
+      <!-- Same registration as install_service.bat (New-EventLog under Windows
+           PowerShell uses the .NET Framework 4 message file). -->
+      <Component Id="EventSourceComponent" Directory="INSTALLDIR"
+                 Guid="1D94C873-D0D7-453B-8EF0-AFCF322F8EEC">
+        <util:EventSource Log="Application"
+                          Name="$(EventSourceName)"
+                          EventMessageFile="[WindowsFolder]Microsoft.NET\Framework64\v4.0.30319\EventLogMessages.dll"
+                          SupportsErrors="yes"
+                          SupportsWarnings="yes"
+                          SupportsInformationals="yes"
+                          KeyPath="yes" />
+      </Component>
+
+      <!--
+        %ProgramData%\SCADA_SMS holds the spool and Scada_sms.log. Akara runs the bat
+        under an unknown account, so BUILTIN\Users get Modify (0x1301bf) and
+        SYSTEM (the service) and Administrators Full control, inherited by spool,
+        spool\failed and spool\bad. Protected DACL: the ProgramData defaults would
+        only let the creator of a file change it, so a log created by one account
+        could not be appended by another.
+        Not removed on uninstall while it holds files: MSI owns no file here, so
+        undelivered spool files and Scada_sms.log always survive.
+      -->
+      <Component Id="ScadaDataDirComponent" Directory="SCADASMSDATADIR"
+                 Guid="6531ED07-D5BD-4AF4-BE88-7D0774E32A4D">
+        <CreateFolder>
+          <PermissionEx Sddl="D:PAI(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)(A;OICI;0x1301bf;;;BU)" />
+        </CreateFolder>
+      </Component>
+      <Component Id="SpoolDirComponent" Directory="SPOOLDIR"
+                 Guid="CA5BC481-E456-47FC-A1B5-5F9C124A1F2E">
+        <CreateFolder />
+      </Component>
+
+    </ComponentGroup>
+
+    <!-- ============================================================
          FEATURES
     ============================================================ -->
     <Feature Id="Complete" Title="$(ProductName)" Level="1">
       <Feature Id="MainApp" Title="Application" Level="1">
         <ComponentGroupRef Id="AppFiles" />
         <ComponentGroupRef Id="LogDirGroup" />
+        <ComponentGroupRef Id="ScadaIntegration" />
       </Feature>
     </Feature>
 

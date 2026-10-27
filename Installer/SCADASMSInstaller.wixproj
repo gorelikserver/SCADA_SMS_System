@@ -7,6 +7,14 @@
     <SuppressIces>ICE91</SuppressIces>
   </PropertyGroup>
 
+  <!-- curl.exe is optional: ship it in [INSTALLDIR]Tools only when the build staged it.
+       Scada_sms.bat falls back to the Windows built-in curl.exe otherwise. -->
+  <PropertyGroup>
+    <BundleCurl>false</BundleCurl>
+    <BundleCurl Condition="Exists('$(MSBuildProjectDirectory)\..\deployment_package\InstallerSrc\Tools\curl.exe')">true</BundleCurl>
+    <DefineConstants>$(DefineConstants);BundleCurl=$(BundleCurl)</DefineConstants>
+  </PropertyGroup>
+
   <ItemGroup>
     <PackageReference Include="WixToolset.UI.wixext"       Version="4.0.5" />
     <PackageReference Include="WixToolset.Util.wixext"     Version="4.0.5" />

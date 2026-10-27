@@ -16,6 +16,12 @@
   <?define AppExeFile      = "..\deployment_package\InstallerSrc\SCADASMSSystem.Web.exe" ?>
   <?define AppSettingsFile = "..\deployment_package\InstallerSrc\appsettings.json" ?>
   <?define AppMainDir      = "..\deployment_package\InstallerSrc\Main" ?>
+
+  <!-- SCADA integration (staged from the repo root Scada_sms.bat; curl.exe only when
+       found at build time, see BundleCurl in SCADASMSInstaller.wixproj) -->
+  <?define ScadaBatFile    = "..\deployment_package\InstallerSrc\Scripts\Scada_sms.bat" ?>
+  <?define CurlExeFile     = "..\deployment_package\InstallerSrc\Tools\curl.exe" ?>
+  <?define EventSourceName = "SCADA SMS System" ?>
 </Include>
 
 

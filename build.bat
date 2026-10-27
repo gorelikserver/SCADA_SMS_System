@@ -397,6 +397,21 @@ mkdir deployment_package\InstallerSrc\Main 2>nul
 xcopy /E /I /Y "deployment_package\Application\*" "deployment_package\InstallerSrc\Main\" >nul
 move /Y "deployment_package\InstallerSrc\Main\SCADASMSSystem.Web.exe" "deployment_package\InstallerSrc\" >nul
 move /Y "deployment_package\InstallerSrc\Main\appsettings.json"       "deployment_package\InstallerSrc\" >nul
+REM SCADA integration: the MSI installs Scripts\Scada_sms.bat and, when present, Tools\curl.exe
+REM (same layout as this package, so the bat finds %~dp0..\Tools\curl.exe)
+mkdir deployment_package\InstallerSrc\Scripts 2>nul
+copy /Y deployment_package\Scripts\Scada_sms.bat deployment_package\InstallerSrc\Scripts\Scada_sms.bat >nul
+if errorlevel 1 (
+    echo      [ERROR] Failed to stage Scada_sms.bat for the MSI
+    exit /b 1
+)
+if exist deployment_package\Tools\curl.exe (
+    mkdir deployment_package\InstallerSrc\Tools 2>nul
+    copy /Y deployment_package\Tools\curl.exe deployment_package\InstallerSrc\Tools\curl.exe >nul
+    echo      [OK] MSI bundles Tools\curl.exe
+) else (
+    echo      [INFO] MSI without curl.exe - Scada_sms.bat will use the Windows built-in curl.exe
+)
 echo      [OK] Installer source staged
 
 REM Ensure WiX toolset is installed as a dotnet global tool
@@ -410,8 +425,8 @@ if exist "Installer\SCADASMSInstaller.wixproj" (
         -SourceDir "deployment_package\InstallerSrc\Main" ^
         -OutputFile "Installer\obj\Release\HarvestedFiles.wxs" >> build.log 2>&1
     dotnet build Installer\SCADASMSInstaller.wixproj -c Release --verbosity minimal >> build.log 2>&1
-    if %ERRORLEVEL% EQU 0 (
-        for %%F in (Installer\bin\Release\*.msi) do (
+    if !ERRORLEVEL! EQU 0 (
+        for %%F in (Installer\bin\x64\Release\*.msi) do (
             copy /Y "%%F" deployment_package\ >nul
             echo      [OK] MSI installer: %%~nxF
         )
