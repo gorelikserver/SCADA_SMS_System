@@ -361,21 +361,30 @@ namespace SCADASMSSystem.Web.Services
                 message, recipient.PhoneNumber, ctx?.Value, ctx?.AlarmId, ctx?.Priority, ctx?.GroupId,
                 recipient.UserId, recipient.FirstName, recipient.LastName, recipient.TZ);
 
+            return (await SendWithProfileAsync(profile!, context, cancellationToken)).Response;
+        }
+
+        /// <summary>
+        /// One provider call with the given profile (active profile for alarms, a draft when an admin
+        /// verifies it). No test-mode routing, no profile validation: callers decide.
+        /// </summary>
+        public async Task<ProfileSendResult> SendWithProfileAsync(ProviderProfile profile, ProfileContext context, CancellationToken cancellationToken = default)
+        {
             BuiltRequest built;
             try
             {
-                built = ProviderRequestBuilder.Build(profile!, context);
+                built = ProviderRequestBuilder.Build(profile, context);
             }
             catch (Exception ex) when (ex is TemplateException or FormatException)
             {
-                _logger.LogError("SMS to {PhoneNumber} not sent: {Reason}", MaskPhoneNumber(recipient.PhoneNumber), ex.Message);
-                return new SmsApiResponse { Success = false, Message = ex.Message, StatusCode = NotSentStatusCode };
+                _logger.LogError("SMS to {PhoneNumber} not sent: {Reason}", MaskPhoneNumber(context.Phone), ex.Message);
+                return new ProfileSendResult(new SmsApiResponse { Success = false, Message = ex.Message, StatusCode = NotSentStatusCode }, "", "");
             }
 
             using (built)
             {
-                if (profile!.Kind.Equals("SOAP", StringComparison.OrdinalIgnoreCase) && Settings.LogSoapXml)
-                    _soapXmlLog.Push(MaskPhoneNumber(recipient.PhoneNumber), built.DisplayBody);
+                if (profile.Kind.Equals("SOAP", StringComparison.OrdinalIgnoreCase) && Settings.LogSoapXml)
+                    _soapXmlLog.Push(MaskPhoneNumber(context.Phone), built.DisplayBody);
 
                 var sw = Stopwatch.StartNew();
                 try
@@ -386,9 +395,9 @@ namespace SCADASMSSystem.Web.Services
 
                     var verdict = ResponseEvaluator.Evaluate(profile, (int)response.StatusCode, body);
                     if (verdict.Accepted)
-                        _logger.LogInformation("SMS accepted for {PhoneNumber}: {Reason}", MaskPhoneNumber(recipient.PhoneNumber), verdict.Reason);
+                        _logger.LogInformation("SMS accepted for {PhoneNumber}: {Reason}", MaskPhoneNumber(context.Phone), verdict.Reason);
                     else
-                        _logger.LogError("SMS rejected for {PhoneNumber}: {Reason}. Response: {Body}", MaskPhoneNumber(recipient.PhoneNumber), verdict.Reason, body);
+                        _logger.LogError("SMS rejected for {PhoneNumber}: {Reason}. Response: {Body}", MaskPhoneNumber(context.Phone), verdict.Reason, body);
 
                     _callLog.Add(new SmsCallEntry
                     {
@@ -396,8 +405,8 @@ namespace SCADASMSSystem.Web.Services
                         Provider       = profile.Kind,
                         Endpoint       = built.DisplayUrl,
                         HttpMethod     = built.Request.Method.Method,
-                        PhoneNumber    = MaskPhoneNumber(recipient.PhoneNumber),
-                        AlarmId        = ctx?.AlarmId ?? string.Empty,
+                        PhoneNumber    = MaskPhoneNumber(context.Phone),
+                        AlarmId        = context.AlarmId ?? string.Empty,
                         RequestSummary = Truncate(built.DisplayBody, 2000) ?? string.Empty,
                         FullResponse   = body,
                         StatusCode     = (int)response.StatusCode,
@@ -405,31 +414,32 @@ namespace SCADASMSSystem.Web.Services
                         DurationMs     = sw.ElapsedMilliseconds
                     });
 
-                    return new SmsApiResponse
+                    return new ProfileSendResult(new SmsApiResponse
                     {
                         Success = verdict.Accepted,
                         Message = verdict.Reason,
                         Response = body,
                         StatusCode = (int)response.StatusCode
-                    };
+                    }, built.DisplayUrl, built.DisplayBody);
                 }
                 catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException && !cancellationToken.IsCancellationRequested)
                 {
                     // Timeout or transport loss: the provider may or may not have sent it (status 0 = indeterminate).
-                    _logger.LogError(ex, "SMS call to {PhoneNumber} failed in transport", MaskPhoneNumber(recipient.PhoneNumber));
+                    _logger.LogError(ex, "SMS call to {PhoneNumber} failed in transport", MaskPhoneNumber(context.Phone));
                     _callLog.Add(new SmsCallEntry
                     {
                         Timestamp    = DateTime.Now,
                         Provider     = profile.Kind,
                         Endpoint     = built.DisplayUrl,
                         HttpMethod   = built.Request.Method.Method,
-                        PhoneNumber  = MaskPhoneNumber(recipient.PhoneNumber),
-                        AlarmId      = ctx?.AlarmId ?? string.Empty,
+                        PhoneNumber  = MaskPhoneNumber(context.Phone),
+                        AlarmId      = context.AlarmId ?? string.Empty,
                         FullResponse = ex.Message,
                         Success      = false,
                         StatusCode   = 0
                     });
-                    return new SmsApiResponse { Success = false, Message = ex.Message, Response = ex.ToString(), StatusCode = 0 };
+                    return new ProfileSendResult(new SmsApiResponse { Success = false, Message = ex.Message, Response = ex.ToString(), StatusCode = 0 },
+                        built.DisplayUrl, built.DisplayBody);
                 }
             }
         }
@@ -615,5 +625,7 @@ namespace SCADASMSSystem.Web.Services
     /// dynamic placeholders. Pass null when invoking the public SendSmsApiCallAsync overload
     /// from a context that does not have these fields (e.g. test pages).
     /// </summary>
+    public sealed record ProfileSendResult(SmsApiResponse Response, string DisplayUrl, string DisplayBody);
+
     public sealed record SmsCallContext(int? GroupId, string? AlarmId, string? Priority, string? Value);
 }

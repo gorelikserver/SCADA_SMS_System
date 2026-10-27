@@ -12,8 +12,8 @@ using Xunit;
 namespace SCADASMSSystem.Tests;
 
 /// <summary>
-/// Regression for the credential wipe: saving the Settings page used to replace the whole
-/// SmsSettings section, blanking every field the form does not render.
+/// The Settings page edits only general fields. Saving must never touch the provider profile,
+/// the draft, or anything else in the section (the old page once wiped credentials this way).
 /// </summary>
 public sealed class SettingsPageSaveTests : IDisposable
 {
@@ -27,20 +27,15 @@ public sealed class SettingsPageSaveTests : IDisposable
         File.WriteAllText(_path, """
             {
               "SmsSettings": {
-                "ProviderType": "REST",
-                "ApiEndpoint": "https://gw.example/send",
-                "Username": "gateway-user",
-                "Password": "s3cret",
-                "SenderName": "SCADA",
-                "ApiParams": "{\"to\":\"phone\"}",
-                "ApiHeaders": "{\"X-Site\":\"A\"}",
-                "RestAuthType": "Bearer",
-                "RestBearerToken": "tok-123",
-                "RestApiKeyName": "X-API-Key",
-                "RestApiKeyValue": "key-456",
-                "SoapParams": "{\"Phone\":\"phone\"}",
-                "RestHeaders": [ { "Key": "Authorization", "Value": "Bearer live", "IsSecret": true } ],
-                "RestBodyParams": [ { "Key": "to", "Value": "phone" }, { "Key": "text", "Value": "message" } ]
+                "RateLimit": 10,
+                "TimeoutSeconds": 30,
+                "TestMode": false,
+                "CustomKey": "keep-me",
+                "Profile": {
+                  "Name": "Gateway", "Url": "https://gw.example/send", "Body": "{\"to\":\"{Phone}\",\"t\":\"{Message}\"}",
+                  "Variables": [ { "Key": "Token", "Value": "s3cret", "IsSecret": true } ]
+                },
+                "DraftProfile": { "Name": "Next", "Url": "https://gw2.example/send" }
               }
             }
             """);
@@ -48,28 +43,12 @@ public sealed class SettingsPageSaveTests : IDisposable
 
     public void Dispose() => Directory.Delete(_dir, recursive: true);
 
-    // Exactly the field set the Settings form posts today (asp-for inputs + hidden JSON lists).
-    private static readonly string[] FormFields =
-    {
-        "ApiEndpoint", "ContentType", "DuplicateWindow", "HttpMethod", "LogSoapXml", "ProviderType",
-        "RateLimit", "RateWindow", "RestAuthType", "RestFailurePattern", "RestSuccessPattern",
-        "RetryAttempts", "ScadaPcimObjectId", "SoapAction", "SoapAuthType", "SoapBodyTemplate",
-        "SoapEnvelopeNamespaces", "SoapErrorPattern", "SoapMessageType", "SoapSendingSystem",
-        "SoapSuccessPattern", "TestMode", "TimeoutSeconds",
-    };
-
-    private const string ValidBodyParams = """[ { "Key": "to", "Value": "phone" }, { "Key": "text", "Value": "message" } ]""";
-
-    private IndexModel CreatePage(SmsSettings posted, string restHeadersJson, string restBodyParamsJson = ValidBodyParams)
+    private IndexModel CreatePage(SmsSettings posted, params string[] fields)
     {
         var store = new SettingsStore(_path, configuration: null, NullLogger<SettingsStore>.Instance);
         var page = new IndexModel(null!, null!, null!, null!, null!, null!, null!, store, NullLogger<IndexModel>.Instance);
 
-        var form = FormFields.ToDictionary(f => "SmsSettingsInput." + f, _ => new StringValues("x"));
-        form["RestHeadersJson"] = restHeadersJson;
-        form["RestBodyParamsJson"] = restBodyParamsJson;
-        form["SoapPlaceholdersJson"] = "[]";
-
+        var form = fields.ToDictionary(f => "SmsSettingsInput." + f, _ => new StringValues("x"));
         var http = new DefaultHttpContext();
         http.Request.ContentType = "application/x-www-form-urlencoded";
         http.Request.Form = new FormCollection(form);
@@ -77,65 +56,38 @@ public sealed class SettingsPageSaveTests : IDisposable
         page.PageContext = new PageContext { HttpContext = http };
         page.TempData = new TempDataDictionary(http, new NullTempDataProvider());
         page.SmsSettingsInput = posted;
-        page.RestHeadersJson = restHeadersJson;
-        page.RestBodyParamsJson = restBodyParamsJson;
-        page.SoapPlaceholdersJson = "[]";
         return page;
     }
 
+    private JsonNode Section() => JsonNode.Parse(File.ReadAllText(_path))!["SmsSettings"]!;
+
     [Fact]
-    public async Task Save_KeepsCredentialsAndFieldsTheFormDoesNotPost()
+    public async Task Save_ChangesOnlyPostedGeneralFields()
     {
-        var posted = new SmsSettings { ApiEndpoint = "https://gw.example/v2/send", RestAuthType = "Bearer", RateLimit = 20 };
-        var page = CreatePage(posted, """[ { "Key": "Authorization", "Value": "***", "IsSecret": true } ]""");
+        var page = CreatePage(new SmsSettings { RateLimit = 25, TimeoutSeconds = 20, TestMode = true },
+            "RateLimit", "TimeoutSeconds", "TestMode", "Profile");
 
         await page.OnPostSaveSettingsAsync();
 
-        var s = JsonNode.Parse(File.ReadAllText(_path))!["SmsSettings"]!;
-        Assert.Equal("https://gw.example/v2/send", (string?)s["ApiEndpoint"]);
-        Assert.Equal(20, (int)s["RateLimit"]!);
-        Assert.Equal("gateway-user", (string?)s["Username"]);
-        Assert.Equal("s3cret", (string?)s["Password"]);
-        Assert.Equal("SCADA", (string?)s["SenderName"]);
-        Assert.Equal("{\"to\":\"phone\"}", (string?)s["ApiParams"]);
-        Assert.Equal("{\"X-Site\":\"A\"}", (string?)s["ApiHeaders"]);
-        Assert.Equal("tok-123", (string?)s["RestBearerToken"]);
-        Assert.Equal("X-API-Key", (string?)s["RestApiKeyName"]);
-        Assert.Equal("key-456", (string?)s["RestApiKeyValue"]);
-        Assert.Equal("{\"Phone\":\"phone\"}", (string?)s["SoapParams"]);
-        Assert.Equal("Bearer live", (string?)s["RestHeaders"]![0]!["Value"]);
-        Assert.Equal("Settings saved successfully. Changes are active immediately.", page.TempData["SuccessMessage"]);
-
-        // Sending uses only the profile, regenerated from the saved fields.
-        Assert.Equal("Legacy", (string?)s["ProfileSource"]);
-        Assert.Equal("https://gw.example/v2/send", (string?)s["Profile"]!["Url"]);
-        Assert.Equal("Bearer", (string?)s["Profile"]!["Auth"]!["Type"]);
+        var s = Section();
+        Assert.Equal(25, (int)s["RateLimit"]!);
+        Assert.Equal(20, (int)s["TimeoutSeconds"]!);
+        Assert.True((bool)s["TestMode"]!);
+        Assert.Equal("keep-me", (string?)s["CustomKey"]);
+        Assert.Equal("s3cret", (string?)s["Profile"]!["Variables"]![0]!["Value"]);
+        Assert.Equal("Next", (string?)s["DraftProfile"]!["Name"]);
     }
 
     [Fact]
-    public async Task Save_WithCorruptParamList_RejectsAndLeavesFileUntouched()
+    public async Task Save_WithOutOfRangeValue_LeavesFileUntouched()
     {
         var original = File.ReadAllText(_path);
-        var page = CreatePage(new SmsSettings(), "{broken");
+        var page = CreatePage(new SmsSettings { TimeoutSeconds = 0 }, "TimeoutSeconds");
 
         await page.OnPostSaveSettingsAsync();
 
         Assert.Equal(original, File.ReadAllText(_path));
         Assert.StartsWith("Settings not saved", (string?)page.TempData["ErrorMessage"]);
-    }
-
-    [Fact]
-    public async Task Save_WhenMergedSettingsFailContractValidation_LeavesFileUntouched()
-    {
-        var original = File.ReadAllText(_path);
-        // Removing the phone mapping makes the REST contract invalid.
-        var page = CreatePage(new SmsSettings { ApiEndpoint = "https://gw.example/send" }, "[]",
-            restBodyParamsJson: """[ { "Key": "text", "Value": "message" } ]""");
-
-        await page.OnPostSaveSettingsAsync();
-
-        Assert.Equal(original, File.ReadAllText(_path));
-        Assert.Contains("{Phone}", (string?)page.TempData["ErrorMessage"]);
     }
 
     private sealed class NullTempDataProvider : ITempDataProvider

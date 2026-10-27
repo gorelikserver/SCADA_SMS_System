@@ -105,7 +105,9 @@ The file must remain **UTF-8 with BOM and CRLF line endings**.
 - **Templates:** `{Name}` or `{Name:raw|json|xml|url|base64}`. Built-ins: `Message`, `Phone`, `Value`, `AlarmId`, `Priority`, `GroupId`, `UserId`, `FirstName`, `LastName`, `TZ`, `Now[:format]`, `Guid`; anything else must be a profile variable. Without a suffix the encoding follows the location (URL, body content type, header). Unknown tokens are errors, never sent.
 - **Acceptance:** failure rule first, then success status codes (`2xx`, `200,202`), then the success body rule (`Contains`, `Regex`, `JsonPath` `$.a.b[0]`, `XmlElement` with optional expected value; two matching elements are ambiguous and not accepted). For `Kind: SOAP` a SOAP Fault always fails and a body success rule is required.
 - **Validation:** `ProfileValidator` renders a sample alarm (quotes, `&`, `<`, Hebrew) and checks URL, JSON/XML well-formedness, that `{Message}` and `{Phone}` are sent, variable names, auth and rules. An invalid profile blocks sending (status `-1`, not retried in-request) and shows a red banner.
-- **Cutover:** at startup a site without a profile gets one from its old fields (`LegacyProfileConverter`, reproduces the old send code; previous `appsettings.json` backed up). Until the Settings page edits profiles directly (Phase 4), every Settings or workbench save regenerates the profile from the old fields when `ProfileSource` is `Legacy`; a `Custom` profile is never overwritten. Environment-variable overrides of the old fields stop mattering once a profile exists.
+- **Draft, verify, activate** (`Settings > SMS Provider`, `ProviderProfileService`): admins edit a draft (start from a built-in template, import a JSON file, or the active profile), preview the masked request for a sample alarm, then **verify** it with a real SMS to a test phone (always real, even in test mode). Only a draft whose exact SHA-256 matches its last accepted verification can be activated; any edit needs a new verification. Alarms keep using the active profile meanwhile. Exports leave secrets empty so profiles can be carried between air-gapped sites.
+- **Cutover:** the pre-profile provider fields no longer exist in `SmsSettings` (only `LegacySmsSettings`, read by the startup cutover). At startup a site without a profile has its old fields, as the app effectively saw them (all settings files and environment variables), converted by `LegacyProfileConverter` into the active profile; the old keys are removed from `appsettings.json` (previous file in `settings-backups`). A fresh install has no profile: alarms are refused and the banner points to the editor.
+- **Settings page** edits only general fields (test mode, rate/timeout/retry, PCIM id, SOAP log). **Test SMS** sends a test alarm to a group through the same synchronous path as `Scada_sms.bat` and shows each recipient's result.
 - Code: `Models/ProviderProfile.cs`, `Services/Providers/` (template, phone formatter, request builder, response evaluator, validator, converter).
 
 ## Failure visibility, access control and secrets
@@ -150,8 +152,8 @@ Migration failure stops startup in Development but is logged and tolerated in Pr
 | `Models/` | EF entities and `SmsSettings` configuration model |
 | `Migrations/` | EF schema evolution, including SCADA-prefixed table renames |
 | `Pages/` | Razor Pages UI and page handlers |
-| `Pages/Settings/` | Runtime provider configuration and connection testing |
-| `Pages/Test/` | SMS test UI and SOAP workbench |
+| `Pages/Settings/` | General settings (`Index`) and the provider profile editor (`Provider`) |
+| `Pages/Test/` | Send a test alarm to a group with per-recipient results |
 | `Pages/Debug/` | Diagnostics for calls, SOAP XML, groups, alarms, and audits |
 | `Installer/` | WiX installer project, fragments, and harvesting scripts |
 | `Scada_sms.bat` | Akara-to-HTTP integration script (spool + synchronous delivery) |

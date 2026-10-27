@@ -59,6 +59,7 @@ namespace SCADASMSSystem.Web.Services
     {
         Task<bool> SendSmsAsync(string message, IEnumerable<SmsRecipient> recipients, string alarmId, int? groupId = null, string? priority = null, string? value = null);
         Task<bool> SendSmsToGroupAsync(string message, int groupId, string alarmId, string? priority = null, string? value = null);
+        Task<ProfileSendResult> SendWithProfileAsync(ProviderProfile profile, Providers.ProfileContext context, CancellationToken cancellationToken = default);
         Task<CriticalSmsDeliveryResult> SendCriticalSmsToGroupAsync(string message, int groupId, string alarmId, string? priority = null, string? value = null, CancellationToken cancellationToken = default);
         Task<SmsApiResponse> SendSmsApiCallAsync(string message, SmsRecipient recipient);
     }

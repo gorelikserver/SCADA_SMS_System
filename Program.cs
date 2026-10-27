@@ -137,6 +137,7 @@ try
     builder.Services.AddScoped<IAuditService, AuditService>();
     builder.Services.AddScoped<IAlarmActionService, AlarmActionService>();
     builder.Services.AddSingleton<ISettingsStore, SettingsStore>();
+    builder.Services.AddScoped<SCADASMSSystem.Web.Services.Providers.IProviderProfileService, SCADASMSSystem.Web.Services.Providers.ProviderProfileService>();
     builder.Services.AddSingleton<IAlertNotifier, EventLogAlertNotifier>();
     builder.Services.AddScoped<IDeliveryAlertService, DeliveryAlertService>();
 
@@ -238,32 +239,34 @@ try
     }
 
     // Hard cutover to provider profiles: SmsService sends only with SmsSettings:Profile. A site
-    // upgraded from an older version gets one converted from its old REST/SOAP fields (the
-    // previous appsettings.json is kept in settings-backups). Stored even if invalid, so the
-    // banner and Settings show what to fix.
+    // upgraded from the pre-profile version has its old REST/SOAP fields converted into a profile
+    // and removed (the previous appsettings.json stays in settings-backups). A fresh install has no
+    // profile until an admin activates one in Settings > Provider; until then alarms are refused
+    // and the banner says so.
     {
         var startupLogger = app.Services.GetRequiredService<ILogger<Program>>();
-        var smsSettings = app.Services.GetRequiredService<Microsoft.Extensions.Options.IOptionsMonitor<SmsSettings>>().CurrentValue;
-        if (smsSettings.Profile == null)
+        try
         {
-            try
+            ProviderProfile? converted = null;
+            var store = app.Services.GetRequiredService<ISettingsStore>();
+            if ((await store.ReadSmsSettingsAsync()).Profile == null)
             {
-                var profile = SCADASMSSystem.Web.Services.Providers.LegacyProfileConverter.Convert(smsSettings);
-                await app.Services.GetRequiredService<ISettingsStore>().UpdateSmsSettingsAsync(section =>
-                {
-                    section["Profile"] = System.Text.Json.JsonSerializer.SerializeToNode(profile);
-                    section["ProfileSource"] = ProfileSources.Legacy;
-                });
-                var errors = SCADASMSSystem.Web.Services.Providers.ProfileValidator.Validate(profile);
+                var effective = app.Configuration.GetSection("SmsSettings").Get<LegacySmsSettings>();
+                await store.UpdateSmsSettingsAsync(section => converted = SCADASMSSystem.Web.Services.Providers.ProfileManagement.CutoverLegacy(section, effective));
+            }
+
+            if (converted != null)
+            {
+                var errors = SCADASMSSystem.Web.Services.Providers.ProfileValidator.Validate(converted);
                 if (errors.Count == 0)
-                    startupLogger.LogWarning("Converted the old {Kind} provider settings into a provider profile", profile.Kind);
+                    startupLogger.LogWarning("Converted the old {Kind} provider settings into the active provider profile", converted.Kind);
                 else
                     startupLogger.LogCritical("Converted provider profile is invalid; alarms will not be sent until it is fixed: {Errors}", string.Join("; ", errors));
             }
-            catch (Exception ex)
-            {
-                startupLogger.LogCritical(ex, "Could not convert the old provider settings into a provider profile");
-            }
+        }
+        catch (Exception ex)
+        {
+            startupLogger.LogCritical(ex, "Could not convert the old provider settings into a provider profile");
         }
     }
 

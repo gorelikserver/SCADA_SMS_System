@@ -2,7 +2,6 @@ using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using SCADASMSSystem.Web.Models;
-using SCADASMSSystem.Web.Services.Providers;
 
 namespace SCADASMSSystem.Web.Services
 {
@@ -14,6 +13,9 @@ namespace SCADASMSSystem.Web.Services
     public interface ISettingsStore
     {
         Task UpdateSmsSettingsAsync(Action<JsonObject> mutate, CancellationToken ct = default);
+
+        /// <summary>The SmsSettings section as stored right now (not the cached options).</summary>
+        Task<SmsSettings> ReadSmsSettingsAsync(CancellationToken ct = default);
     }
 
     public class SettingsStore : ISettingsStore
@@ -40,6 +42,13 @@ namespace SCADASMSSystem.Web.Services
 
         public string BackupDirectory =>
             Path.Combine(Path.GetDirectoryName(_appSettingsPath)!, "settings-backups");
+
+        public async Task<SmsSettings> ReadSmsSettingsAsync(CancellationToken ct = default)
+        {
+            var json = await File.ReadAllTextAsync(_appSettingsPath, ct);
+            var section = JsonNode.Parse(json)?[SectionName] as JsonObject;
+            return section == null ? new SmsSettings() : SmsSettingsMerge.ToSettings(section);
+        }
 
         public async Task UpdateSmsSettingsAsync(Action<JsonObject> mutate, CancellationToken ct = default)
         {
@@ -105,20 +114,12 @@ namespace SCADASMSSystem.Web.Services
     /// </summary>
     public static class SmsSettingsMerge
     {
-        public const string MaskedValue = "***";
-
-        // Scalar fields that hold credentials: a blank or masked post keeps the stored value.
-        public static readonly IReadOnlySet<string> SecretFields =
-            new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "Password", "RestBearerToken", "RestApiKeyValue" };
-
         private static readonly JsonSerializerOptions ReadOptions = new() { PropertyNameCaseInsensitive = true };
-
-        public static bool IsBlankOrMasked(string? value) =>
-            string.IsNullOrEmpty(value) || value == MaskedValue;
 
         /// <summary>
         /// Copies only the scalar fields that were actually posted from <paramref name="posted"/> into
-        /// <paramref name="section"/>. Fields not posted keep their stored value; unknown keys are untouched.
+        /// <paramref name="section"/>. Fields not posted keep their stored value; unknown keys, the
+        /// provider profile and other objects are untouched.
         /// </summary>
         public static void ApplyPostedFields(JsonObject section, SmsSettings posted, IEnumerable<string> postedFieldNames)
         {
@@ -129,103 +130,14 @@ namespace SCADASMSSystem.Web.Services
                 if (prop == null || !IsScalar(prop.PropertyType))
                     continue;
 
-                var value = prop.GetValue(posted);
-                if (SecretFields.Contains(prop.Name) && IsBlankOrMasked(value as string))
-                    continue;
-
-                section[prop.Name] = JsonSerializer.SerializeToNode(value, prop.PropertyType);
+                section[prop.Name] = JsonSerializer.SerializeToNode(prop.GetValue(posted), prop.PropertyType);
             }
         }
 
-        /// <summary>
-        /// Replaces a dynamic param list with the posted one. A list that was not posted is kept.
-        /// A secret row posted blank or masked keeps the stored value for the same key.
-        /// Throws <see cref="JsonException"/> when the posted list is not valid JSON, so a broken
-        /// client never wipes the stored list.
-        /// </summary>
-        public static void ApplyParamList(JsonObject section, string listName, string? postedJson)
-        {
-            if (postedJson == null)
-                return;
-
-            var postedList = JsonSerializer.Deserialize<List<SmsParam>>(postedJson, ReadOptions)
-                ?? throw new JsonException($"{listName} must be a JSON array");
-
-            var stored = ReadParamList(section, listName);
-            foreach (var row in postedList.Where(r => r.IsSecret && IsBlankOrMasked(r.Value)))
-            {
-                var match = stored.FirstOrDefault(s => s.Key.Equals(row.Key, StringComparison.OrdinalIgnoreCase));
-                if (match != null)
-                    row.Value = match.Value;
-            }
-
-            section[listName] = JsonSerializer.SerializeToNode(postedList);
-        }
-
-        /// <summary>
-        /// Copy of a param list safe to send to the browser: secret values become <see cref="MaskedValue"/>.
-        /// Posting the masked value back keeps the stored secret (see <see cref="ApplyParamList"/>).
-        /// </summary>
-        public static List<SmsParam> MaskSecrets(IEnumerable<SmsParam> list) =>
-            list.Select(p => new SmsParam
-            {
-                Key = p.Key,
-                Value = p.IsSecret && !string.IsNullOrEmpty(p.Value) ? MaskedValue : p.Value,
-                IsSecret = p.IsSecret
-            }).ToList();
-
-        /// <summary>
-        /// Rebuilds Profile from the legacy fields of a merged section and validates it. Throws
-        /// <see cref="SettingsValidationException"/> so the caller's write is aborted. A Custom
-        /// profile is never overwritten, only validated.
-        /// </summary>
-        public static void RegenerateProfile(JsonObject section)
-        {
-            var settings = ToSettings(section);
-            if (!string.Equals(settings.ProfileSource, ProfileSources.Legacy, StringComparison.OrdinalIgnoreCase))
-            {
-                var customErrors = ProfileValidator.Validate(settings.Profile);
-                if (customErrors.Count > 0)
-                    throw new SettingsValidationException(customErrors);
-                return;
-            }
-
-            var profile = LegacyProfileConverter.Convert(settings);
-            var errors = ProfileValidator.Validate(profile);
-            if (errors.Count > 0)
-                throw new SettingsValidationException(errors);
-            section["Profile"] = JsonSerializer.SerializeToNode(profile);
-            section["ProfileSource"] = ProfileSources.Legacy;
-        }
-
-        /// <summary>Typed view of a (merged) SmsSettings section, for validation.</summary>
+        /// <summary>Typed view of a SmsSettings section.</summary>
         public static SmsSettings ToSettings(JsonObject section) =>
             section.Deserialize<SmsSettings>(ReadOptions) ?? new SmsSettings();
 
-        private static List<SmsParam> ReadParamList(JsonObject section, string listName)
-        {
-            try
-            {
-                return section[listName]?.Deserialize<List<SmsParam>>(ReadOptions) ?? new();
-            }
-            catch (JsonException)
-            {
-                return new();
-            }
-        }
-
         private static bool IsScalar(Type t) => t == typeof(string) || t == typeof(int) || t == typeof(bool);
-    }
-
-    /// <summary>Thrown inside a settings update to reject the merged result; nothing is written.</summary>
-    public class SettingsValidationException : Exception
-    {
-        public IReadOnlyList<string> Errors { get; }
-
-        public SettingsValidationException(IReadOnlyList<string> errors)
-            : base("Settings failed validation: " + string.Join("; ", errors))
-        {
-            Errors = errors;
-        }
     }
 }

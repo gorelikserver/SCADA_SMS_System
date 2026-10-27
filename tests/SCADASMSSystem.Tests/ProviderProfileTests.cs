@@ -244,7 +244,7 @@ public class LegacyProfileConverterTests
     public void LegacyGetWithApiParams_ProducesSameUrlAsOldCode()
     {
         // Shape of appsettings.Development.json in the repo.
-        var legacy = new SmsSettings
+        var legacy = new LegacySmsSettings
         {
             ProviderType = "REST",
             ApiEndpoint = "http://localhost:5555/services/SendMessage.asmx/SendMessagesReturenMessageID",
@@ -269,7 +269,7 @@ public class LegacyProfileConverterTests
     [Fact]
     public void RestJsonWithBodyParamsHeadersAndPatterns()
     {
-        var legacy = new SmsSettings
+        var legacy = new LegacySmsSettings
         {
             ProviderType = "REST",
             ApiEndpoint = "https://api.example/send",
@@ -296,7 +296,7 @@ public class LegacyProfileConverterTests
     [Fact]
     public void ApiKeyInQuery()
     {
-        var legacy = new SmsSettings
+        var legacy = new LegacySmsSettings
         {
             ApiEndpoint = "https://gw.example/send",
             HttpMethod = "GET",
@@ -315,7 +315,7 @@ public class LegacyProfileConverterTests
     [Fact]
     public void CustomerSoapTemplate_WithPlaceholdersAndWsSecurity()
     {
-        var legacy = new SmsSettings
+        var legacy = new LegacySmsSettings
         {
             ProviderType = "SOAP",
             ApiEndpoint = "https://soap.example/sms.asmx",
@@ -365,7 +365,7 @@ public class LegacyProfileConverterTests
     [Fact]
     public void UnmappedSoapToken_IsReportedByValidator()
     {
-        var legacy = new SmsSettings
+        var legacy = new LegacySmsSettings
         {
             ProviderType = "SOAP",
             ApiEndpoint = "https://soap.example/sms.asmx",

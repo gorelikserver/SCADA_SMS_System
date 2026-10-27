@@ -27,10 +27,10 @@ namespace SCADASMSSystem.Web.Services.Providers
             ["sendingsystem"] = "SendingSystem", ["messagetype"] = "MessageType",
         };
 
-        public static ProviderProfile Convert(SmsSettings s) =>
+        public static ProviderProfile Convert(LegacySmsSettings s) =>
             string.Equals(s.ProviderType, "SOAP", StringComparison.OrdinalIgnoreCase) ? ConvertSoap(s) : ConvertRest(s);
 
-        private static ProviderProfile ConvertRest(SmsSettings s)
+        private static ProviderProfile ConvertRest(LegacySmsSettings s)
         {
             var profile = new ProviderProfile
             {
@@ -101,7 +101,7 @@ namespace SCADASMSSystem.Web.Services.Providers
             return profile;
         }
 
-        private static ProviderProfile ConvertSoap(SmsSettings s)
+        private static ProviderProfile ConvertSoap(LegacySmsSettings s)
         {
             var profile = new ProviderProfile
             {
@@ -193,10 +193,10 @@ namespace SCADASMSSystem.Web.Services.Providers
         private sealed class VariableSet
         {
             private readonly ProviderProfile _profile;
-            private readonly SmsSettings _s;
+            private readonly LegacySmsSettings _s;
             private readonly bool _soap;
 
-            public VariableSet(ProviderProfile profile, SmsSettings s)
+            public VariableSet(ProviderProfile profile, LegacySmsSettings s)
             {
                 _profile = profile;
                 _s = s;

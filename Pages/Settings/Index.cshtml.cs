@@ -51,9 +51,8 @@ namespace SCADASMSSystem.Web.Pages.Settings
         [BindProperty]
         public SmsSettings SmsSettingsInput { get; set; } = new();
 
-        [BindProperty] public string RestHeadersJson      { get; set; } = "[]";
-        [BindProperty] public string RestBodyParamsJson   { get; set; } = "[]";
-        [BindProperty] public string SoapPlaceholdersJson { get; set; } = "[]";
+        // Provider summary for the link card; editing happens on Settings/Provider.
+        public ProfileEditorState ProviderState { get; private set; } = new(null, null, null, null);
 
         public async Task OnGetAsync()
         {
@@ -65,17 +64,9 @@ namespace SCADASMSSystem.Web.Pages.Settings
                 LoadSmsSettings();
                 await LoadHealthStatusAsync();
 
-                // Pre-populate form with current values
                 SmsSettingsInput = CurrentSmsSettings;
-                MigrateLegacySettingsToLists();
-
-                // Ensure bind props are initialized even when lists are already populated
-                if (string.IsNullOrEmpty(RestHeadersJson) || RestHeadersJson == "[]")
-                    RestHeadersJson = JsonSerializer.Serialize(SmsSettingsMerge.MaskSecrets(SmsSettingsInput.RestHeaders));
-                if (string.IsNullOrEmpty(RestBodyParamsJson) || RestBodyParamsJson == "[]")
-                    RestBodyParamsJson = JsonSerializer.Serialize(SmsSettingsMerge.MaskSecrets(SmsSettingsInput.RestBodyParams));
-                if (string.IsNullOrEmpty(SoapPlaceholdersJson) || SoapPlaceholdersJson == "[]")
-                    SoapPlaceholdersJson = JsonSerializer.Serialize(SmsSettingsMerge.MaskSecrets(SmsSettingsInput.SoapPlaceholders));
+                ProviderState = new ProfileEditorState(CurrentSmsSettings.Profile, CurrentSmsSettings.DraftProfile,
+                    CurrentSmsSettings.Verification, CurrentSmsSettings.Activation);
 
                 _logger.LogInformation("Settings page loaded successfully");
             }
@@ -86,156 +77,49 @@ namespace SCADASMSSystem.Web.Pages.Settings
             }
         }
 
-        // GET handler returning a public-safe snapshot of current SMS settings as JSON.
-        // Consumed by the Test SMS page "Refresh from settings" button.
-        public IActionResult OnGetSnapshot()
+        // Only these fields are edited here; the provider profile has its own page.
+        private static readonly string[] GeneralFields =
         {
-            try
-            {
-                var s = _smsSettings.CurrentValue;
-                var snapshot = new
-                {
-                    providerType = s.ProviderType ?? "REST",
-                    apiEndpoint = s.ApiEndpoint ?? "",
-                    httpMethod = s.HttpMethod ?? "POST",
-                    contentType = s.ContentType ?? "application/x-www-form-urlencoded",
-                    apiParams = s.ApiParams ?? "",
-                    apiHeaders = s.ApiHeaders ?? "",
-                    restAuthType = s.RestAuthType ?? "None",
-                    restBearerToken = string.IsNullOrEmpty(s.RestBearerToken) ? "" : "***",
-                    restApiKeyName = s.RestApiKeyName ?? "",
-                    restApiKeyLocation = s.RestApiKeyLocation ?? "Header",
-                    soapAction = s.SoapAction ?? "",
-                    soapAuthType = s.SoapAuthType ?? "WSSecurity",
-                    soapBodyTemplate = s.SoapBodyTemplate ?? "",
-                    soapParams = s.SoapParams ?? "",
-                    soapEnvelopeNamespaces = s.SoapEnvelopeNamespaces ?? "",
-                    soapSendingSystem = s.SoapSendingSystem ?? "SCADA",
-                    soapMessageType = s.SoapMessageType ?? "SmsType1",
-                    senderName = s.SenderName ?? "",
-                    username = string.IsNullOrEmpty(s.Username) ? "" : "***",
-                    testMode = s.TestMode,
-                    restHeaders      = s.RestHeaders.Select(p => new { p.Key, Value = p.IsSecret ? "***" : p.Value, p.IsSecret }),
-                    restBodyParams   = s.RestBodyParams.Select(p => new { p.Key, Value = p.IsSecret ? "***" : p.Value, p.IsSecret }),
-                    soapPlaceholders = s.SoapPlaceholders.Select(p => new { p.Key, Value = p.IsSecret ? "***" : p.Value, p.IsSecret }),
-                    logSoapXml       = s.LogSoapXml
-                };
-                return new JsonResult(snapshot);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error building settings snapshot");
-                return new JsonResult(new { error = "snapshot_failed" }) { StatusCode = 500 };
-            }
-        }
+            nameof(SmsSettings.RateLimit), nameof(SmsSettings.RateWindow), nameof(SmsSettings.DuplicateWindow),
+            nameof(SmsSettings.TimeoutSeconds), nameof(SmsSettings.RetryAttempts), nameof(SmsSettings.ScadaPcimObjectId),
+            nameof(SmsSettings.TestMode), nameof(SmsSettings.LogSoapXml),
+        };
 
         public async Task<IActionResult> OnPostSaveSettingsAsync()
         {
-            // Clear auto-generated model validation. SmsSettings has non-nullable
-            // string properties (defaulted to string.Empty) which makes the model
-            // binder mark every empty hidden input as a required-field error,
-            // silently failing the save. Our explicit checks below cover the
-            // fields we actually require (JSON validity, SOAP body template).
-            ModelState.Clear();
+            var s = SmsSettingsInput;
+            var errors = new List<string>();
+            if (s.RateLimit is < 1 or > 10000) errors.Add("Rate limit must be 1-10000.");
+            if (s.RateWindow is < 1 or > 86400) errors.Add("Rate window must be 1-86400 seconds.");
+            if (s.DuplicateWindow is < 0 or > 1440) errors.Add("Duplicate window must be 0-1440 minutes.");
+            if (s.TimeoutSeconds is < 3 or > 300) errors.Add("Timeout must be 3-300 seconds.");
+            if (s.RetryAttempts is < 0 or > 10) errors.Add("Retry attempts must be 0-10.");
+            if (s.ScadaPcimObjectId <= 0) errors.Add("PCIM Object ID must be a positive number.");
+            if (errors.Count > 0)
+            {
+                TempData["ErrorMessage"] = "Settings not saved: " + string.Join(" ", errors);
+                return RedirectToPage();
+            }
+
+            const string prefix = "SmsSettingsInput.";
+            var posted = Request.Form.Keys
+                .Where(k => k.StartsWith(prefix, StringComparison.Ordinal))
+                .Select(k => k.Substring(prefix.Length))
+                .Intersect(GeneralFields, StringComparer.OrdinalIgnoreCase)
+                .ToList();
 
             try
             {
-                // Validate JSON fields before saving
-                if (!string.IsNullOrEmpty(SmsSettingsInput.ApiParams))
-                {
-                    try { System.Text.Json.JsonDocument.Parse(SmsSettingsInput.ApiParams); }
-                    catch { ModelState.AddModelError("SmsSettingsInput.ApiParams", "ApiParams must be valid JSON"); }
-                }
-                if (!string.IsNullOrEmpty(SmsSettingsInput.ApiHeaders))
-                {
-                    try { System.Text.Json.JsonDocument.Parse(SmsSettingsInput.ApiHeaders); }
-                    catch { ModelState.AddModelError("SmsSettingsInput.ApiHeaders", "ApiHeaders must be valid JSON"); }
-                }
-
-                if (!ModelState.IsValid)
-                {
-                    await LoadSystemInformationAsync();
-                    LoadSmsSettings();
-                    await LoadHealthStatusAsync();
-                    TempData["ErrorMessage"] = "Validation errors: " + string.Join("; ", ModelState.Values
-                        .SelectMany(v => v.Errors).Select(e => e.ErrorMessage));
-                    return Page();
-                }
-
-                // Merge only what the form actually posted. Fields the form does not render
-                // (legacy credentials, ApiParams, tokens, ...) must keep their stored values.
-                const string prefix = "SmsSettingsInput.";
-                var postedFields = Request.Form.Keys
-                    .Where(k => k.StartsWith(prefix, StringComparison.Ordinal))
-                    .Select(k => k.Substring(prefix.Length))
-                    .ToList();
-                string? Posted(string key, string value) => Request.Form.ContainsKey(key) ? value : null;
-
-                await _settingsStore.UpdateSmsSettingsAsync(section =>
-                {
-                    SmsSettingsMerge.ApplyPostedFields(section, SmsSettingsInput, postedFields);
-                    SmsSettingsMerge.ApplyParamList(section, nameof(SmsSettings.RestHeaders),      Posted(nameof(RestHeadersJson), RestHeadersJson));
-                    SmsSettingsMerge.ApplyParamList(section, nameof(SmsSettings.RestBodyParams),   Posted(nameof(RestBodyParamsJson), RestBodyParamsJson));
-                    SmsSettingsMerge.ApplyParamList(section, nameof(SmsSettings.SoapPlaceholders), Posted(nameof(SoapPlaceholdersJson), SoapPlaceholdersJson));
-
-                    // Validate the merged result, not the raw post: stored fields the form does not
-                    // render still count. Throwing here aborts the write.
-                    SmsSettingsMerge.RegenerateProfile(section);
-                });
-
-                _logger.LogInformation("SMS settings saved to appsettings.json by user");
-                TempData["SuccessMessage"] = "Settings saved successfully. Changes are active immediately.";
-            }
-            catch (SettingsValidationException ex)
-            {
-                _logger.LogWarning("Rejected settings save: {Errors}", string.Join("; ", ex.Errors));
-                await LoadSystemInformationAsync();
-                LoadSmsSettings();
-                await LoadHealthStatusAsync();
-                TempData["ErrorMessage"] = "Settings not saved. Validation errors: " + string.Join("; ", ex.Errors);
-                return Page();
-            }
-            catch (JsonException ex)
-            {
-                _logger.LogError(ex, "Rejected settings save: posted parameter list is not valid JSON");
-                TempData["ErrorMessage"] = $"Settings not saved: a parameter list was not valid JSON ({ex.Message}). Stored settings are unchanged.";
+                await _settingsStore.UpdateSmsSettingsAsync(section => SmsSettingsMerge.ApplyPostedFields(section, s, posted));
+                _logger.LogWarning("{User} saved general SMS settings (test mode {TestMode})", User.Identity?.Name, s.TestMode);
+                TempData["SuccessMessage"] = "Settings saved. Changes are active immediately.";
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Failed to save settings to appsettings.json");
                 TempData["ErrorMessage"] = $"Failed to save settings: {ex.Message}";
             }
-
             return RedirectToPage();
-        }
-
-        public IActionResult OnPostEvaluateResponse([FromBody] ResponseEvaluationInput input)
-        {
-            try
-            {
-                if (input.ProviderType.Equals("SOAP", StringComparison.OrdinalIgnoreCase))
-                {
-                    var probe = LegacyProfileConverter.Convert(new SmsSettings
-                    {
-                        ProviderType = "SOAP",
-                        SoapSuccessPattern = input.SuccessPattern ?? "",
-                        SoapErrorPattern = input.ErrorPattern ?? ""
-                    });
-                    if (probe.Success.Match == MatchTypes.None)
-                        return new JsonResult(new { accepted = false, message = "A SOAP success pattern is required to confirm acceptance." });
-                    var verdict = ResponseEvaluator.Evaluate(probe, 200, input.ResponseBody ?? "");
-                    return new JsonResult(new { accepted = verdict.Accepted, message = verdict.Accepted ? "SOAP response confirms provider acceptance." : verdict.Reason });
-                }
-
-                var body = input.ResponseBody ?? "";
-                var failed = !string.IsNullOrEmpty(input.ErrorPattern) && body.Contains(input.ErrorPattern, StringComparison.OrdinalIgnoreCase);
-                var accepted = !failed && (string.IsNullOrEmpty(input.SuccessPattern) || body.Contains(input.SuccessPattern, StringComparison.OrdinalIgnoreCase));
-                return new JsonResult(new { accepted, message = accepted ? "REST response body satisfies configured rules." : "REST response body does not satisfy configured rules." });
-            }
-            catch (Exception ex) when (ex is InvalidOperationException or System.Xml.XmlException)
-            {
-                return new JsonResult(new { accepted = false, message = ex.Message });
-            }
         }
 
         public async Task<IActionResult> OnPostTestConnectionAsync()
@@ -276,82 +160,6 @@ namespace SCADASMSSystem.Web.Pages.Settings
             }
 
             return RedirectToPage();
-        }
-
-        private void MigrateLegacySettingsToLists()
-        {
-            var s = _smsSettings.CurrentValue;
-
-            if (s.RestBodyParams.Count == 0 && !string.IsNullOrWhiteSpace(s.ApiParams))
-            {
-                try
-                {
-                    var old = JsonSerializer.Deserialize<Dictionary<string, string>>(s.ApiParams) ?? new();
-                    SmsSettingsInput.RestBodyParams = old
-                        .Select(kvp => new SmsParam { Key = kvp.Key, Value = kvp.Value })
-                        .ToList();
-                    _logger.LogInformation("Auto-migrated {Count} REST body params from ApiParams", old.Count);
-                }
-                catch { /* bad JSON — skip */ }
-            }
-
-            if (s.RestHeaders.Count == 0 && !string.IsNullOrWhiteSpace(s.ApiHeaders))
-            {
-                try
-                {
-                    var old = JsonSerializer.Deserialize<Dictionary<string, string>>(s.ApiHeaders) ?? new();
-                    SmsSettingsInput.RestHeaders = old
-                        .Select(kvp => new SmsParam { Key = kvp.Key, Value = kvp.Value })
-                        .ToList();
-                    _logger.LogInformation("Auto-migrated {Count} REST headers from ApiHeaders", old.Count);
-                }
-                catch { /* bad JSON — skip */ }
-            }
-
-            if (s.SoapPlaceholders.Count == 0)
-            {
-                var placeholders = new List<SmsParam>();
-                if (!string.IsNullOrWhiteSpace(s.SoapParams))
-                {
-                    try
-                    {
-                        var old = JsonSerializer.Deserialize<Dictionary<string, string>>(s.SoapParams) ?? new();
-                        placeholders.AddRange(old.Select(kvp => new SmsParam { Key = kvp.Key, Value = kvp.Value }));
-                    }
-                    catch { /* bad JSON */ }
-                }
-                // Promote legacy credential fields into placeholder rows
-                bool hasUser = placeholders.Any(p => p.Key.Equals("Username", StringComparison.OrdinalIgnoreCase));
-                bool hasPass = placeholders.Any(p => p.Key.Equals("Password", StringComparison.OrdinalIgnoreCase));
-                if (!hasUser && !string.IsNullOrWhiteSpace(s.Username))
-                    placeholders.Add(new SmsParam { Key = "Username", Value = s.Username, IsSecret = false });
-                if (!hasPass && !string.IsNullOrWhiteSpace(s.Password))
-                    placeholders.Add(new SmsParam { Key = "Password", Value = s.Password, IsSecret = true });
-                if (!string.IsNullOrWhiteSpace(s.SenderName))
-                    placeholders.Add(new SmsParam { Key = "SenderName", Value = s.SenderName });
-                if (!string.IsNullOrWhiteSpace(s.SoapSendingSystem) && s.SoapSendingSystem != "SCADA")
-                    placeholders.Add(new SmsParam { Key = "SendingSystem", Value = s.SoapSendingSystem });
-                if (!string.IsNullOrWhiteSpace(s.SoapMessageType) && s.SoapMessageType != "SmsType1")
-                    placeholders.Add(new SmsParam { Key = "MessageType", Value = s.SoapMessageType });
-
-                SmsSettingsInput.SoapPlaceholders = placeholders;
-                if (placeholders.Any())
-                    _logger.LogInformation("Auto-migrated {Count} SOAP placeholders from legacy fields", placeholders.Count);
-            }
-
-            // Sync the JSON bind properties so the row editor UI picks them up on GET
-            RestHeadersJson      = JsonSerializer.Serialize(SmsSettingsMerge.MaskSecrets(SmsSettingsInput.RestHeaders));
-            RestBodyParamsJson   = JsonSerializer.Serialize(SmsSettingsMerge.MaskSecrets(SmsSettingsInput.RestBodyParams));
-            SoapPlaceholdersJson = JsonSerializer.Serialize(SmsSettingsMerge.MaskSecrets(SmsSettingsInput.SoapPlaceholders));
-        }
-
-
-        public sealed class ResponseEvaluationInput
-        {
-            public string ProviderType { get; set; } = "REST";
-            public string ResponseBody { get; set; } = "";
-            public string SuccessPattern { get; set; } = "";
-            public string ErrorPattern { get; set; } = "";
         }
 
         private async Task LoadSystemInformationAsync()

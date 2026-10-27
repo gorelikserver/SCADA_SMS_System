@@ -1,88 +1,43 @@
+using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.Extensions.Options;
 using SCADASMSSystem.Web.Models;
 using SCADASMSSystem.Web.Services;
-using System.ComponentModel.DataAnnotations;
-using System.Diagnostics;
-using System.Text;
-using System.Text.Json;
-using System.Text.Json.Nodes;
-using System.Text.RegularExpressions;
 
 namespace SCADASMSSystem.Web.Pages.Test
 {
+    /// <summary>
+    /// Sends a test alarm to a group through exactly the path Scada_sms.bat uses (synchronous,
+    /// per-recipient, recorded in the delivery table and audit), and shows each recipient's result.
+    /// Provider configuration and single-number verification live in Settings > Provider.
+    /// </summary>
     public class SmsModel : PageModel
     {
-        private readonly SmsBackgroundService _smsBackgroundService;
+        private readonly ISmsService _smsService;
         private readonly IGroupService _groupService;
+        private readonly IOptionsMonitor<SmsSettings> _smsSettings;
         private readonly ILogger<SmsModel> _logger;
-        private readonly IOptionsMonitor<SmsSettings> _smsMonitor;
-        private readonly IHttpClientFactory _httpClientFactory;
-        private readonly ISettingsStore _settingsStore;
 
-        private SmsSettings Settings => _smsMonitor.CurrentValue;
-
-        public SmsModel(
-            SmsBackgroundService smsBackgroundService,
-            IGroupService groupService,
-            ILogger<SmsModel> logger,
-            IOptionsMonitor<SmsSettings> smsSettings,
-            IHttpClientFactory httpClientFactory,
-            ISettingsStore settingsStore)
+        public SmsModel(ISmsService smsService, IGroupService groupService, IOptionsMonitor<SmsSettings> smsSettings, ILogger<SmsModel> logger)
         {
-            _smsBackgroundService = smsBackgroundService;
+            _smsService = smsService;
             _groupService = groupService;
+            _smsSettings = smsSettings;
             _logger = logger;
-            _smsMonitor = smsSettings;
-            _httpClientFactory = httpClientFactory;
-            _settingsStore = settingsStore;
         }
 
         [BindProperty]
         public SmsTestModel TestMessage { get; set; } = new();
 
-        public IEnumerable<Models.Group> AvailableGroups { get; set; } = new List<Models.Group>();
-        public SmsServiceStatus ServiceStatus { get; set; } = new();
-        public bool TestModeActive => Settings.TestMode;
-        public string CurrentProviderType => Settings.ProviderType ?? "REST";
-        public string SettingsJson { get; private set; } = "{}";
+        public IEnumerable<Group> AvailableGroups { get; private set; } = new List<Group>();
+        public bool TestModeActive => _smsSettings.CurrentValue.TestMode;
+        public string? ProviderName => _smsSettings.CurrentValue.Profile?.Name;
+        public CriticalSmsDeliveryResult? Result { get; private set; }
 
         public async Task OnGetAsync()
         {
-            try
-            {
-                AvailableGroups = await _groupService.GetAllGroupsAsync();
-                ServiceStatus = _smsBackgroundService.GetServiceStatus();
-                SettingsJson = JsonSerializer.Serialize(new
-                {
-                    providerType = Settings.ProviderType ?? "REST",
-                    apiEndpoint = Settings.ApiEndpoint ?? "",
-                    httpMethod = Settings.HttpMethod ?? "POST",
-                    contentType = Settings.ContentType ?? "application/x-www-form-urlencoded",
-                    apiParams = Settings.ApiParams ?? "",
-                    apiHeaders = Settings.ApiHeaders ?? "",
-                    restAuthType = Settings.RestAuthType ?? "None",
-                    restBearerToken = string.IsNullOrEmpty(Settings.RestBearerToken) ? "" : "***",
-                    restApiKeyName = Settings.RestApiKeyName ?? "",
-                    restApiKeyLocation = Settings.RestApiKeyLocation ?? "Header",
-                    soapAction = Settings.SoapAction ?? "",
-                    soapAuthType = Settings.SoapAuthType ?? "WSSecurity",
-                    soapBodyTemplate = Settings.SoapBodyTemplate ?? "",
-                    soapParams = Settings.SoapParams ?? "",
-                    soapPlaceholders = Settings.SoapPlaceholders.Select(p => new { key = p.Key, value = p.IsSecret ? "***" : p.Value, isSecret = p.IsSecret }),
-                    soapEnvelopeNamespaces = Settings.SoapEnvelopeNamespaces ?? "",
-                    soapSendingSystem = Settings.SoapSendingSystem ?? "SCADA",
-                    soapMessageType = Settings.SoapMessageType ?? "SmsType1",
-                    senderName = Settings.SenderName ?? "",
-                    testMode = Settings.TestMode
-                }, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error loading SMS test page");
-                TempData["ErrorMessage"] = "Error loading page data.";
-            }
+            AvailableGroups = await _groupService.GetAllGroupsAsync();
         }
 
         public async Task<IActionResult> OnGetGroupMembersAsync(int groupId)
@@ -90,15 +45,12 @@ namespace SCADASMSSystem.Web.Pages.Test
             try
             {
                 var members = await _groupService.GetGroupMembersAsync(groupId);
-                var result = members.Select(u => new
+                return new JsonResult(members.Select(u => new
                 {
-                    name = $"{u.FirstName} {u.LastName}".Trim().Length > 0
-                        ? $"{u.FirstName} {u.LastName}".Trim()
-                        : u.UserName,
+                    name = $"{u.FirstName} {u.LastName}".Trim().Length > 0 ? $"{u.FirstName} {u.LastName}".Trim() : u.UserName,
                     maskedPhone = MaskPhone(u.PhoneNumber),
                     smsEnabled = u.SmsEnabled
-                });
-                return new JsonResult(result);
+                }));
             }
             catch (Exception ex)
             {
@@ -107,278 +59,21 @@ namespace SCADASMSSystem.Web.Pages.Test
             }
         }
 
-        private static string MaskPhone(string? phone)
+        public async Task<IActionResult> OnPostSendAsync()
         {
-            if (string.IsNullOrEmpty(phone) || phone.Length <= 4) return phone ?? "—";
-            return new string('*', phone.Length - 4) + phone[^4..];
-        }
-
-        public async Task<IActionResult> OnPostSendTestAsync()
-        {
+            AvailableGroups = await _groupService.GetAllGroupsAsync();
             if (!ModelState.IsValid)
-            {
-                await OnGetAsync();
                 return Page();
-            }
 
-            try
-            {
-                var alarmId = $"TEST-{DateTime.Now:yyyyMMdd-HHmmss}";
-                var success = await _smsBackgroundService.QueueSmsMessageAsync(
-                    TestMessage.Message, 
-                    TestMessage.GroupId, 
-                    alarmId, 
-                    "normal");
-
-                if (success)
-                {
-                    TempData["SuccessMessage"] = $"Test SMS queued successfully! Alarm ID: {alarmId}";
-                    _logger.LogInformation("Test SMS queued for group {GroupId}", TestMessage.GroupId);
-                }
-                else
-                {
-                    TempData["ErrorMessage"] = "Failed to queue test SMS.";
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error sending test SMS");
-                TempData["ErrorMessage"] = "Error occurred while sending test SMS.";
-            }
-
-            return RedirectToPage();
+            var alarmId = $"TEST-{DateTime.Now:yyyyMMdd-HHmmss}-{Guid.NewGuid().ToString("N")[..6]}";
+            _logger.LogWarning("{User} sent test alarm {AlarmId} to group {GroupId}", User.Identity?.Name, alarmId, TestMessage.GroupId);
+            Result = await _smsService.SendCriticalSmsToGroupAsync(
+                TestMessage.Message, TestMessage.GroupId, alarmId, "normal", null, HttpContext.RequestAborted);
+            return Page();
         }
 
-        public IActionResult OnGetRefreshStatus()
-        {
-            try
-            {
-                ServiceStatus = _smsBackgroundService.GetServiceStatus();
-                return new JsonResult(new
-                {
-                    queueSize = ServiceStatus.QueueSize,
-                    messagesSent = ServiceStatus.MessagesSent,
-                    messagesFailed = ServiceStatus.MessagesFailed,
-                    uptime = ServiceStatus.ServiceUptime.ToString(@"d\.hh\:mm\:ss"),
-                    lastMessage = ServiceStatus.LastMessageTime?.ToString("yyyy-MM-dd HH:mm:ss")
-                });
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error refreshing service status");
-                return BadRequest("Error refreshing status");
-            }
-        }
-
-        public async Task<IActionResult> OnPostTestHealthAsync()
-        {
-            try
-            {
-                using var httpClient = _httpClientFactory.CreateClient();
-                var response = await httpClient.GetAsync("http://localhost:5000/api/sms/health");
-                var content = await response.Content.ReadAsStringAsync();
-
-                if (response.IsSuccessStatusCode)
-                {
-                    TempData["SuccessMessage"] = $"Health check passed! Response: {content}";
-                }
-                else
-                {
-                    TempData["ErrorMessage"] = $"Health check failed! Status: {response.StatusCode}, Response: {content}";
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error testing health endpoint");
-                TempData["ErrorMessage"] = "Error occurred while testing health endpoint.";
-            }
-
-            return RedirectToPage();
-        }
-
-        public async Task<IActionResult> OnPostFireSoapAsync([FromBody] FireSoapRequest req)
-        {
-            var sw = Stopwatch.StartNew();
-            try
-            {
-                if (string.IsNullOrWhiteSpace(req.Envelope))
-                    return new JsonResult(new { success = false, errorMessage = "Envelope is required" }) { StatusCode = 400 };
-
-                var endpoint = req.TargetMock
-                    ? $"{Request.Scheme}://{Request.Host}/mock/sms/soap"
-                    : req.Endpoint;
-
-                if (!Uri.TryCreate(endpoint, UriKind.Absolute, out _))
-                    return new JsonResult(new { success = false, errorMessage = "Invalid endpoint URL" }) { StatusCode = 400 };
-
-                // Fall back to saved credentials when the caller sends empty or masked values:
-                // the browser never receives the stored secrets.
-                var username = !SmsSettingsMerge.IsBlankOrMasked(req.Username) ? req.Username : (Settings.Username ?? string.Empty);
-                var password = !SmsSettingsMerge.IsBlankOrMasked(req.Password) ? req.Password : (Settings.Password ?? string.Empty);
-
-                // The workbench writes {secret:Key} where a secret belongs; fill them here. The copy
-                // echoed back to the browser gets "***" instead.
-                var secrets = SecretTokenValues(username, password);
-                var envelope = ResolveSecretTokens(req.Envelope, secrets, mask: false);
-                var displayEnvelope = ResolveSecretTokens(req.Envelope, secrets, mask: true);
-
-                // Inject WS-Security header if auth type requires it and it's not already present
-                if (req.AuthType.Equals("WSSecurity", StringComparison.OrdinalIgnoreCase) &&
-                    !envelope.Contains("<Security", StringComparison.OrdinalIgnoreCase))
-                {
-                    envelope = InjectHeader(envelope, BuildWsSecurityHeader(username, password));
-                    displayEnvelope = InjectHeader(displayEnvelope, BuildWsSecurityHeader(username, SmsSettingsMerge.MaskedValue));
-                    if (!envelope.Contains("<Security", StringComparison.OrdinalIgnoreCase))
-                        _logger.LogWarning("FireSoap: WSSecurity injection requested but no matching empty header tag found — Security header was not injected");
-                }
-
-                var client = _httpClientFactory.CreateClient("SoapProbe");
-                using var httpReq = new HttpRequestMessage(HttpMethod.Post, endpoint);
-                httpReq.Content = new StringContent(envelope, Encoding.UTF8, "text/xml");
-                httpReq.Headers.TryAddWithoutValidation("SOAPAction", $"\"{req.SoapAction}\"");
-
-                if (req.AuthType.Equals("HttpBasic", StringComparison.OrdinalIgnoreCase))
-                {
-                    var credentials = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{username}:{password}"));
-                    httpReq.Headers.TryAddWithoutValidation("Authorization", $"Basic {credentials}");
-                }
-
-                var httpResp = await client.SendAsync(httpReq);
-                sw.Stop();
-                var body = await httpResp.Content.ReadAsStringAsync();
-
-                var successPattern = Settings.SoapSuccessPattern;
-                var errorPattern = Settings.SoapErrorPattern;
-                var success = string.IsNullOrEmpty(successPattern)
-                    ? httpResp.IsSuccessStatusCode
-                    : body.Contains(successPattern, StringComparison.OrdinalIgnoreCase);
-
-                string? errorMessage = null;
-                if (!success && !string.IsNullOrEmpty(errorPattern))
-                {
-                    var start = body.IndexOf(errorPattern, StringComparison.OrdinalIgnoreCase);
-                    if (start >= 0)
-                    {
-                        start += errorPattern.Length;
-                        var end = body.IndexOf('<', start);
-                        if (end > start) errorMessage = body[start..end].Trim();
-                    }
-                }
-
-                // The echo is built from tokens, so no stored secret appears in it; a password the
-                // user typed into the workbench is redacted as well.
-                var echoEnvelope = string.IsNullOrEmpty(password)
-                    ? displayEnvelope
-                    : displayEnvelope.Replace(XmlEscape(password), "***", StringComparison.Ordinal)
-                                     .Replace(password, "***", StringComparison.Ordinal);
-
-                _logger.LogInformation("FireSoap: {StatusCode} from {Endpoint} in {ElapsedMs}ms",
-                    (int)httpResp.StatusCode, endpoint, sw.ElapsedMilliseconds);
-
-                return new JsonResult(new
-                {
-                    statusCode = (int)httpResp.StatusCode,
-                    elapsedMs = sw.ElapsedMilliseconds,
-                    body,
-                    success,
-                    errorMessage,
-                    echoEnvelope
-                });
-            }
-            catch (Exception ex)
-            {
-                sw.Stop();
-                _logger.LogError(ex, "Error in FireSoap handler");
-                return new JsonResult(new
-                {
-                    success = false,
-                    errorMessage = ex.Message,
-                    statusCode = 0,
-                    elapsedMs = sw.ElapsedMilliseconds,
-                    body = (string?)null,
-                    echoEnvelope = (string?)null
-                }) { StatusCode = 500 };
-            }
-        }
-
-        public async Task<IActionResult> OnPostSaveSoapConfigAsync([FromBody] SaveSoapConfigRequest req)
-        {
-            try
-            {
-                // Merge into the stored section; non-SOAP fields are preserved.
-                await _settingsStore.UpdateSmsSettingsAsync(existing =>
-                {
-                    existing["ProviderType"]           = "SOAP";
-                    existing["ApiEndpoint"]            = req.ApiEndpoint;
-                    existing["SoapAction"]             = req.SoapAction;
-                    existing["SoapBodyTemplate"]       = req.SoapBodyTemplate;
-                    existing["SoapParams"]             = req.SoapParams;
-                    existing["SoapEnvelopeNamespaces"] = req.SoapEnvelopeNamespaces;
-                    existing["SoapAuthType"]           = req.SoapAuthType;
-                    existing["SoapSendingSystem"]      = req.SoapSendingSystem;
-                    existing["SoapMessageType"]        = req.SoapMessageType;
-                    // Blank credentials keep the stored values; a blank field must never wipe auth.
-                    if (!string.IsNullOrEmpty(req.Username))
-                        existing["Username"]           = req.Username;
-                    if (!SmsSettingsMerge.IsBlankOrMasked(req.Password))
-                        existing["Password"]           = req.Password;
-                    SmsSettingsMerge.RegenerateProfile(existing);
-                });
-
-                _logger.LogInformation("SOAP config saved from workbench by user");
-                return new JsonResult(new { success = true });
-            }
-            catch (SettingsValidationException ex)
-            {
-                return new JsonResult(new { success = false, message = string.Join("; ", ex.Errors) }) { StatusCode = 400 };
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error saving SOAP config from workbench");
-                return new JsonResult(new { success = false, message = ex.Message }) { StatusCode = 500 };
-            }
-        }
-
-        private static readonly Regex SecretToken = new(@"\{secret:([^}]+)\}", RegexOptions.CultureInvariant);
-
-        /// <summary>Values for {secret:Key} tokens: credentials plus every secret SOAP placeholder.</summary>
-        private Dictionary<string, string> SecretTokenValues(string username, string password)
-        {
-            var values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-            {
-                ["username"] = username,
-                ["password"] = password,
-            };
-            foreach (var p in Settings.SoapPlaceholders.Where(p => p.IsSecret && !string.IsNullOrEmpty(p.Key)))
-                values[p.Key] = p.Value;
-            return values;
-        }
-
-        private static string ResolveSecretTokens(string envelope, IReadOnlyDictionary<string, string> secrets, bool mask) =>
-            SecretToken.Replace(envelope, m => secrets.TryGetValue(m.Groups[1].Value, out var value)
-                ? (mask ? SmsSettingsMerge.MaskedValue : XmlEscape(value))
-                : m.Value);
-
-        private static string InjectHeader(string envelope, string header) =>
-            envelope.Replace("<soapenv:Header/>", header, StringComparison.Ordinal)
-                    .Replace("<soapenv:Header />", header, StringComparison.Ordinal);
-
-        private static string BuildWsSecurityHeader(string username, string password) =>
-            $@"  <soapenv:Header>
-    <Security xmlns=""http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd"">
-      <UsernameToken>
-        <Username>{XmlEscape(username)}</Username>
-        <Password Type=""http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-username-token-profile-1.0#PasswordText"">{XmlEscape(password)}</Password>
-      </UsernameToken>
-    </Security>
-  </soapenv:Header>";
-
-        private static string XmlEscape(string value) =>
-            value.Replace("&", "&amp;")
-                 .Replace("<", "&lt;")
-                 .Replace(">", "&gt;")
-                 .Replace("\"", "&quot;")
-                 .Replace("'", "&apos;");
+        private static string MaskPhone(string? phone) =>
+            string.IsNullOrEmpty(phone) || phone.Length <= 4 ? phone ?? "—" : new string('*', phone.Length - 4) + phone[^4..];
     }
 
     public class SmsTestModel
@@ -391,30 +86,5 @@ namespace SCADASMSSystem.Web.Pages.Test
         [Required]
         [Display(Name = "Target Group")]
         public int GroupId { get; set; }
-    }
-
-    public class FireSoapRequest
-    {
-        public string Endpoint { get; set; } = string.Empty;
-        public string SoapAction { get; set; } = string.Empty;
-        public string Envelope { get; set; } = string.Empty;
-        public string AuthType { get; set; } = "None";
-        public string Username { get; set; } = string.Empty;
-        public string Password { get; set; } = string.Empty;
-        public bool TargetMock { get; set; }
-    }
-
-    public class SaveSoapConfigRequest
-    {
-        public string ApiEndpoint { get; set; } = string.Empty;
-        public string SoapAction { get; set; } = string.Empty;
-        public string SoapBodyTemplate { get; set; } = string.Empty;
-        public string SoapParams { get; set; } = string.Empty;
-        public string SoapEnvelopeNamespaces { get; set; } = string.Empty;
-        public string SoapAuthType { get; set; } = string.Empty;
-        public string SoapSendingSystem { get; set; } = string.Empty;
-        public string SoapMessageType { get; set; } = string.Empty;
-        public string Username { get; set; } = string.Empty;
-        public string Password { get; set; } = string.Empty;
     }
 }
