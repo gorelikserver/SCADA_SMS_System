@@ -47,7 +47,7 @@ namespace SCADASMSSystem.Web.Pages.Users
                     return Page();
                 }
 
-                if (existingUsers.Any(u => u.PhoneNumber == UserInput.PhoneNumber))
+                if (existingUsers.Any(u => PhoneNumberRules.SamePhone(u.PhoneNumber, UserInput.PhoneNumber)))
                 {
                     ModelState.AddModelError("UserInput.PhoneNumber", "A user with this phone number already exists.");
                     return Page();
@@ -106,7 +106,7 @@ namespace SCADASMSSystem.Web.Pages.Users
         [Phone]
         [StringLength(20)]
         [Display(Name = "Phone Number")]
-        [RegularExpression(@"^\+?[\d\s\-\(\)]+$", ErrorMessage = "Please enter a valid phone number")]
+        [SmsPhoneNumber]
         public string PhoneNumber { get; set; } = string.Empty;
 
         [Display(Name = "Enable SMS Notifications")]

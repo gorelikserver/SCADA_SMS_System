@@ -15,7 +15,7 @@ namespace SCADASMSSystem.Web.Pages.Alerts
             _logger = logger;
         }
 
-        public DeliveryAlertSummary Summary { get; private set; } = new([], [], [], false);
+        public DeliveryAlertSummary Summary { get; private set; } = new([], [], [], [], false);
 
         public async Task OnGetAsync()
         {

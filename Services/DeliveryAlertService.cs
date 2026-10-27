@@ -29,13 +29,17 @@ namespace SCADASMSSystem.Web.Services
 
     public record EmptyGroup(int GroupId, string GroupName);
 
+    public record InvalidPhoneUser(int UserId, string UserName, string PhoneNumber);
+
     public record DeliveryAlertSummary(
         IReadOnlyList<UnresolvedAlarm> Alarms,
         IReadOnlyList<string> BadSpoolFiles,
         IReadOnlyList<EmptyGroup> EmptyGroups,
+        IReadOnlyList<InvalidPhoneUser> InvalidPhones,
         bool TestMode)
     {
-        public bool NeedsAttention => Alarms.Count > 0 || BadSpoolFiles.Count > 0 || EmptyGroups.Count > 0;
+        public bool NeedsAttention =>
+            Alarms.Count > 0 || BadSpoolFiles.Count > 0 || EmptyGroups.Count > 0 || InvalidPhones.Count > 0;
     }
 
     public interface IDeliveryAlertService
@@ -148,13 +152,19 @@ namespace SCADASMSSystem.Web.Services
                     emptyGroups.Add(new EmptyGroup(group.GroupId, group.GroupName));
             }
 
+            // SMS-enabled users whose number cannot be dialled: alarms to them fail at the provider.
+            var invalidPhones = (await _userService.GetAllUsersAsync())
+                .Where(u => u.SmsEnabled && !PhoneNumberRules.IsValid(u.PhoneNumber))
+                .Select(u => new InvalidPhoneUser(u.UserId, u.UserName, u.PhoneNumber))
+                .ToList();
+
             var badDir = Path.Combine(spoolDir, "bad");
             var bad = Directory.Exists(badDir)
                 ? Directory.GetFiles(badDir, "*.json").Select(Path.GetFileName).OfType<string>().OrderBy(f => f).ToList()
                 : new List<string>();
 
             return new DeliveryAlertSummary(
-                alarms.OrderByDescending(a => a.FirstSeen).ToList(), bad, emptyGroups, _smsSettings.CurrentValue.TestMode);
+                alarms.OrderByDescending(a => a.FirstSeen).ToList(), bad, emptyGroups, invalidPhones, _smsSettings.CurrentValue.TestMode);
         }
 
         public async Task AcknowledgeAsync(string alarmId, string? note, CancellationToken ct = default)

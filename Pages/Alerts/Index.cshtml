@@ -106,6 +106,18 @@
         </ul>
     }
 
+    @if (Model.Summary.InvalidPhones.Count > 0)
+    {
+        <h2 class="h5 mt-4">Users with an invalid phone number</h2>
+        <p class="text-muted small">These users have SMS enabled, but their number does not have 7-15 digits, so the provider cannot deliver to them.</p>
+        <ul>
+            @foreach (var u in Model.Summary.InvalidPhones)
+            {
+                <li><a asp-page="/Users/Edit" asp-route-id="@u.UserId">@u.UserName</a> &mdash; <code>@u.PhoneNumber</code></li>
+            }
+        </ul>
+    }
+
     @if (Model.Summary.EmptyGroups.Count > 0)
     {
         <h2 class="h5 mt-4">Groups with no eligible recipients right now</h2>
