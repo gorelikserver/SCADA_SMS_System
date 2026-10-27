@@ -25,12 +25,16 @@ var configuration = new ConfigurationBuilder()
 // Settings edited in the UI live outside the install folder, which an MSI upgrade deletes.
 var settingsFile = SettingsLocation.Resolve(configuration[SettingsLocation.ConfigKey], pathToContentRoot);
 
+// The one file sink. Logging:File:Path is what the installer's log folder sets. Serilog adds the
+// date itself, so a "{Date}" left in older configs would end up literally in the file name.
+var logPath = (configuration["Logging:File:Path"] ?? "C:\\SCADA\\Logs\\scada-sms-.log").Replace("{Date}", "");
+
 // Configure Serilog with file logging
 Log.Logger = new LoggerConfiguration()
     .ReadFrom.Configuration(configuration)
     .WriteTo.Console()
     .WriteTo.File(
-        path: configuration["Logging:File:Path"] ?? "C:\\SCADA\\Logs\\scada-sms-.log",
+        path: logPath,
         rollingInterval: RollingInterval.Day,
         retainedFileCountLimit: 31,
         fileSizeLimitBytes: 10485760,
@@ -208,7 +212,6 @@ try
     var app = builder.Build();
 
     // Ensure log directory exists
-    var logPath = configuration["Logging:File:Path"] ?? "C:\\SCADA\\Logs\\scada-sms-.log";
     var logDirectory = Path.GetDirectoryName(logPath);
     if (!string.IsNullOrEmpty(logDirectory) && !Directory.Exists(logDirectory))
     {

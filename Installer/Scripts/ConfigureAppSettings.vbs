@@ -36,6 +36,10 @@ If portOk Then portOk = (CLng(port) >= 1 And CLng(port) <= 65535)
 If Not portOk Then port = "5000"
 port = CStr(CLng(port))
 
+' Log folder of the service. Empty keeps the app default (C:\SCADA\Logs).
+logDir = Trim(logDir)
+If Len(logDir) > 0 And Right(logDir, 1) <> "\" Then logDir = logDir & "\"
+
 Dim connStr
 If UCase(Trim(dbAuth)) = "WINDOWS" Then
     connStr = "Server=" & dbServer & ";Database=" & dbName & _
@@ -57,6 +61,10 @@ json = json & "  " & Q & "ConnectionStrings" & Q & ": {" & NL
 json = json & "    " & Q & "DefaultConnection" & Q & ": " & Q & connStrJson & Q & NL
 json = json & "  }," & NL
 json = json & "  " & Q & "Urls" & Q & ": " & Q & "http://localhost:" & port & Q & "," & NL
+If Len(logDir) > 0 Then
+    json = json & "  " & Q & "Logging" & Q & ": { " & Q & "File" & Q & ": { " & Q & "Path" & Q & ": " & _
+           Q & Replace(Replace(logDir & "scada-sms-.log", "\", "\\"), Q, "\" & Q) & Q & " } }," & NL
+End If
 ' Tells the app where Akara runs Scada_sms.bat from, so it can warn when that copy is stale.
 json = json & "  " & Q & "Scada" & Q & ": {" & NL
 json = json & "    " & Q & "PcimUtilDir" & Q & ": " & Q & Replace(Replace(pcimDir, "\", "\\"), Q, "\" & Q) & Q & NL
@@ -65,6 +73,7 @@ json = json & "}" & NL
 
 Set fso = CreateObject("Scripting.FileSystemObject")
 Dim f
+If Len(logDir) > 0 Then CreateFolders logDir
 Set f = fso.CreateTextFile(installDir & "appsettings.Production.json", True, False)
 f.Write json
 f.Close
@@ -87,6 +96,15 @@ If Len(pcimDir) > 0 Then
     WriteIni pcimDir & "Scada_sms.ini", batUrl, curlPath
 End If
 Set fso = Nothing
+
+' CreateFolder needs the parent to exist; LOG_DIR may be several levels deep.
+Sub CreateFolders(path)
+    Dim p : p = path
+    If Right(p, 1) = "\" Then p = Left(p, Len(p) - 1)
+    If Len(p) = 0 Or fso.FolderExists(p) Then Exit Sub
+    CreateFolders fso.GetParentFolderName(p)
+    fso.CreateFolder p
+End Sub
 
 ' Writes URL= (and CURL= when given) and keeps every other line an engineer added
 ' (SPOOL_ROOT=, MAXTIME=, comments).

@@ -216,24 +216,17 @@ Supports SQL Server, SQL Express, or LocalDB:
 
 ### Logging
 
-Logs are written to `C:\SCADA\Logs\` by default. Configure in `appsettings.json`:
+Logs are written to `C:\SCADA\Logs\` by default, one file per day (`scada-sms-YYYYMMDD.log`, 31 kept). The installer's log folder sets `Logging:File:Path` in `appsettings.Production.json`; to change it by hand:
 
 ```json
-"Serilog": {
-  "MinimumLevel": {
-    "Default": "Information"
-  },
-  "WriteTo": [
-    {
-      "Name": "File",
-      "Args": {
-        "path": "C:\\SCADA\\Logs\\scada-sms-.log",
-        "rollingInterval": "Day"
-      }
-    }
-  ]
+"Logging": {
+  "File": {
+    "Path": "D:\\Logs\\SCADA\\scada-sms-.log"
+  }
 }
 ```
+
+Levels stay under `Serilog:MinimumLevel` in `appsettings.json`.
 
 ## Management Interface
 

@@ -33,7 +33,11 @@
     <Property Id="DB_USER"       Value="sa"                 Secure="yes" />
     <Property Id="DB_PASSWORD"   Value="pulse"              Secure="yes" Hidden="yes" />
     <Property Id="APP_PORT"      Value="$(DefaultPort)"     Secure="yes" />
-    <Property Id="LOG_DIR"       Value="$(DefaultLogDir)"   Secure="yes" />
+    <!-- Remembered in the registry, like PCIMUTIL_DIR, so an upgrade keeps the chosen log folder. -->
+    <Property Id="LOG_DIR"       Value="$(DefaultLogDir)"   Secure="yes">
+      <RegistrySearch Id="RememberLogDir" Root="HKLM" Key="Software\$(Manufacturer)\$(ProductName)"
+                      Name="LogDir" Type="raw" Bitness="always64" />
+    </Property>
     <!-- Akara's PCIMUTIL folder (optional). Remembered in the registry so an upgrade keeps
          refreshing the copy there without asking again. -->
     <Property Id="PCIMUTIL_DIR" Secure="yes">
@@ -57,9 +61,6 @@
     </StandardDirectory>
 
     <StandardDirectory Id="CommonAppDataFolder">
-      <Directory Id="SCADADataFolder" Name="SCADA">
-        <Directory Id="LOGDIRFOLDER" Name="Logs" />
-      </Directory>
       <!-- Default SPOOL_ROOT of Scada_sms.bat and ScadaSpool:Root of the service -->
       <Directory Id="SCADASMSDATADIR" Name="SCADA_SMS">
         <Directory Id="SPOOLDIR" Name="spool" />
@@ -145,14 +146,6 @@
 
     </ComponentGroup>
 
-    <!-- Log directory component -->
-    <ComponentGroup Id="LogDirGroup" Directory="LOGDIRFOLDER">
-      <Component Id="LogDirComp"
-                 Guid="D3E4F5A6-7B8C-9D0E-1F2A-B3C4D5E6F7A8">
-        <CreateFolder />
-      </Component>
-    </ComponentGroup>
-
     <!-- ============================================================
          SCADA INTEGRATION — Scada_sms.bat, optional curl.exe, spool
          folder and the event log source used for delivery alerts
@@ -207,6 +200,8 @@
                  Guid="C0523584-DEB1-4811-AA15-3988264D6246" Bitness="always64">
         <RegistryValue Root="HKLM" Key="Software\$(Manufacturer)\$(ProductName)"
                        Name="PcimUtilDir" Type="string" Value="[PCIMUTIL_DIR]" KeyPath="yes" />
+        <RegistryValue Root="HKLM" Key="Software\$(Manufacturer)\$(ProductName)"
+                       Name="LogDir" Type="string" Value="[LOG_DIR]" />
       </Component>
       <Component Id="SpoolDirComponent" Directory="SPOOLDIR"
                  Guid="CA5BC481-E456-47FC-A1B5-5F9C124A1F2E">
@@ -234,7 +229,6 @@
     <Feature Id="Complete" Title="$(ProductName)" Level="1">
       <Feature Id="MainApp" Title="Application" Level="1">
         <ComponentGroupRef Id="AppFiles" />
-        <ComponentGroupRef Id="LogDirGroup" />
         <ComponentGroupRef Id="ScadaIntegration" />
       </Feature>
     </Feature>
