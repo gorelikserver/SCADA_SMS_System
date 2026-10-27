@@ -192,39 +192,13 @@ if exist check_service_status.bat (
     echo      [OK] check_service_status.bat
 )
 
-REM Create smart SCADA integration script with bundled curl support
-REM This replaces both the old standard and bundled versions
-(
-echo @echo off
-echo setlocal
-echo :: SCADA SMS Integration Script - Smart curl Detection
-echo :: Tries bundled curl first, falls back to system curl
-echo :: Works on both air-gapped and modern Windows systems
-echo if "%%~1"=="" exit /b 1
-echo if "%%~2"=="" exit /b 1
-echo set "MSG=%%~1"
-echo set "GRP=%%~2" 
-echo set "VALUE=%%~3"
-echo set "ALM=%%~4"
-echo set "PRI=%%~5"
-echo if not defined ALM set "ALM=SCADA-%%RANDOM%%"
-echo if not defined PRI set "PRI=normal"
-echo echo %%GRP%%^| findstr /r "^[0-9]*$" ^>nul ^|^| exit /b 1
-echo.
-echo :: Append VALUE parameter to message if provided
-echo if defined VALUE ^(
-echo     set "MSG=%%MSG%% - %%VALUE%%"
-echo ^)
-echo set "MSG=%%MSG:"=\"%%"
-echo.
-echo :: Smart curl detection: try bundled first, then system
-echo set "CURL_PATH=%%~dp0..\Tools\curl.exe"
-echo if not exist "%%CURL_PATH%%" set "CURL_PATH=curl.exe"
-echo.
-echo "%%CURL_PATH%%" -X POST http://localhost:5000/api/sms/send -H "Content-Type: application/json" -d "{\"message\":\"%%MSG%%\",\"groupId\":%%GRP%%,\"alarmId\":\"%%ALM%%\",\"priority\":\"%%PRI%%\"}" --silent --connect-timeout 5 --max-time 15 ^>nul 2^>^&1
-echo exit /b %%errorlevel%%
-) > deployment_package\Scripts\Scada_sms.bat
-echo      [OK] Scada_sms.bat (smart curl detection)
+REM Copy the canonical SCADA integration script. Never regenerate a second implementation here.
+copy /Y Scada_sms.bat deployment_package\Scripts\Scada_sms.bat >nul
+if errorlevel 1 (
+    echo      [ERROR] Failed to copy canonical Scada_sms.bat
+    exit /b 1
+)
+echo      [OK] Scada_sms.bat (canonical provider-confirmed delivery contract)
 
 REM Create quick restart script
 (

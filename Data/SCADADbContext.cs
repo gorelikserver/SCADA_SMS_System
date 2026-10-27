@@ -17,6 +17,7 @@ namespace SCADASMSSystem.Web.Data
         public DbSet<AlarmAction> AlarmActions { get; set; }
         public DbSet<AlarmActionAudit> AlarmActionAudits { get; set; }
         public DbSet<DBListBlock> DBListBlocks { get; set; }
+        public DbSet<CriticalSmsDelivery> CriticalSmsDeliveries { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -154,6 +155,14 @@ namespace SCADASMSSystem.Web.Data
                 
                 entity.Property(aaa => aaa.ModifiedAt)
                     .HasDefaultValueSql("GETDATE()");
+            });
+
+            modelBuilder.Entity<CriticalSmsDelivery>(entity =>
+            {
+                entity.HasIndex(d => new { d.AlarmId, d.PhoneNumber }).IsUnique();
+                entity.HasIndex(d => d.Status);
+                entity.Property(d => d.CreatedAt).HasDefaultValueSql("GETDATE()");
+                entity.Property(d => d.UpdatedAt).HasDefaultValueSql("GETDATE()");
             });
         }
     }

@@ -1,4 +1,7 @@
 using Microsoft.Extensions.Options;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Data.SqlClient;
+using SCADASMSSystem.Web.Data;
 using SCADASMSSystem.Web.Models;
 using System.Collections.Concurrent;
 using System.Diagnostics;
@@ -16,8 +19,8 @@ namespace SCADASMSSystem.Web.Services
         private readonly SoapXmlLog _soapXmlLog;
         private readonly ILogger<SmsService> _logger;
         private static readonly ConcurrentDictionary<string, DateTime> _lastMessageTimes = new();
-        private static readonly ConcurrentDictionary<string, int> _rateLimitCounter = new();
         private static DateTime _lastRateLimitReset = DateTime.Now;
+        private static int _rateLimitCount;
         private static readonly object _rateLimitLock = new();
 
         private SmsSettings Settings => _smsMonitor.CurrentValue;
@@ -107,12 +110,227 @@ namespace SCADASMSSystem.Web.Services
             }
         }
 
+        public async Task<CriticalSmsDeliveryResult> SendCriticalSmsToGroupAsync(
+            string message,
+            int groupId,
+            string alarmId,
+            string? priority = null,
+            string? value = null,
+            CancellationToken cancellationToken = default)
+        {
+            return await SendCriticalSmsToGroupCoreAsync(message, groupId, alarmId, priority, value, cancellationToken);
+        }
+
+        private async Task<CriticalSmsDeliveryResult> SendCriticalSmsToGroupCoreAsync(
+            string message,
+            int groupId,
+            string alarmId,
+            string? priority,
+            string? value,
+            CancellationToken cancellationToken)
+        {
+            var userService = _serviceProvider.GetRequiredService<IUserService>();
+            var users = (await userService.GetSmsRecipientsForGroupAsync(groupId)).ToList();
+            if (users.Count == 0)
+            {
+                _logger.LogError("Critical alarm {AlarmId} has no eligible recipients in group {GroupId}", alarmId, groupId);
+                return new CriticalSmsDeliveryResult(alarmId, 0, 0, []);
+            }
+
+            var recipients = users
+                .Select(u => new SmsRecipient(u.PhoneNumber, u.TZ, u.FirstName, u.LastName, u.UserId))
+                .ToList();
+
+            using var auditScope = _serviceProvider.CreateScope();
+            var auditService = auditScope.ServiceProvider.GetRequiredService<IAuditService>();
+            var dbContext = auditScope.ServiceProvider.GetRequiredService<SCADADbContext>();
+            // Critical path must fail closed when idempotency state cannot be read.
+            var priorAudits = await auditService.GetAuditsByAlarmIdStrictAsync(alarmId);
+            var previouslyAcceptedPhones = priorAudits
+                .Where(a => a.Status.Equals("SUCCESS", StringComparison.OrdinalIgnoreCase))
+                .Select(a => a.PhoneNumber)
+                .Where(p => !string.IsNullOrWhiteSpace(p))
+                .ToHashSet(StringComparer.Ordinal);
+
+            var timestampedMessage = AddTimestampToMessage(message);
+            var results = new List<SmsRecipientDeliveryResult>(recipients.Count);
+
+            foreach (var recipient in recipients)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                var delivery = await ClaimCriticalDeliveryAsync(
+                    dbContext, alarmId, groupId, recipient, cancellationToken);
+
+                if (delivery.Status == CriticalDeliveryStatus.Success ||
+                    previouslyAcceptedPhones.Contains(recipient.PhoneNumber))
+                {
+                    results.Add(new SmsRecipientDeliveryResult(
+                        recipient.UserId, MaskPhoneNumber(recipient.PhoneNumber), true, 200, 0,
+                        "Already accepted for this alarm", true));
+                    continue;
+                }
+
+                if (delivery.Status is CriticalDeliveryStatus.Sending or CriticalDeliveryStatus.Indeterminate)
+                {
+                    results.Add(new SmsRecipientDeliveryResult(
+                        recipient.UserId, MaskPhoneNumber(recipient.PhoneNumber), false,
+                        delivery.ProviderStatusCode, delivery.Attempts,
+                        "Delivery already active or outcome is indeterminate"));
+                    continue;
+                }
+
+                var claimed = await dbContext.CriticalSmsDeliveries
+                    .Where(d => d.DeliveryId == delivery.DeliveryId && d.Status == CriticalDeliveryStatus.Failed)
+                    .ExecuteUpdateAsync(setters => setters
+                        .SetProperty(d => d.Status, CriticalDeliveryStatus.Sending)
+                        .SetProperty(d => d.UpdatedAt, DateTime.Now), cancellationToken);
+
+                if (claimed != 1)
+                {
+                    results.Add(new SmsRecipientDeliveryResult(
+                        recipient.UserId, MaskPhoneNumber(recipient.PhoneNumber), false, 0, 0,
+                        "Delivery was claimed by another request"));
+                    continue;
+                }
+
+                await WaitForRateLimitAsync(cancellationToken);
+
+                var maxAttempts = 1 + Math.Max(0, Settings.RetryAttempts);
+                SmsApiResponse response = new() { Success = false, Message = "Provider call not attempted" };
+                var attempts = 0;
+
+                while (attempts < maxAttempts)
+                {
+                    attempts++;
+                    var context = new SmsCallContext(groupId, alarmId, priority, value);
+                    response = await SendSmsApiCallAsync(timestampedMessage, recipient, context, cancellationToken);
+
+                    if (response.Success || !IsTransientFailure(response) || attempts >= maxAttempts)
+                        break;
+
+                    var delay = TimeSpan.FromMilliseconds(250 * Math.Pow(2, attempts - 1));
+                    _logger.LogWarning(
+                        "Transient SMS failure for alarm {AlarmId}, recipient {PhoneNumber}; retry {Attempt}/{MaxAttempts}",
+                        alarmId, MaskPhoneNumber(recipient.PhoneNumber), attempts + 1, maxAttempts);
+                    await Task.Delay(delay, cancellationToken);
+                    await WaitForRateLimitAsync(cancellationToken);
+                }
+
+                var durableStatus = response.Success
+                    ? CriticalDeliveryStatus.Success
+                    : response.StatusCode == 0
+                        ? CriticalDeliveryStatus.Indeterminate
+                        : CriticalDeliveryStatus.Failed;
+
+                var stateSaved = await dbContext.CriticalSmsDeliveries
+                    .Where(d => d.DeliveryId == delivery.DeliveryId && d.Status == CriticalDeliveryStatus.Sending)
+                    .ExecuteUpdateAsync(setters => setters
+                        .SetProperty(d => d.Status, durableStatus)
+                        .SetProperty(d => d.ProviderStatusCode, response.StatusCode)
+                        .SetProperty(d => d.Attempts, attempts)
+                        .SetProperty(d => d.ProviderMessage, Truncate(response.Message, 500))
+                        .SetProperty(d => d.UpdatedAt, DateTime.Now), cancellationToken);
+
+                var auditSaved = await auditService.LogSmsAuditAsync(
+                    alarmId,
+                    recipient.UserId,
+                    recipient.PhoneNumber,
+                    timestampedMessage,
+                    response.Success ? "SUCCESS" : "FAILED",
+                    response.Message,
+                    response.Response,
+                    groupId);
+
+                if (!auditSaved)
+                    _logger.LogError("Critical delivery audit failed for alarm {AlarmId}, recipient {PhoneNumber}", alarmId, MaskPhoneNumber(recipient.PhoneNumber));
+
+                results.Add(new SmsRecipientDeliveryResult(
+                    recipient.UserId,
+                    MaskPhoneNumber(recipient.PhoneNumber),
+                    response.Success && stateSaved == 1,
+                    response.StatusCode,
+                    attempts,
+                    response.Message));
+            }
+
+            var acceptedCount = results.Count(r => r.Accepted);
+            return new CriticalSmsDeliveryResult(alarmId, results.Count, acceptedCount, results);
+        }
+
+        private static bool IsTransientFailure(SmsApiResponse response) =>
+            // Retry only explicit provider throttling. Timeout, transport loss, and 5xx
+            // can occur after acceptance and are unsafe without provider idempotency.
+            response.StatusCode == 429;
+
+        private static string? Truncate(string? value, int maxLength) =>
+            value is null || value.Length <= maxLength ? value : value[..maxLength];
+
+        private static async Task<CriticalSmsDelivery> ClaimCriticalDeliveryAsync(
+            SCADADbContext dbContext,
+            string alarmId,
+            int groupId,
+            SmsRecipient recipient,
+            CancellationToken cancellationToken)
+        {
+            var existing = await dbContext.CriticalSmsDeliveries
+                .AsNoTracking()
+                .SingleOrDefaultAsync(
+                    d => d.AlarmId == alarmId && d.PhoneNumber == recipient.PhoneNumber,
+                    cancellationToken);
+            if (existing != null)
+                return existing;
+
+            var delivery = new CriticalSmsDelivery
+            {
+                AlarmId = alarmId,
+                UserId = recipient.UserId,
+                GroupId = groupId,
+                PhoneNumber = recipient.PhoneNumber,
+                Status = CriticalDeliveryStatus.Failed
+            };
+
+            dbContext.CriticalSmsDeliveries.Add(delivery);
+            try
+            {
+                await dbContext.SaveChangesAsync(cancellationToken);
+                return delivery;
+            }
+            catch (DbUpdateException ex) when (
+                ex.InnerException is SqlException { Number: 2601 or 2627 })
+            {
+                dbContext.Entry(delivery).State = EntityState.Detached;
+                return await dbContext.CriticalSmsDeliveries
+                    .AsNoTracking()
+                    .SingleAsync(
+                        d => d.AlarmId == alarmId && d.PhoneNumber == recipient.PhoneNumber,
+                        cancellationToken);
+            }
+        }
+
+        private static string AddTimestampToMessage(string originalMessage)
+        {
+            try
+            {
+                var israelTime = TimeZoneInfo.ConvertTime(DateTime.Now,
+                    TimeZoneInfo.FindSystemTimeZoneById("Israel Standard Time"));
+                return $"[{israelTime:dd/MM HH:mm}] {originalMessage}";
+            }
+            catch
+            {
+                return $"[{DateTime.Now:dd/MM HH:mm}] {originalMessage}";
+            }
+        }
+
         public async Task<SmsApiResponse> SendSmsApiCallAsync(string message, SmsRecipient recipient)
             => await SendSmsApiCallAsync(message, recipient, null);
 
         // Internal overload that propagates SCADA-derived context (groupId, alarmId, priority, value)
         // so the REST/SOAP keyword resolvers can substitute {GroupId}/{AlarmId}/{Priority}/{Value} tokens.
         private async Task<SmsApiResponse> SendSmsApiCallAsync(string message, SmsRecipient recipient, SmsCallContext? ctx)
+            => await SendSmsApiCallAsync(message, recipient, ctx, CancellationToken.None);
+
+        private async Task<SmsApiResponse> SendSmsApiCallAsync(string message, SmsRecipient recipient, SmsCallContext? ctx, CancellationToken cancellationToken)
         {
             if (Settings.TestMode)
             {
@@ -126,7 +344,7 @@ namespace SCADASMSSystem.Web.Services
             }
 
             if (Settings.ProviderType?.Equals("SOAP", StringComparison.OrdinalIgnoreCase) == true)
-                return await SendSoapApiCallAsync(message, recipient, ctx);
+                return await SendSoapApiCallAsync(message, recipient, ctx, cancellationToken);
 
             var phoneNumber = recipient.PhoneNumber;
 
@@ -284,7 +502,7 @@ namespace SCADASMSSystem.Web.Services
                     fullUrl = ApplyRestAuth(getRequest, fullUrl);
                     getRequest.RequestUri = new Uri(fullUrl);
                     AddCustomHeaders(getRequest, customHeaders);
-                    response = await _httpClient.SendAsync(getRequest);
+                    response = await _httpClient.SendAsync(getRequest, cancellationToken);
                 }
                 else if (method == "POST" || method == "PUT" || method == "PATCH")
                 {
@@ -315,14 +533,14 @@ namespace SCADASMSSystem.Web.Services
                     if (!ReferenceEquals(resolvedUrl, Settings.ApiEndpoint))
                         bodyRequest.RequestUri = new Uri(resolvedUrl);
                     AddCustomHeaders(bodyRequest, customHeaders);
-                    response = await _httpClient.SendAsync(bodyRequest);
+                    response = await _httpClient.SendAsync(bodyRequest, cancellationToken);
                 }
                 else
                 {
                     throw new NotSupportedException($"HTTP method {Settings.HttpMethod} not supported");
                 }
 
-                var responseContent = await response.Content.ReadAsStringAsync();
+                var responseContent = await response.Content.ReadAsStringAsync(cancellationToken);
                 sw.Stop();
 
                 // ?? DETAILED RESPONSE DEBUGGING (RESPONSE CONTENT IS SAFE)
@@ -516,6 +734,9 @@ namespace SCADASMSSystem.Web.Services
             => await SendSoapApiCallAsync(message, recipient, null);
 
         private async Task<SmsApiResponse> SendSoapApiCallAsync(string message, SmsRecipient recipient, SmsCallContext? ctx)
+            => await SendSoapApiCallAsync(message, recipient, ctx, CancellationToken.None);
+
+        private async Task<SmsApiResponse> SendSoapApiCallAsync(string message, SmsRecipient recipient, SmsCallContext? ctx, CancellationToken cancellationToken)
         {
             try
             {
@@ -663,8 +884,8 @@ namespace SCADASMSSystem.Web.Services
                 }
 
                 var sw = Stopwatch.StartNew();
-                var response = await _httpClient.SendAsync(request);
-                var responseContent = await response.Content.ReadAsStringAsync();
+                var response = await _httpClient.SendAsync(request, cancellationToken);
+                var responseContent = await response.Content.ReadAsStringAsync(cancellationToken);
                 sw.Stop();
 
                 _logger.LogDebug("SOAP response HTTP {StatusCode}: {Body}", (int)response.StatusCode, responseContent);
@@ -945,7 +1166,9 @@ namespace SCADASMSSystem.Web.Services
             }
         }
 
-        private bool CheckRateLimit()
+        private bool CheckRateLimit() => TryAcquireRateLimit();
+
+        private bool TryAcquireRateLimit()
         {
             var now = DateTime.Now;
 
@@ -953,14 +1176,26 @@ namespace SCADASMSSystem.Web.Services
             {
                 if ((now - _lastRateLimitReset).TotalSeconds >= Settings.RateWindow)
                 {
-                    _rateLimitCounter.Clear();
                     _lastRateLimitReset = now;
+                    _rateLimitCount = 0;
                 }
-            }
 
-            var currentMinute = now.ToString("yyyy-MM-dd HH:mm");
-            var newCount = _rateLimitCounter.AddOrUpdate(currentMinute, 1, (_, c) => c + 1);
-            return newCount <= Settings.RateLimit;
+                if (_rateLimitCount >= Math.Max(1, Settings.RateLimit))
+                    return false;
+
+                _rateLimitCount++;
+                return true;
+            }
+        }
+
+        private async Task WaitForRateLimitAsync(CancellationToken cancellationToken)
+        {
+            while (!TryAcquireRateLimit())
+            {
+                var elapsed = DateTime.Now - _lastRateLimitReset;
+                var waitSeconds = Math.Max(0.1, Settings.RateWindow - elapsed.TotalSeconds);
+                await Task.Delay(TimeSpan.FromSeconds(Math.Min(waitSeconds, 1)), cancellationToken);
+            }
         }
 
         private bool IsDuplicate(string message, string phoneNumber)

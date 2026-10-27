@@ -266,6 +266,14 @@ namespace SCADASMSSystem.Web.Services
             }
         }
 
+        public async Task<IEnumerable<SmsAudit>> GetAuditsByAlarmIdStrictAsync(string alarmId)
+        {
+            return await _context.SmsAudits
+                .Where(sa => sa.AlarmId == alarmId)
+                .OrderByDescending(sa => sa.CreatedAt)
+                .ToListAsync();
+        }
+
         public async Task<IEnumerable<SmsAudit>> GetAuditsByUserIdAsync(int userId, int days = 30)
         {
             try

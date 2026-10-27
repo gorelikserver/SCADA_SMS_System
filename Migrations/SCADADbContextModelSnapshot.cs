@@ -123,6 +123,76 @@ namespace SCADASMSSystem.Web.Migrations
                     b.ToTable("scada_alarm_action_audit");
                 });
 
+            modelBuilder.Entity("SCADASMSSystem.Web.Models.CriticalSmsDelivery", b =>
+                {
+                    b.Property<long>("DeliveryId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("delivery_id");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("DeliveryId"));
+
+                    b.Property<string>("AlarmId")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)")
+                        .HasColumnName("alarm_id");
+
+                    b.Property<int>("Attempts")
+                        .HasColumnType("int")
+                        .HasColumnName("attempts");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("GETDATE()");
+
+                    b.Property<int>("GroupId")
+                        .HasColumnType("int")
+                        .HasColumnName("group_id");
+
+                    b.Property<string>("PhoneNumber")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)")
+                        .HasColumnName("phone_number");
+
+                    b.Property<string>("ProviderMessage")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)")
+                        .HasColumnName("provider_message");
+
+                    b.Property<int>("ProviderStatusCode")
+                        .HasColumnType("int")
+                        .HasColumnName("provider_status_code");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)")
+                        .HasColumnName("status");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasColumnName("updated_at")
+                        .HasDefaultValueSql("GETDATE()");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("int")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("DeliveryId");
+
+                    b.HasIndex("Status");
+
+                    b.HasIndex("AlarmId", "PhoneNumber")
+                        .IsUnique();
+
+                    b.ToTable("scada_critical_sms_deliveries");
+                });
+
             modelBuilder.Entity("SCADASMSSystem.Web.Models.DBListBlock", b =>
                 {
                     b.Property<int>("BlockIndex")

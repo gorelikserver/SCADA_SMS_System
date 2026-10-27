@@ -74,15 +74,16 @@ The database schema is created automatically on first run with sample data for t
 
 ### Payload Contract
 
-The SCADA → SMS payload is a 5-field contract. Only `message` and `groupId` are
-required; the other three are optional and only travel through if present.
+The SCADA → SMS payload is a 5-field contract. Critical delivery requires
+`message`, `groupId`, and a stable `alarmId`. Reuse the same `alarmId` when Akara
+retries an alarm so recipients already accepted by the provider are not sent again.
 
 | Field      | Required | Source                  | Available as dynamic var |
 |------------|----------|-------------------------|--------------------------|
 | `message`  | **yes**  | SCADA alarm text        | `message` / `msg` / `text` / `body` |
 | `groupId`  | **yes**  | SCADA group mapping     | `group_id` / `groupid`   |
 | `value`    | no       | Tag reading at trigger  | `value`                  |
-| `alarmId`  | no       | Correlation id          | `alarm_id` / `alarmid`   |
+| `alarmId`  | **yes** for `/api/sms/send` | Stable correlation/idempotency id | `alarm_id` / `alarmid` |
 | `priority` | no       | `normal` / `urgent` / `critical` | `priority`      |
 
 > **Phone is NOT a SCADA payload field.** It is a *per-recipient* variable
@@ -97,17 +98,17 @@ Copy `Scripts\Scada_sms.bat` to your SCADA system and configure alarm actions.
 Invocation order:
 
 ```
-Scada_sms.bat MESSAGE GROUP_ID [VALUE] [ALARM_ID] [PRIORITY]
+Scada_sms.bat MESSAGE GROUP_ID [VALUE] ALARM_ID [PRIORITY]
 ```
 
 Examples:
 
 ```cmd
 :: Minimal — just message + group
-Scada_sms.bat "Compressor failure - Zone A" 1
+Scada_sms.bat "Compressor failure - Zone A" 1 "" "ALM-2024-0141"
 
 :: With tag reading
-Scada_sms.bat "Pressure high" 1 "85.3 PSI"
+Scada_sms.bat "Pressure high" 1 "85.3 PSI" "ALM-2024-0142"
 
 :: Full payload
 Scada_sms.bat "Pressure high" 1 "85.3 PSI" "ALM-2024-0142" urgent

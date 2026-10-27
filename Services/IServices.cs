@@ -30,13 +30,36 @@ namespace SCADASMSSystem.Web.Services
         string PhoneNumber,
         string? TZ = null,
         string? FirstName = null,
-        string? LastName = null
+        string? LastName = null,
+        int UserId = 0
     );
+
+    public record SmsRecipientDeliveryResult(
+        int UserId,
+        string MaskedPhoneNumber,
+        bool Accepted,
+        int StatusCode,
+        int Attempts,
+        string? Message,
+        bool PreviouslyAccepted = false
+    );
+
+    public record CriticalSmsDeliveryResult(
+        string AlarmId,
+        int RecipientCount,
+        int AcceptedCount,
+        IReadOnlyList<SmsRecipientDeliveryResult> Recipients
+    )
+    {
+        public bool Success => RecipientCount > 0 && AcceptedCount == RecipientCount;
+        public int FailedCount => RecipientCount - AcceptedCount;
+    }
 
     public interface ISmsService
     {
         Task<bool> SendSmsAsync(string message, IEnumerable<SmsRecipient> recipients, string alarmId, int? groupId = null, string? priority = null, string? value = null);
         Task<bool> SendSmsToGroupAsync(string message, int groupId, string alarmId, string? priority = null, string? value = null);
+        Task<CriticalSmsDeliveryResult> SendCriticalSmsToGroupAsync(string message, int groupId, string alarmId, string? priority = null, string? value = null, CancellationToken cancellationToken = default);
         Task<SmsApiResponse> SendSmsApiCallAsync(string message, SmsRecipient recipient);
     }
 
@@ -62,6 +85,7 @@ namespace SCADASMSSystem.Web.Services
         Task<IEnumerable<SmsAudit>> SearchAuditAsync(string? searchTerm, DateTime? startDate, DateTime? endDate);
         Task<int> GetTotalAuditCountAsync();
         Task<IEnumerable<SmsAudit>> GetAuditsByAlarmIdAsync(string alarmId);
+        Task<IEnumerable<SmsAudit>> GetAuditsByAlarmIdStrictAsync(string alarmId);
         Task<IEnumerable<SmsAudit>> GetAuditsByUserIdAsync(int userId, int days = 30);
         Task<Dictionary<string, int>> GetAuditStatisticsAsync(int days = 30);
         Task<bool> CleanupOldAuditsAsync(int daysToKeep = 90);
