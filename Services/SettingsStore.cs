@@ -161,6 +161,18 @@ namespace SCADASMSSystem.Web.Services
             section[listName] = JsonSerializer.SerializeToNode(postedList);
         }
 
+        /// <summary>
+        /// Copy of a param list safe to send to the browser: secret values become <see cref="MaskedValue"/>.
+        /// Posting the masked value back keeps the stored secret (see <see cref="ApplyParamList"/>).
+        /// </summary>
+        public static List<SmsParam> MaskSecrets(IEnumerable<SmsParam> list) =>
+            list.Select(p => new SmsParam
+            {
+                Key = p.Key,
+                Value = p.IsSecret && !string.IsNullOrEmpty(p.Value) ? MaskedValue : p.Value,
+                IsSecret = p.IsSecret
+            }).ToList();
+
         /// <summary>Typed view of a (merged) SmsSettings section, for validation.</summary>
         public static SmsSettings ToSettings(JsonObject section) =>
             section.Deserialize<SmsSettings>(ReadOptions) ?? new SmsSettings();

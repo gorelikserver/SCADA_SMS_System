@@ -142,4 +142,21 @@ public class SmsSettingsMergeTests
 
         Assert.Empty(section["SoapPlaceholders"]!.AsArray());
     }
+
+    [Fact]
+    public void MaskSecrets_HidesOnlySecretValuesAndRoundTripsThroughMerge()
+    {
+        var section = StoredSection();
+        var stored = section["SoapPlaceholders"]!.Deserialize<List<SmsParam>>()!;
+
+        var masked = SmsSettingsMerge.MaskSecrets(stored);
+
+        Assert.Equal("soap-user", masked.Single(p => p.Key == "Username").Value);
+        Assert.Equal("***", masked.Single(p => p.Key == "Password").Value);
+        Assert.DoesNotContain("soap-pass", JsonSerializer.Serialize(masked));
+
+        // What the browser received and posts back unchanged must keep the stored secret.
+        SmsSettingsMerge.ApplyParamList(section, "SoapPlaceholders", JsonSerializer.Serialize(masked));
+        Assert.Equal("soap-pass", section["SoapPlaceholders"]!.Deserialize<List<SmsParam>>()!.Single(p => p.Key == "Password").Value);
+    }
 }

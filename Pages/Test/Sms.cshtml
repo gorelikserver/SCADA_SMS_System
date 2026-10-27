@@ -1148,6 +1148,9 @@
                 password: '',
                 soapBodyTemplate: '',
                 soapParams: {},
+                // Placeholder keys whose values are secret: the browser only ever holds "***" for
+                // them, so the envelope carries {secret:Key} and the server fills in the value.
+                secretTokens: [],
                 soapEnvelopeNamespaces: '',
                 inputs: {
                     message: 'Test alarm from SCADA',
@@ -1188,6 +1191,7 @@
                     this.inputs.sendingSystem = s.soapSendingSystem || 'SCADA';
                     this.inputs.messageType = s.soapMessageType || 'SmsType1';
                     this.inputs.senderName = s.senderName || '';
+                    this.secretTokens = (s.soapPlaceholders || []).filter(p => p.isSecret).map(p => p.key);
                     if (Array.isArray(s.soapPlaceholders) && s.soapPlaceholders.length > 0) {
                         this.soapParams = Object.fromEntries(s.soapPlaceholders.map(p => [p.key, p.value]));
                     } else {
@@ -1211,9 +1215,11 @@
                     if (Object.keys(this.soapParams).length > 0) {
                         for (const [token, keyword] of Object.entries(this.soapParams)) {
                             const userInput = this.inputs[this.tokenKey(token)];
-                            const value = (userInput !== undefined && userInput !== '')
-                                ? this.escXml(userInput)
-                                : this.resolveKeyword(keyword);
+                            const value = this.secretTokens.includes(token)
+                                ? `{secret:${token}}`
+                                : (userInput !== undefined && userInput !== '')
+                                    ? this.escXml(userInput)
+                                    : this.resolveKeyword(keyword);
                             body = body.replaceAll(`{${token}}`, value);
                         }
                     }
@@ -1224,8 +1230,8 @@
                         .replaceAll('{TZ}',            this.escXml(this.inputs.tz))
                         .replaceAll('{FirstName}',     this.escXml(this.inputs.firstName))
                         .replaceAll('{LastName}',      this.escXml(this.inputs.lastName))
-                        .replaceAll('{Username}',      '***')
-                        .replaceAll('{Password}',      '***')
+                        .replaceAll('{Username}',      '{secret:username}')
+                        .replaceAll('{Password}',      '{secret:password}')
                         .replaceAll('{SenderName}',    this.escXml(this.inputs.senderName))
                         .replaceAll('{SendingSystem}', this.escXml(this.inputs.sendingSystem))
                         .replaceAll('{MessageType}',   this.escXml(this.inputs.messageType));
@@ -1300,8 +1306,8 @@ ${body}
                         case 'tz': return this.escXml(this.inputs.tz);
                         case 'firstname': return this.escXml(this.inputs.firstName);
                         case 'lastname': return this.escXml(this.inputs.lastName);
-                        case 'username': case 'user': return '***';
-                        case 'password': case 'pass': return '***';
+                        case 'username': case 'user': return '{secret:username}';
+                        case 'password': case 'pass': return '{secret:password}';
                         case 'sender_name': case 'sendername': case 'from': return this.escXml(this.inputs.senderName);
                         case 'sendingsystem': return this.escXml(this.inputs.sendingSystem);
                         case 'messagetype': return this.escXml(this.inputs.messageType);
@@ -1389,6 +1395,7 @@ ${body}
                         this.inputs.sendingSystem = s.soapSendingSystem || 'SCADA';
                         this.inputs.messageType = s.soapMessageType || 'SmsType1';
                         this.inputs.senderName = s.senderName || '';
+                        this.secretTokens = (s.soapPlaceholders || []).filter(p => p.isSecret).map(p => p.key);
                         if (Array.isArray(s.soapPlaceholders) && s.soapPlaceholders.length > 0) {
                             this.soapParams = Object.fromEntries(s.soapPlaceholders.map(p => [p.key, p.value]));
                         } else {

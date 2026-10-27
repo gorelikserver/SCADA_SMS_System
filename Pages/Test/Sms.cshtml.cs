@@ -8,6 +8,7 @@ using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Text.RegularExpressions;
 
 namespace SCADASMSSystem.Web.Pages.Test
 {
@@ -210,20 +211,23 @@ namespace SCADASMSSystem.Web.Pages.Test
                 if (!Uri.TryCreate(endpoint, UriKind.Absolute, out _))
                     return new JsonResult(new { success = false, errorMessage = "Invalid endpoint URL" }) { StatusCode = 400 };
 
-                // Fall back to saved credentials when caller sends empty strings
-                var username = !string.IsNullOrEmpty(req.Username) ? req.Username : (Settings.Username ?? string.Empty);
-                var password = !string.IsNullOrEmpty(req.Password) ? req.Password : (Settings.Password ?? string.Empty);
+                // Fall back to saved credentials when the caller sends empty or masked values:
+                // the browser never receives the stored secrets.
+                var username = !SmsSettingsMerge.IsBlankOrMasked(req.Username) ? req.Username : (Settings.Username ?? string.Empty);
+                var password = !SmsSettingsMerge.IsBlankOrMasked(req.Password) ? req.Password : (Settings.Password ?? string.Empty);
 
-                var envelope = req.Envelope;
+                // The workbench writes {secret:Key} where a secret belongs; fill them here. The copy
+                // echoed back to the browser gets "***" instead.
+                var secrets = SecretTokenValues(username, password);
+                var envelope = ResolveSecretTokens(req.Envelope, secrets, mask: false);
+                var displayEnvelope = ResolveSecretTokens(req.Envelope, secrets, mask: true);
 
                 // Inject WS-Security header if auth type requires it and it's not already present
                 if (req.AuthType.Equals("WSSecurity", StringComparison.OrdinalIgnoreCase) &&
                     !envelope.Contains("<Security", StringComparison.OrdinalIgnoreCase))
                 {
-                    var wsHeader = BuildWsSecurityHeader(username, password);
-                    envelope = envelope
-                        .Replace("<soapenv:Header/>", wsHeader, StringComparison.Ordinal)
-                        .Replace("<soapenv:Header />", wsHeader, StringComparison.Ordinal);
+                    envelope = InjectHeader(envelope, BuildWsSecurityHeader(username, password));
+                    displayEnvelope = InjectHeader(displayEnvelope, BuildWsSecurityHeader(username, SmsSettingsMerge.MaskedValue));
                     if (!envelope.Contains("<Security", StringComparison.OrdinalIgnoreCase))
                         _logger.LogWarning("FireSoap: WSSecurity injection requested but no matching empty header tag found — Security header was not injected");
                 }
@@ -261,11 +265,12 @@ namespace SCADASMSSystem.Web.Pages.Test
                     }
                 }
 
-                // Redact credentials in echo envelope
+                // The echo is built from tokens, so no stored secret appears in it; a password the
+                // user typed into the workbench is redacted as well.
                 var echoEnvelope = string.IsNullOrEmpty(password)
-                    ? envelope
-                    : envelope.Replace(XmlEscape(password), "***", StringComparison.Ordinal)
-                              .Replace(password, "***", StringComparison.Ordinal);
+                    ? displayEnvelope
+                    : displayEnvelope.Replace(XmlEscape(password), "***", StringComparison.Ordinal)
+                                     .Replace(password, "***", StringComparison.Ordinal);
 
                 _logger.LogInformation("FireSoap: {StatusCode} from {Endpoint} in {ElapsedMs}ms",
                     (int)httpResp.StatusCode, endpoint, sw.ElapsedMilliseconds);
@@ -328,6 +333,30 @@ namespace SCADASMSSystem.Web.Pages.Test
                 return new JsonResult(new { success = false, message = ex.Message }) { StatusCode = 500 };
             }
         }
+
+        private static readonly Regex SecretToken = new(@"\{secret:([^}]+)\}", RegexOptions.CultureInvariant);
+
+        /// <summary>Values for {secret:Key} tokens: credentials plus every secret SOAP placeholder.</summary>
+        private Dictionary<string, string> SecretTokenValues(string username, string password)
+        {
+            var values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["username"] = username,
+                ["password"] = password,
+            };
+            foreach (var p in Settings.SoapPlaceholders.Where(p => p.IsSecret && !string.IsNullOrEmpty(p.Key)))
+                values[p.Key] = p.Value;
+            return values;
+        }
+
+        private static string ResolveSecretTokens(string envelope, IReadOnlyDictionary<string, string> secrets, bool mask) =>
+            SecretToken.Replace(envelope, m => secrets.TryGetValue(m.Groups[1].Value, out var value)
+                ? (mask ? SmsSettingsMerge.MaskedValue : XmlEscape(value))
+                : m.Value);
+
+        private static string InjectHeader(string envelope, string header) =>
+            envelope.Replace("<soapenv:Header/>", header, StringComparison.Ordinal)
+                    .Replace("<soapenv:Header />", header, StringComparison.Ordinal);
 
         private static string BuildWsSecurityHeader(string username, string password) =>
             $@"  <soapenv:Header>

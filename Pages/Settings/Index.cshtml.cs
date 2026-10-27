@@ -70,11 +70,11 @@ namespace SCADASMSSystem.Web.Pages.Settings
 
                 // Ensure bind props are initialized even when lists are already populated
                 if (string.IsNullOrEmpty(RestHeadersJson) || RestHeadersJson == "[]")
-                    RestHeadersJson = JsonSerializer.Serialize(SmsSettingsInput.RestHeaders);
+                    RestHeadersJson = JsonSerializer.Serialize(SmsSettingsMerge.MaskSecrets(SmsSettingsInput.RestHeaders));
                 if (string.IsNullOrEmpty(RestBodyParamsJson) || RestBodyParamsJson == "[]")
-                    RestBodyParamsJson = JsonSerializer.Serialize(SmsSettingsInput.RestBodyParams);
+                    RestBodyParamsJson = JsonSerializer.Serialize(SmsSettingsMerge.MaskSecrets(SmsSettingsInput.RestBodyParams));
                 if (string.IsNullOrEmpty(SoapPlaceholdersJson) || SoapPlaceholdersJson == "[]")
-                    SoapPlaceholdersJson = JsonSerializer.Serialize(SmsSettingsInput.SoapPlaceholders);
+                    SoapPlaceholdersJson = JsonSerializer.Serialize(SmsSettingsMerge.MaskSecrets(SmsSettingsInput.SoapPlaceholders));
 
                 _logger.LogInformation("Settings page loaded successfully");
             }
@@ -333,9 +333,9 @@ namespace SCADASMSSystem.Web.Pages.Settings
             }
 
             // Sync the JSON bind properties so the row editor UI picks them up on GET
-            RestHeadersJson      = JsonSerializer.Serialize(SmsSettingsInput.RestHeaders);
-            RestBodyParamsJson   = JsonSerializer.Serialize(SmsSettingsInput.RestBodyParams);
-            SoapPlaceholdersJson = JsonSerializer.Serialize(SmsSettingsInput.SoapPlaceholders);
+            RestHeadersJson      = JsonSerializer.Serialize(SmsSettingsMerge.MaskSecrets(SmsSettingsInput.RestHeaders));
+            RestBodyParamsJson   = JsonSerializer.Serialize(SmsSettingsMerge.MaskSecrets(SmsSettingsInput.RestBodyParams));
+            SoapPlaceholdersJson = JsonSerializer.Serialize(SmsSettingsMerge.MaskSecrets(SmsSettingsInput.SoapPlaceholders));
         }
 
 
