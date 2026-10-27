@@ -97,6 +97,16 @@ The file must remain **UTF-8 with BOM and CRLF line endings**.
 - Cover: service up (200), partial failure (502), service down, non-numeric group, Hebrew text with `&`, `!` and quotes.
 - Confirm the spool file is deleted only on 200 and that `Scada_sms.log` records every call.
 
+## Failure visibility, access control and secrets
+
+- **Delivery alerts.** `DeliveryAlertService` collects critical alarms that did not reach every recipient (from `scada_critical_sms_deliveries` and the spool folders), unreadable spool files, groups with no eligible recipients right now, and SMS-enabled users with an invalid phone number. The `SystemAlerts` view component shows them as a banner on every page; `/Alerts` lists them and lets a user acknowledge an alarm (`scada_alarm_acknowledgements`, records who). Acknowledging hides the banner; it does not stop retries.
+- **Windows Event Log.** `UseSerilog()` replaces the Microsoft logging providers, so `ILogger` never reaches the Event Log. `EventLogAlertNotifier` writes directly (source `SCADA SMS System`, event IDs 1001 incomplete delivery, 1002 spool gave up, 1003 rejected spool file). Creating the source needs admin rights; the service runs as LocalSystem and `install_service.bat` pre-registers it.
+- **Accounts.** Local accounts in `scada_accounts` (PasswordHasher, 5 failed logins lock for 5 minutes). `/Account/Setup` creates the first admin and only works while no account exists. Roles: `Admin` (everything) and `Viewer` (dashboard, alerts incl. acknowledge, audit, calendar, help). Admin-only folders are set in `Program.cs`. `Scada_sms.bat` endpoints, the mock provider, `/health` and static files are anonymous.
+- **Debug pages** return 404 outside Development.
+- **Group delete** is refused while any SCADA alarm action references the group, or when that check fails.
+- **Phone numbers** must have 7-15 digits (`PhoneNumberRules`); duplicates compare digits only.
+- **Secrets.** All settings writes go through `SettingsStore` (merge, not replace; backups in `settings-backups/`). Secret values reach the browser only as `***`; posting `***` back keeps the stored value. The SOAP workbench sends `{secret:Key}` tokens that the server resolves just before the call.
+
 ## Startup and dependency wiring
 
 `Program.cs` is the composition root. It:
@@ -136,6 +146,8 @@ Migration failure stops startup in Development but is logged and tolerated in Pr
 | `Scada_sms.bat` | Akara-to-HTTP integration script (spool + synchronous delivery) |
 | `Services/SpoolIngestService.cs` | Re-sends spooled alarms the batch file could not complete |
 | `Services/SettingsStore.cs` | Single merge-based write path for `SmsSettings` |
+| `Services/DeliveryAlertService.cs`, `Services/AlertNotifier.cs` | Undelivered-alarm banner data and Windows Event Log alerts |
+| `Services/AccountService.cs`, `Pages/Account/` | Local sign-in, roles and account management |
 | `build-release.ps1` | Versioned publish/stage/harvest/MSI pipeline |
 | `build.bat` | Legacy/full Windows deployment packaging pipeline |
 | `tests/` | Playwright browser tests |
