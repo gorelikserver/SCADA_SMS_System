@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Data.SqlClient;
 using SCADASMSSystem.Web.Data;
 using SCADASMSSystem.Web.Models;
+using SCADASMSSystem.Web.Services.Providers;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Text;
@@ -334,312 +335,107 @@ namespace SCADASMSSystem.Web.Services
 
         private async Task<SmsApiResponse> SendSmsApiCallAsync(string message, SmsRecipient recipient, SmsCallContext? ctx, CancellationToken cancellationToken)
         {
+            var profile = Settings.Profile;
+
             if (Settings.TestMode)
             {
                 var mockService = _serviceProvider.GetService<IMockSmsService>();
                 if (mockService != null)
                 {
                     _logger.LogInformation("[TEST MODE] Routing SMS to in-process mock for {PhoneNumber}", MaskPhoneNumber(recipient.PhoneNumber));
-                    return await mockService.SimulateSmsAsync(message, recipient, Settings.ProviderType);
+                    return await mockService.SimulateSmsAsync(message, recipient, profile?.Kind ?? "REST");
                 }
                 _logger.LogWarning("[TEST MODE] MockSmsService not registered — falling through to real provider");
             }
 
-            if (Settings.ProviderType?.Equals("SOAP", StringComparison.OrdinalIgnoreCase) == true)
-                return await SendSoapApiCallAsync(message, recipient, ctx, cancellationToken);
+            // Every provider, REST or SOAP, is driven by the profile: no provider-specific code here.
+            var configErrors = ProfileValidator.Validate(profile);
+            if (configErrors.Count > 0)
+            {
+                var reason = "Provider profile is invalid: " + string.Join("; ", configErrors);
+                _logger.LogError("SMS to {PhoneNumber} not sent. {Reason}", MaskPhoneNumber(recipient.PhoneNumber), reason);
+                return new SmsApiResponse { Success = false, Message = reason, StatusCode = NotSentStatusCode };
+            }
 
-            var phoneNumber = recipient.PhoneNumber;
+            var context = new ProfileContext(
+                message, recipient.PhoneNumber, ctx?.Value, ctx?.AlarmId, ctx?.Priority, ctx?.GroupId,
+                recipient.UserId, recipient.FirstName, recipient.LastName, recipient.TZ);
 
+            BuiltRequest built;
             try
             {
-                var requestParams = new Dictionary<string, string>();
+                built = ProviderRequestBuilder.Build(profile!, context);
+            }
+            catch (Exception ex) when (ex is TemplateException or FormatException)
+            {
+                _logger.LogError("SMS to {PhoneNumber} not sent: {Reason}", MaskPhoneNumber(recipient.PhoneNumber), ex.Message);
+                return new SmsApiResponse { Success = false, Message = ex.Message, StatusCode = NotSentStatusCode };
+            }
 
-                // Phase E: detect whether any param row resolves to the recipient's phone number.
-                // Phone is no longer a forced/locked mapping in Settings — admins choose the param key
-                // their gateway expects. If no row maps `phone` we still send (some providers might
-                // derive phone from a header or path), but we log a warning so the operator notices.
-                bool anyPhoneMapped = false;
-
-                if (Settings.RestBodyParams.Count > 0)
-                {
-                    // New dynamic list path
-                    foreach (var param in Settings.RestBodyParams)
-                    {
-                        string resolvedValue;
-                        var kw = param.Value.ToLowerInvariant();
-                        if (kw is "message" or "msg" or "text" or "body")
-                            resolvedValue = message;
-                        else
-                        {
-                            resolvedValue = ResolveRestKeyword(param.Value, phoneNumber, recipient, ctx);
-                        }
-                        if (kw is "phone" or "phonenumber" or "sendtophonenumbers" or "mobile" or "number")
-                            anyPhoneMapped = true;
-                        requestParams[param.Key] = resolvedValue;
-                    }
-                }
-                else
-                {
-                    // Legacy: parse ApiParams JSON string
-                    var apiParams = JsonSerializer.Deserialize<Dictionary<string, string>>(Settings.ApiParams ?? "{}");
-                    if (apiParams == null)
-                        return new SmsApiResponse { Success = false, Message = "Invalid API parameters configuration" };
-
-                    foreach (var param in apiParams)
-                    {
-                        string paramValue;
-                        switch (param.Value.ToLower())
-                        {
-                            case "message":
-                            case "msg":
-                            case "text":
-                            case "body":
-                                paramValue = message;
-                                break;
-                            case "phone":
-                            case "phonenumber":
-                            case "sendtophonenumbers":
-                            case "mobile":
-                            case "number":
-                                paramValue = phoneNumber;
-                                anyPhoneMapped = true;
-                                break;
-                            case "tz":
-                                paramValue = recipient.TZ ?? "";
-                                break;
-                            case "firstname":
-                                paramValue = recipient.FirstName ?? "";
-                                break;
-                            case "lastname":
-                                paramValue = recipient.LastName ?? "";
-                                break;
-                            case "group_id":
-                            case "groupid":
-                                paramValue = ctx?.GroupId?.ToString() ?? "";
-                                break;
-                            case "alarm_id":
-                            case "alarmid":
-                                paramValue = ctx?.AlarmId ?? "";
-                                break;
-                            case "priority":
-                                paramValue = ctx?.Priority ?? "";
-                                break;
-                            case "value":
-                                paramValue = ctx?.Value ?? "";
-                                break;
-                            case "username":
-                            case "user":
-                            case "userid":
-                                paramValue = Settings.Username ?? "";
-                                break;
-                            case "password":
-                            case "pass":
-                                paramValue = Settings.Password ?? "";
-                                break;
-                            case "sender_name":
-                            case "sendername":
-                            case "sender":
-                            case "from":
-                                paramValue = Settings.SenderName ?? "SCADA";
-                                break;
-                            default:
-                                paramValue = param.Value;
-                                break;
-                        }
-                        requestParams[param.Key] = paramValue;
-                    }
-                }
-
-                if (!anyPhoneMapped)
-                {
-                    _logger.LogWarning("No 'phone' parameter mapped in REST ApiParams — recipient {PhoneNumber} may not receive SMS. " +
-                        "Add a row in Settings → Body Parameters with the dynamic value `phone`.", MaskPhoneNumber(phoneNumber));
-                }
-
-                var customHeaders = new Dictionary<string, string>();
-                if (Settings.RestHeaders.Count > 0)
-                {
-                    foreach (var h in Settings.RestHeaders)
-                        if (!string.IsNullOrWhiteSpace(h.Key))
-                            customHeaders[h.Key] = h.Value;
-                }
-                else if (!string.IsNullOrEmpty(Settings.ApiHeaders))
-                {
-                    try
-                    {
-                        customHeaders = JsonSerializer.Deserialize<Dictionary<string, string>>(Settings.ApiHeaders)
-                                        ?? new Dictionary<string, string>();
-                    }
-                    catch (JsonException)
-                    {
-                        _logger.LogWarning("ApiHeaders is not valid JSON — custom headers ignored");
-                    }
-                }
-
-                // COMPREHENSIVE SECURITY MASKING FOR DEBUG LOGS
-                var logData = CreateSecureLookupForLogging(requestParams);
-
-                _logger.LogDebug("=== UNIVERSAL SMS API CALL DEBUG ===");
-                _logger.LogDebug("Endpoint: {Endpoint}", Settings.ApiEndpoint);
-                _logger.LogDebug("HTTP Method: {Method}", Settings.HttpMethod);
-                _logger.LogDebug("Content-Type: {ContentType}", Settings.ContentType);
-                _logger.LogDebug("Parameters (SECURED): {@Parameters}", logData);
-                _logger.LogDebug("Total Parameters Count: {Count}", requestParams.Count);
-
-                _logger.LogInformation("Sending SMS API request via {Method} to {Endpoint} with parameters: {@Parameters}",
-                    Settings.HttpMethod, Settings.ApiEndpoint, logData);
+            using (built)
+            {
+                if (profile!.Kind.Equals("SOAP", StringComparison.OrdinalIgnoreCase) && Settings.LogSoapXml)
+                    _soapXmlLog.Push(MaskPhoneNumber(recipient.PhoneNumber), built.DisplayBody);
 
                 var sw = Stopwatch.StartNew();
-                HttpResponseMessage response;
-                var method = Settings.HttpMethod.ToUpper();
-
-                if (method == "GET")
+                try
                 {
-                    var queryParams = requestParams.Select(kvp =>
-                        $"{Uri.EscapeDataString(kvp.Key)}={Uri.EscapeDataString(kvp.Value)}");
-                    var fullUrl = $"{Settings.ApiEndpoint}?{string.Join("&", queryParams)}";
-                    _logger.LogDebug("GET URL (SECURED): {FullUrl}", MaskSensitiveDataInUrl(fullUrl));
+                    using var response = await _httpClient.SendAsync(built.Request, cancellationToken);
+                    var body = await response.Content.ReadAsStringAsync(cancellationToken);
+                    sw.Stop();
 
-                    using var getRequest = new HttpRequestMessage(HttpMethod.Get, fullUrl);
-                    fullUrl = ApplyRestAuth(getRequest, fullUrl);
-                    getRequest.RequestUri = new Uri(fullUrl);
-                    AddCustomHeaders(getRequest, customHeaders);
-                    response = await _httpClient.SendAsync(getRequest, cancellationToken);
-                }
-                else if (method == "POST" || method == "PUT" || method == "PATCH")
-                {
-                    HttpContent content;
-                    if (Settings.ContentType.Contains("application/json"))
-                    {
-                        var jsonObject = requestParams.ToDictionary(kvp => kvp.Key, kvp => (object)kvp.Value);
-                        var jsonString = JsonSerializer.Serialize(jsonObject, new JsonSerializerOptions { WriteIndented = false });
-                        content = new StringContent(jsonString, Encoding.UTF8, "application/json");
-                        _logger.LogDebug("JSON Body (SECURED): {JsonBody}", MaskSensitiveDataInJson(jsonString));
-                    }
+                    var verdict = ResponseEvaluator.Evaluate(profile, (int)response.StatusCode, body);
+                    if (verdict.Accepted)
+                        _logger.LogInformation("SMS accepted for {PhoneNumber}: {Reason}", MaskPhoneNumber(recipient.PhoneNumber), verdict.Reason);
                     else
-                    {
-                        content = new FormUrlEncodedContent(requestParams);
-                        _logger.LogDebug("Form Data (SECURED): {FormData}", CreateSecureFormDataForLogging(requestParams));
-                    }
+                        _logger.LogError("SMS rejected for {PhoneNumber}: {Reason}. Response: {Body}", MaskPhoneNumber(recipient.PhoneNumber), verdict.Reason, body);
 
-                    var httpMethod = method switch
+                    _callLog.Add(new SmsCallEntry
                     {
-                        "POST"  => HttpMethod.Post,
-                        "PUT"   => HttpMethod.Put,
-                        "PATCH" => HttpMethod.Patch,
-                        _       => throw new NotSupportedException($"HTTP method {Settings.HttpMethod} not supported")
-                    };
+                        Timestamp      = DateTime.Now,
+                        Provider       = profile.Kind,
+                        Endpoint       = built.DisplayUrl,
+                        HttpMethod     = built.Request.Method.Method,
+                        PhoneNumber    = MaskPhoneNumber(recipient.PhoneNumber),
+                        AlarmId        = ctx?.AlarmId ?? string.Empty,
+                        RequestSummary = Truncate(built.DisplayBody, 2000) ?? string.Empty,
+                        FullResponse   = body,
+                        StatusCode     = (int)response.StatusCode,
+                        Success        = verdict.Accepted,
+                        DurationMs     = sw.ElapsedMilliseconds
+                    });
 
-                    using var bodyRequest = new HttpRequestMessage(httpMethod, Settings.ApiEndpoint) { Content = content };
-                    var resolvedUrl = ApplyRestAuth(bodyRequest, Settings.ApiEndpoint);
-                    if (!ReferenceEquals(resolvedUrl, Settings.ApiEndpoint))
-                        bodyRequest.RequestUri = new Uri(resolvedUrl);
-                    AddCustomHeaders(bodyRequest, customHeaders);
-                    response = await _httpClient.SendAsync(bodyRequest, cancellationToken);
-                }
-                else
-                {
-                    throw new NotSupportedException($"HTTP method {Settings.HttpMethod} not supported");
-                }
-
-                var responseContent = await response.Content.ReadAsStringAsync(cancellationToken);
-                sw.Stop();
-
-                // ?? DETAILED RESPONSE DEBUGGING (RESPONSE CONTENT IS SAFE)
-                _logger.LogDebug("=== SMS API RESPONSE DEBUG ===");
-                _logger.LogDebug("HTTP Status: {StatusCode} ({StatusName})", (int)response.StatusCode, response.StatusCode);
-                _logger.LogDebug("Response Headers:");
-                foreach (var header in response.Headers)
-                {
-                    _logger.LogDebug("  {HeaderName}: {HeaderValue}", header.Key, string.Join(", ", header.Value));
-                }
-                _logger.LogDebug("Response Content Length: {Length}", responseContent?.Length ?? 0);
-                _logger.LogDebug("Response Body: {Response}", responseContent);
-
-                SmsApiResponse restResult;
-
-                if (response.IsSuccessStatusCode)
-                {
-                    // Failure pattern overrides 2xx (provider returns 200 but body signals error)
-                    if (!string.IsNullOrEmpty(Settings.RestFailurePattern) &&
-                        responseContent.Contains(Settings.RestFailurePattern, StringComparison.OrdinalIgnoreCase))
+                    return new SmsApiResponse
                     {
-                        _logger.LogError("REST failure pattern '{Pattern}' found in response for {PhoneNumber}: {Response}",
-                            Settings.RestFailurePattern, MaskPhoneNumber(phoneNumber), responseContent);
-                        restResult = new SmsApiResponse { Success = false, Message = "Provider returned failure pattern in response", Response = responseContent, StatusCode = (int)response.StatusCode };
-                    }
-                    else if (!string.IsNullOrEmpty(Settings.RestSuccessPattern) &&
-                        !responseContent.Contains(Settings.RestSuccessPattern, StringComparison.OrdinalIgnoreCase))
-                    {
-                        _logger.LogError("REST success pattern '{Pattern}' not found in response for {PhoneNumber}: {Response}",
-                            Settings.RestSuccessPattern, MaskPhoneNumber(phoneNumber), responseContent);
-                        restResult = new SmsApiResponse { Success = false, Message = "Expected success pattern not found in response", Response = responseContent, StatusCode = (int)response.StatusCode };
-                    }
-                    else
-                    {
-                        _logger.LogInformation("SMS sent successfully to {PhoneNumber} - HTTP {StatusCode} received via {Method}",
-                            MaskPhoneNumber(phoneNumber), response.StatusCode, Settings.HttpMethod);
-                        restResult = new SmsApiResponse
-                        {
-                            Success = true,
-                            Message = $"SMS sent successfully - HTTP {response.StatusCode}",
-                            Response = responseContent,
-                            StatusCode = (int)response.StatusCode
-                        };
-                    }
-                }
-                else
-                {
-                    _logger.LogError("SMS API call failed with status {StatusCode} for {PhoneNumber}: {Response}",
-                        response.StatusCode, MaskPhoneNumber(phoneNumber), responseContent);
-                    restResult = new SmsApiResponse
-                    {
-                        Success = false,
-                        Message = $"API call failed - HTTP {response.StatusCode}",
-                        Response = responseContent,
+                        Success = verdict.Accepted,
+                        Message = verdict.Reason,
+                        Response = body,
                         StatusCode = (int)response.StatusCode
                     };
                 }
-
-                _callLog.Add(new SmsCallEntry
+                catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException && !cancellationToken.IsCancellationRequested)
                 {
-                    Timestamp      = DateTime.Now,
-                    Provider       = "REST",
-                    Endpoint       = Settings.ApiEndpoint,
-                    HttpMethod     = Settings.HttpMethod,
-                    PhoneNumber    = MaskPhoneNumber(phoneNumber),
-                    RequestSummary = string.Join(", ", logData.Select(kvp => $"{kvp.Key}={kvp.Value}")),
-                    FullResponse   = responseContent,
-                    StatusCode     = (int)response.StatusCode,
-                    Success        = restResult.Success,
-                    DurationMs     = sw.ElapsedMilliseconds
-                });
-
-                return restResult;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error making SMS API call to {PhoneNumber} via {Method}", MaskPhoneNumber(phoneNumber), Settings.HttpMethod);
-                _callLog.Add(new SmsCallEntry
-                {
-                    Timestamp   = DateTime.Now,
-                    Provider    = "REST",
-                    Endpoint    = Settings.ApiEndpoint,
-                    HttpMethod  = Settings.HttpMethod,
-                    PhoneNumber = MaskPhoneNumber(phoneNumber),
-                    FullResponse= ex.Message,
-                    Success     = false,
-                    StatusCode  = 0
-                });
-                return new SmsApiResponse
-                {
-                    Success = false,
-                    Message = ex.Message,
-                    Response = ex.ToString(),
-                    StatusCode = 0
-                };
+                    // Timeout or transport loss: the provider may or may not have sent it (status 0 = indeterminate).
+                    _logger.LogError(ex, "SMS call to {PhoneNumber} failed in transport", MaskPhoneNumber(recipient.PhoneNumber));
+                    _callLog.Add(new SmsCallEntry
+                    {
+                        Timestamp    = DateTime.Now,
+                        Provider     = profile.Kind,
+                        Endpoint     = built.DisplayUrl,
+                        HttpMethod   = built.Request.Method.Method,
+                        PhoneNumber  = MaskPhoneNumber(recipient.PhoneNumber),
+                        AlarmId      = ctx?.AlarmId ?? string.Empty,
+                        FullResponse = ex.Message,
+                        Success      = false,
+                        StatusCode   = 0
+                    });
+                    return new SmsApiResponse { Success = false, Message = ex.Message, Response = ex.ToString(), StatusCode = 0 };
+                }
             }
         }
+
+        // Nothing was sent (configuration problem): a plain failure, not "indeterminate" (status 0).
+        public const int NotSentStatusCode = -1;
 
         private async Task<bool> SendSingleSmsAsync(string message, SmsRecipient recipient, string alarmId, int? groupId = null, string? priority = null, string? value = null)
         {
@@ -732,528 +528,6 @@ namespace SCADASMSSystem.Web.Services
             }
         }
 
-        private async Task<SmsApiResponse> SendSoapApiCallAsync(string message, SmsRecipient recipient)
-            => await SendSoapApiCallAsync(message, recipient, null);
-
-        private async Task<SmsApiResponse> SendSoapApiCallAsync(string message, SmsRecipient recipient, SmsCallContext? ctx)
-            => await SendSoapApiCallAsync(message, recipient, ctx, CancellationToken.None);
-
-        private async Task<SmsApiResponse> SendSoapApiCallAsync(string message, SmsRecipient recipient, SmsCallContext? ctx, CancellationToken cancellationToken)
-        {
-            try
-            {
-                var phone = recipient.PhoneNumber;
-                var tz = recipient.TZ ?? "0";
-                var firstName = recipient.FirstName ?? "User";
-                var lastName = recipient.LastName ?? "User";
-
-                // Build SOAP header block based on auth type
-                var authType = Settings.SoapAuthType ?? "WSSecurity";
-
-                var wsUser = Settings.SoapPlaceholders
-                    .FirstOrDefault(p => p.Key.Equals("Username", StringComparison.OrdinalIgnoreCase))?.Value
-                    ?? Settings.Username ?? "";
-                var wsPass = Settings.SoapPlaceholders
-                    .FirstOrDefault(p => p.Key.Equals("Password", StringComparison.OrdinalIgnoreCase))?.Value
-                    ?? Settings.Password ?? "";
-
-                var soapHeader = authType.Equals("WSSecurity", StringComparison.OrdinalIgnoreCase)
-                    ? $@"  <soapenv:Header>
-    <Security xmlns=""http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd"">
-      <UsernameToken>
-        <Username>{SecurityElement(wsUser)}</Username>
-        <Password Type=""http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-username-token-profile-1.0#PasswordText"">{SecurityElement(wsPass)}</Password>
-      </UsernameToken>
-    </Security>
-  </soapenv:Header>"
-                    : "  <soapenv:Header/>";
-
-                // Build SOAP body from configured template (required — no client-specific defaults)
-                if (string.IsNullOrWhiteSpace(Settings.SoapBodyTemplate))
-                    throw new InvalidOperationException(
-                        "SOAP Body Template is required. Configure it in Settings → Provider → SOAP.");
-
-                // Resolve a SOAP dynamic keyword to its runtime value.
-                string ResolveSoapValue(string keyword) => keyword.ToLowerInvariant() switch
-                {
-                    "message"                              => SecurityElement(message),
-                    "phone" or "phonenumber" or "mobile"  => SecurityElement(phone),
-                    "tz"                                   => SecurityElement(tz),
-                    "username" or "user"                   => SecurityElement(Settings.Username ?? ""),
-                    "password" or "pass"                   => SecurityElement(Settings.Password ?? ""),
-                    "sender_name" or "sendername" or "from"=> SecurityElement(Settings.SenderName ?? ""),
-                    "firstname"                            => SecurityElement(firstName),
-                    "lastname"                             => SecurityElement(lastName),
-                    "sendingsystem"                        => SecurityElement(Settings.SoapSendingSystem ?? "SCADA"),
-                    "messagetype"                          => SecurityElement(Settings.SoapMessageType ?? "SmsType1"),
-                    "group_id" or "groupid"                => SecurityElement(ctx?.GroupId?.ToString() ?? ""),
-                    "alarm_id" or "alarmid"                => SecurityElement(ctx?.AlarmId ?? ""),
-                    "priority"                             => SecurityElement(ctx?.Priority ?? ""),
-                    "value"                                => SecurityElement(ctx?.Value ?? ""),
-                    _                                      => SecurityElement(keyword) // literal static value
-                };
-
-                var soapBodyContent = Settings.SoapBodyTemplate;
-
-                var phoneKws = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "phone", "phonenumber", "mobile" };
-                var messageKws = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "message", "msg", "text", "body" };
-
-                if (Settings.SoapPlaceholders.Count > 0)
-                {
-                    // New dynamic list path
-                    ValidateRequiredSoapMapping(soapBodyContent, Settings.SoapPlaceholders, phoneKws, "phone");
-                    ValidateRequiredSoapMapping(soapBodyContent, Settings.SoapPlaceholders, messageKws, "message");
-                    foreach (var param in Settings.SoapPlaceholders)
-                        soapBodyContent = soapBodyContent.Replace($"{{{param.Key}}}", ResolveSoapValue(param.Value));
-                }
-                else if (!string.IsNullOrWhiteSpace(Settings.SoapParams))
-                {
-                    // Legacy SoapParams JSON string
-                    var soapParamMap = JsonSerializer.Deserialize<Dictionary<string, string>>(Settings.SoapParams)
-                                       ?? new Dictionary<string, string>();
-                    var legacyParams = soapParamMap.Select(p => new SmsParam { Key = p.Key, Value = p.Value }).ToList();
-                    ValidateRequiredSoapMapping(soapBodyContent, legacyParams, phoneKws, "phone");
-                    ValidateRequiredSoapMapping(soapBodyContent, legacyParams, messageKws, "message");
-                    foreach (var (token, value) in soapParamMap)
-                        soapBodyContent = soapBodyContent.Replace($"{{{token}}}", ResolveSoapValue(value));
-                }
-                else
-                {
-                    RequireSingleToken(soapBodyContent, "Phone", "phone");
-                    RequireSingleToken(soapBodyContent, "Message", "message");
-
-                    // Legacy hardcoded replacements (backward-compatible)
-                    soapBodyContent = soapBodyContent
-                        .Replace("{Message}",       SecurityElement(message))
-                        .Replace("{Phone}",         SecurityElement(phone))
-                        .Replace("{Username}",      SecurityElement(Settings.Username ?? ""))
-                        .Replace("{Password}",      SecurityElement(Settings.Password ?? ""))
-                        .Replace("{SenderName}",    SecurityElement(Settings.SenderName ?? ""))
-                        .Replace("{FirstName}",     SecurityElement(firstName))
-                        .Replace("{LastName}",      SecurityElement(lastName))
-                        .Replace("{TZ}",            SecurityElement(tz))
-                        .Replace("{SendingSystem}", SecurityElement(Settings.SoapSendingSystem ?? "SCADA"))
-                        .Replace("{MessageType}",   SecurityElement(Settings.SoapMessageType ?? "SmsType1"));
-                }
-
-                if (System.Text.RegularExpressions.Regex.IsMatch(soapBodyContent, @"\{[^{}]+\}"))
-                    throw new InvalidOperationException("SOAP Body Template contains unresolved placeholders.");
-
-                // Extra namespace declarations (e.g. xmlns:ns1="http://myprovider.com")
-                var extraNs = string.IsNullOrWhiteSpace(Settings.SoapEnvelopeNamespaces)
-                    ? ""
-                    : " " + Settings.SoapEnvelopeNamespaces.Trim();
-
-                var soapEnvelope = $@"<?xml version=""1.0"" encoding=""utf-8""?>
-<soapenv:Envelope xmlns:soapenv=""http://schemas.xmlsoap.org/soap/envelope/""{extraNs}>
-{soapHeader}
-  <soapenv:Body>
-{soapBodyContent}
-  </soapenv:Body>
-</soapenv:Envelope>";
-
-                ParseXmlSecurely(soapEnvelope, "SOAP request");
-
-                if (Settings.LogSoapXml)
-                {
-                    var logEnvelope = soapEnvelope;
-                    // Redact WS-Security / HttpBasic password
-                    if (!string.IsNullOrEmpty(wsPass))
-                    {
-                        logEnvelope = logEnvelope
-                            .Replace(SecurityElement(wsPass), "***", StringComparison.Ordinal)
-                            .Replace(wsPass, "***", StringComparison.Ordinal);
-                    }
-                    // Redact any SOAP placeholder values marked IsSecret
-                    foreach (var p in Settings.SoapPlaceholders.Where(p => p.IsSecret && !string.IsNullOrEmpty(p.Value)))
-                    {
-                        logEnvelope = logEnvelope
-                            .Replace(SecurityElement(p.Value), "***", StringComparison.Ordinal)
-                            .Replace(p.Value, "***", StringComparison.Ordinal);
-                    }
-                    _soapXmlLog.Push(MaskPhoneNumber(phone), logEnvelope);
-                }
-
-                _logger.LogDebug("Sending SOAP SMS to {PhoneNumber} via {Endpoint} (auth={AuthType})",
-                    MaskPhoneNumber(phone), Settings.ApiEndpoint, authType);
-
-                using var request = new HttpRequestMessage(HttpMethod.Post, Settings.ApiEndpoint);
-                request.Content = new StringContent(soapEnvelope, Encoding.UTF8, "text/xml");
-                request.Headers.TryAddWithoutValidation("SOAPAction", $"\"{Settings.SoapAction}\"");
-
-                // HTTP Basic auth header (alternative to WS-Security)
-                if (authType.Equals("HttpBasic", StringComparison.OrdinalIgnoreCase))
-                {
-                    var credentials = Convert.ToBase64String(
-                        Encoding.UTF8.GetBytes($"{wsUser}:{wsPass}"));
-                    request.Headers.TryAddWithoutValidation("Authorization", $"Basic {credentials}");
-                }
-
-                var sw = Stopwatch.StartNew();
-                var response = await _httpClient.SendAsync(request, cancellationToken);
-                var responseContent = await response.Content.ReadAsStringAsync(cancellationToken);
-                sw.Stop();
-
-                _logger.LogDebug("SOAP response HTTP {StatusCode}: {Body}", (int)response.StatusCode, responseContent);
-
-                SmsApiResponse soapResult;
-
-                if (response.IsSuccessStatusCode)
-                {
-                    var successPattern = Settings.SoapSuccessPattern?.Trim();
-                    if (string.IsNullOrWhiteSpace(successPattern))
-                        throw new InvalidOperationException("SOAP Success Pattern is required for provider acceptance confirmation.");
-
-                    var acceptance = EvaluateSoapResponse(
-                        responseContent, successPattern, Settings.SoapErrorPattern);
-                    var success = acceptance.Success;
-                    var errorMessage = acceptance.ErrorMessage;
-
-                    if (success)
-                    {
-                        _logger.LogInformation("SOAP SMS sent successfully to {PhoneNumber}", MaskPhoneNumber(phone));
-                        soapResult = new SmsApiResponse { Success = true, Message = "SMS sent via SOAP", Response = responseContent, StatusCode = (int)response.StatusCode };
-                    }
-                    else
-                    {
-                        _logger.LogError("SOAP SMS failed for {PhoneNumber}: {Error}", MaskPhoneNumber(phone), errorMessage);
-                        soapResult = new SmsApiResponse
-                        {
-                            Success = false,
-                            Message = string.IsNullOrWhiteSpace(errorMessage)
-                                ? "SOAP provider response did not confirm acceptance"
-                                : $"SOAP provider error: {errorMessage}",
-                            Response = responseContent,
-                            StatusCode = (int)response.StatusCode
-                        };
-                    }
-                }
-                else
-                {
-                    _logger.LogError("SOAP SMS HTTP error {StatusCode} for {PhoneNumber}", response.StatusCode, MaskPhoneNumber(phone));
-                    soapResult = new SmsApiResponse { Success = false, Message = $"HTTP {response.StatusCode}", Response = responseContent, StatusCode = (int)response.StatusCode };
-                }
-
-                _callLog.Add(new SmsCallEntry
-                {
-                    Timestamp     = DateTime.Now,
-                    Provider      = "SOAP",
-                    Endpoint      = Settings.ApiEndpoint,
-                    HttpMethod    = "POST",
-                    PhoneNumber   = MaskPhoneNumber(phone),
-                    AlarmId       = ctx?.AlarmId ?? string.Empty,
-                    RequestSummary= $"SOAPAction={Settings.SoapAction}",
-                    FullResponse  = responseContent,
-                    StatusCode    = (int)response.StatusCode,
-                    Success       = soapResult.Success,
-                    DurationMs    = sw.ElapsedMilliseconds
-                });
-
-                return soapResult;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error sending SOAP SMS to {PhoneNumber}", MaskPhoneNumber(recipient.PhoneNumber));
-                _callLog.Add(new SmsCallEntry
-                {
-                    Timestamp     = DateTime.Now,
-                    Provider      = "SOAP",
-                    Endpoint      = Settings.ApiEndpoint,
-                    HttpMethod    = "POST",
-                    PhoneNumber   = MaskPhoneNumber(recipient.PhoneNumber),
-                    FullResponse  = ex.Message,
-                    Success       = false,
-                    StatusCode    = 0
-                });
-                return new SmsApiResponse { Success = false, Message = ex.Message, Response = ex.ToString(), StatusCode = 0 };
-            }
-        }
-
-        private static XDocument ParseXmlSecurely(string xml, string description)
-        {
-            try
-            {
-                var settings = new XmlReaderSettings
-                {
-                    DtdProcessing = DtdProcessing.Prohibit,
-                    XmlResolver = null
-                };
-                using var stringReader = new StringReader(xml);
-                using var xmlReader = XmlReader.Create(stringReader, settings);
-                return XDocument.Load(xmlReader, LoadOptions.None);
-            }
-            catch (XmlException ex)
-            {
-                throw new InvalidOperationException($"{description} is not valid XML: {ex.Message}", ex);
-            }
-        }
-
-        internal static SoapAcceptanceResult EvaluateSoapResponse(
-            string responseContent,
-            string successPattern,
-            string? errorPattern)
-        {
-            if (string.IsNullOrWhiteSpace(successPattern))
-                throw new InvalidOperationException("SOAP Success Pattern is required for provider acceptance confirmation.");
-
-            var responseXml = ParseXmlSecurely(responseContent, "SOAP response");
-            var fault = responseXml.Descendants().FirstOrDefault(e =>
-                e.Name.LocalName.Equals("Fault", StringComparison.OrdinalIgnoreCase));
-            if (fault != null)
-                return new SoapAcceptanceResult(false, ExtractSoapFault(fault));
-
-            var configuredError = FindSoapError(responseXml, errorPattern);
-            if (configuredError.Found)
-                return new SoapAcceptanceResult(false, configuredError.Message);
-
-            return MatchesSoapPattern(responseXml, responseContent, successPattern)
-                ? new SoapAcceptanceResult(true, string.Empty)
-                : new SoapAcceptanceResult(false, "SOAP provider response did not confirm acceptance");
-        }
-
-        private static bool MatchesSoapPattern(XDocument document, string rawXml, string pattern)
-        {
-            if (pattern.StartsWith('<'))
-            {
-                XElement expected;
-                try
-                {
-                    expected = XElement.Parse(pattern);
-                }
-                catch (XmlException ex)
-                {
-                    throw new InvalidOperationException(
-                        "SOAP Success Pattern must be valid XML. Namespace prefixes require xmlns declarations.", ex);
-                }
-
-                var matches = document.Descendants().Where(actual =>
-                    actual.Name == expected.Name &&
-                    actual.Value.Trim().Equals(expected.Value.Trim(), StringComparison.OrdinalIgnoreCase) &&
-                    expected.Attributes().Where(a => !a.IsNamespaceDeclaration).All(expectedAttribute =>
-                        actual.Attributes().Any(actualAttribute =>
-                            !actualAttribute.IsNamespaceDeclaration &&
-                            actualAttribute.Name == expectedAttribute.Name &&
-                            actualAttribute.Value.Equals(expectedAttribute.Value, StringComparison.OrdinalIgnoreCase))));
-
-                // Ambiguous duplicate signals are not sufficient proof of provider acceptance.
-                return matches.Take(2).Count() == 1;
-            }
-
-            return rawXml.Contains(pattern, StringComparison.OrdinalIgnoreCase);
-        }
-
-        private static string ExtractSoapFault(XElement fault)
-        {
-            return fault.Descendants().FirstOrDefault(e =>
-                       e.Name.LocalName is "faultstring" or "Text" or "Reason")?.Value.Trim()
-                   ?? fault.Value.Trim();
-        }
-
-        private static (bool Found, string Message) FindSoapError(XDocument document, string? configuredPattern)
-        {
-            if (string.IsNullOrWhiteSpace(configuredPattern))
-                return (false, string.Empty);
-
-            var localName = configuredPattern.Trim().TrimStart('<').TrimEnd('>');
-            var separator = localName.IndexOfAny([' ', '/', '>']);
-            if (separator >= 0)
-                localName = localName[..separator];
-            if (localName.Contains(':'))
-                localName = localName[(localName.IndexOf(':') + 1)..];
-
-            var element = document.Descendants().FirstOrDefault(e =>
-                e.Name.LocalName.Equals(localName, StringComparison.OrdinalIgnoreCase));
-            if (element == null)
-                return (false, string.Empty);
-
-            var message = element.Value.Trim();
-            var hasDetails = message.Length > 0 || element.Attributes().Any(a => !a.IsNamespaceDeclaration);
-            return (hasDetails, message);
-        }
-
-        internal static void ValidateRequiredSoapMapping(
-            string template,
-            IEnumerable<SmsParam> mappings,
-            HashSet<string> acceptedKeywords,
-            string fieldName)
-        {
-            var mapping = mappings.SingleOrDefault(p => acceptedKeywords.Contains(p.Value ?? string.Empty));
-            if (mapping == null)
-                throw new InvalidOperationException($"SOAP configuration must map one placeholder to '{fieldName}'.");
-
-            RequireSingleToken(template, mapping.Key, fieldName);
-        }
-
-        internal static void RequireSingleToken(string template, string tokenName, string fieldName)
-        {
-            var token = $"{{{tokenName}}}";
-            var count = Regex.Matches(template, Regex.Escape(token), RegexOptions.CultureInvariant).Count;
-            if (count != 1)
-                throw new InvalidOperationException(
-                    $"SOAP Body Template must contain exactly one {token} token for '{fieldName}'.");
-        }
-
-        private static readonly HashSet<string> _sensitiveHeaderNames = new(StringComparer.OrdinalIgnoreCase)
-            { "authorization", "x-api-key", "x-auth-token", "x-secret", "x-api-secret", "api-key", "token", "x-token" };
-
-        private void AddCustomHeaders(HttpRequestMessage request, Dictionary<string, string> headers)
-        {
-            foreach (var (name, value) in headers)
-            {
-                try
-                {
-                    request.Headers.TryAddWithoutValidation(name, value);
-                    var logValue = _sensitiveHeaderNames.Any(s => name.StartsWith(s, StringComparison.OrdinalIgnoreCase))
-                        ? "***MASKED***"
-                        : value;
-                    _logger.LogDebug("Added custom header: {Name}={Value}", name, logValue);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning(ex, "Could not add custom header {Name}", name);
-                }
-            }
-        }
-
-        /// <summary>
-        /// Applies REST authentication to the outgoing request based on Settings.RestAuthType.
-        /// For ApiKey-in-Query the caller must use the returned URL instead of the original endpoint.
-        /// </summary>
-        private string ApplyRestAuth(HttpRequestMessage request, string url)
-        {
-            var authType = (Settings.RestAuthType ?? "None").Trim();
-            if (string.IsNullOrEmpty(authType) || authType.Equals("None", StringComparison.OrdinalIgnoreCase))
-                return url;
-
-            switch (authType.ToLowerInvariant())
-            {
-                case "basic":
-                    if (!string.IsNullOrEmpty(Settings.Username))
-                    {
-                        var raw = $"{Settings.Username}:{Settings.Password}";
-                        var b64 = Convert.ToBase64String(Encoding.UTF8.GetBytes(raw));
-                        request.Headers.TryAddWithoutValidation("Authorization", $"Basic {b64}");
-                        _logger.LogDebug("Applied REST Basic auth header (Authorization: Basic ***)");
-                    }
-                    return url;
-
-                case "bearer":
-                    if (!string.IsNullOrEmpty(Settings.RestBearerToken))
-                    {
-                        request.Headers.TryAddWithoutValidation("Authorization", $"Bearer {Settings.RestBearerToken}");
-                        _logger.LogDebug("Applied REST Bearer token (Authorization: Bearer ***)");
-                    }
-                    return url;
-
-                case "apikey":
-                    if (string.IsNullOrEmpty(Settings.RestApiKeyName))
-                        return url;
-                    var location = (Settings.RestApiKeyLocation ?? "Header").Trim();
-                    if (location.Equals("Query", StringComparison.OrdinalIgnoreCase))
-                    {
-                        var sep = url.Contains('?') ? "&" : "?";
-                        var newUrl = $"{url}{sep}{Uri.EscapeDataString(Settings.RestApiKeyName)}={Uri.EscapeDataString(Settings.RestApiKeyValue ?? string.Empty)}";
-                        _logger.LogDebug("Applied REST API key as query parameter (***)");
-                        return newUrl;
-                    }
-                    request.Headers.TryAddWithoutValidation(Settings.RestApiKeyName, Settings.RestApiKeyValue ?? string.Empty);
-                    _logger.LogDebug("Applied REST API key header {HeaderName}=***", Settings.RestApiKeyName);
-                    return url;
-
-                default:
-                    _logger.LogWarning("Unknown RestAuthType '{AuthType}' - no auth applied", authType);
-                    return url;
-            }
-        }
-
-        private static string SecurityElement(string value) =>
-            System.Security.SecurityElement.Escape(value) ?? value;
-
-        // ?? ENHANCED SECURITY HELPER METHODS
-        private Dictionary<string, string> CreateSecureLookupForLogging(Dictionary<string, string> requestParams)
-        {
-            var secureParams = new Dictionary<string, string>();
-            
-            foreach (var param in requestParams)
-            {
-                if (IsSensitiveParameter(param.Key))
-                {
-                    secureParams[param.Key] = "***MASKED***";
-                }
-                else if (param.Key.ToLower().Contains("phone") || param.Key.ToLower().Contains("sendtophonenumbers"))
-                {
-                    secureParams[param.Key] = MaskPhoneNumber(param.Value);
-                }
-                else
-                {
-                    secureParams[param.Key] = param.Value;
-                }
-            }
-            
-            return secureParams;
-        }
-
-        private string MaskSensitiveDataInUrl(string url)
-        {
-            if (string.IsNullOrEmpty(url)) return url;
-            
-            var maskedUrl = url;
-            
-            // Mask password parameter
-            if (!string.IsNullOrEmpty(Settings.Password))
-            {
-                maskedUrl = maskedUrl.Replace(Settings.Password, "***PASSWORD***");
-                maskedUrl = maskedUrl.Replace(Uri.EscapeDataString(Settings.Password), "***PASSWORD***");
-            }
-            
-            // Mask phone numbers (look for patterns like phone number)
-            maskedUrl = System.Text.RegularExpressions.Regex.Replace(
-                maskedUrl, 
-                @"(\+?[0-9]{10,15})", 
-                match => MaskPhoneNumber(Uri.UnescapeDataString(match.Value))
-            );
-            
-            return maskedUrl;
-        }
-
-        private string MaskSensitiveDataInJson(string jsonString)
-        {
-            if (string.IsNullOrEmpty(jsonString)) return jsonString;
-            
-            var maskedJson = jsonString;
-            
-            // Mask password in JSON
-            if (!string.IsNullOrEmpty(Settings.Password))
-            {
-                maskedJson = maskedJson.Replace(Settings.Password, "***PASSWORD***");
-            }
-            
-            return maskedJson;
-        }
-
-        private string CreateSecureFormDataForLogging(Dictionary<string, string> requestParams)
-        {
-            return string.Join("&", 
-                requestParams.Where(kvp => !IsSensitiveParameter(kvp.Key))
-                           .Select(kvp => 
-                           {
-                               var value = kvp.Key.ToLower().Contains("phone") || kvp.Key.ToLower().Contains("sendtophonenumbers")
-                                   ? MaskPhoneNumber(kvp.Value)
-                                   : kvp.Value;
-                               return $"{Uri.EscapeDataString(kvp.Key)}={Uri.EscapeDataString(value)}";
-                           }));
-        }
-
-        private bool IsSensitiveParameter(string paramName)
-        {
-            var lowerParam = paramName.ToLower();
-            return lowerParam.Contains("password") || 
-                   lowerParam.Contains("pass") ||
-                   lowerParam.Contains("key") ||
-                   lowerParam.Contains("secret") ||
-                   lowerParam.Contains("token");
-        }
-
         private string MaskPhoneNumber(string phoneNumber)
         {
             if (string.IsNullOrEmpty(phoneNumber) || phoneNumber.Length < 4)
@@ -1266,37 +540,6 @@ namespace SCADASMSSystem.Web.Services
             }
             
             return $"{phoneNumber.Substring(0, 3)}***{phoneNumber.Substring(phoneNumber.Length - 3)}";
-        }
-
-        private string ResolveRestKeyword(string keyword, string phoneNumber, SmsRecipient recipient, SmsCallContext? ctx)
-        {
-            switch (keyword.ToLowerInvariant())
-            {
-                case "phone": case "phonenumber": case "sendtophonenumbers": case "mobile": case "number":
-                    return phoneNumber;
-                case "tz":
-                    return recipient.TZ ?? "";
-                case "firstname":
-                    return recipient.FirstName ?? "";
-                case "lastname":
-                    return recipient.LastName ?? "";
-                case "group_id": case "groupid":
-                    return ctx?.GroupId?.ToString() ?? "";
-                case "alarm_id": case "alarmid":
-                    return ctx?.AlarmId ?? "";
-                case "priority":
-                    return ctx?.Priority ?? "";
-                case "value":
-                    return ctx?.Value ?? "";
-                case "username": case "user": case "userid":
-                    return Settings.Username ?? "";
-                case "password": case "pass":
-                    return Settings.Password ?? "";
-                case "sender_name": case "sendername": case "sender": case "from":
-                    return Settings.SenderName ?? "SCADA";
-                default:
-                    return keyword; // literal value
-            }
         }
 
         private bool CheckRateLimit() => TryAcquireRateLimit();
@@ -1373,5 +616,4 @@ namespace SCADASMSSystem.Web.Services
     /// from a context that does not have these fields (e.g. test pages).
     /// </summary>
     public sealed record SmsCallContext(int? GroupId, string? AlarmId, string? Priority, string? Value);
-    public sealed record SoapAcceptanceResult(bool Success, string ErrorMessage);
 }

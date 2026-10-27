@@ -97,6 +97,17 @@ The file must remain **UTF-8 with BOM and CRLF line endings**.
 - Cover: service up (200), partial failure (502), service down, non-numeric group, Hebrew text with `&`, `!` and quotes.
 - Confirm the spool file is deleted only on 200 and that `Scada_sms.log` records every call.
 
+## Provider profiles (how an SMS is actually sent)
+
+`SmsService` sends every SMS through one data-driven `ProviderProfile` (`SmsSettings:Profile`); there is no provider-specific REST or SOAP code. A new provider at an air-gapped site means a new profile, not a code change.
+
+- **Request:** method, URL template, headers, body template of any content type (JSON, form, XML/SOAP 1.1/1.2, text), variables (constants and secrets), auth (`None`, `Basic`, `Bearer`, `WsSecurity` UsernameToken injected into the envelope header), and a phone format (`AsStored`, `DigitsOnly`, `E164`, `International`, `Local` with a country code).
+- **Templates:** `{Name}` or `{Name:raw|json|xml|url|base64}`. Built-ins: `Message`, `Phone`, `Value`, `AlarmId`, `Priority`, `GroupId`, `UserId`, `FirstName`, `LastName`, `TZ`, `Now[:format]`, `Guid`; anything else must be a profile variable. Without a suffix the encoding follows the location (URL, body content type, header). Unknown tokens are errors, never sent.
+- **Acceptance:** failure rule first, then success status codes (`2xx`, `200,202`), then the success body rule (`Contains`, `Regex`, `JsonPath` `$.a.b[0]`, `XmlElement` with optional expected value; two matching elements are ambiguous and not accepted). For `Kind: SOAP` a SOAP Fault always fails and a body success rule is required.
+- **Validation:** `ProfileValidator` renders a sample alarm (quotes, `&`, `<`, Hebrew) and checks URL, JSON/XML well-formedness, that `{Message}` and `{Phone}` are sent, variable names, auth and rules. An invalid profile blocks sending (status `-1`, not retried in-request) and shows a red banner.
+- **Cutover:** at startup a site without a profile gets one from its old fields (`LegacyProfileConverter`, reproduces the old send code; previous `appsettings.json` backed up). Until the Settings page edits profiles directly (Phase 4), every Settings or workbench save regenerates the profile from the old fields when `ProfileSource` is `Legacy`; a `Custom` profile is never overwritten. Environment-variable overrides of the old fields stop mattering once a profile exists.
+- Code: `Models/ProviderProfile.cs`, `Services/Providers/` (template, phone formatter, request builder, response evaluator, validator, converter).
+
 ## Failure visibility, access control and secrets
 
 - **Delivery alerts.** `DeliveryAlertService` collects critical alarms that did not reach every recipient (from `scada_critical_sms_deliveries` and the spool folders), unreadable spool files, groups with no eligible recipients right now, and SMS-enabled users with an invalid phone number. The `SystemAlerts` view component shows them as a banner on every page; `/Alerts` lists them and lets a user acknowledge an alarm (`scada_alarm_acknowledgements`, records who). Acknowledging hides the banner; it does not stop retries.

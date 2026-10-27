@@ -2,6 +2,7 @@ using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using SCADASMSSystem.Web.Models;
+using SCADASMSSystem.Web.Services.Providers;
 
 namespace SCADASMSSystem.Web.Services
 {
@@ -172,6 +173,30 @@ namespace SCADASMSSystem.Web.Services
                 Value = p.IsSecret && !string.IsNullOrEmpty(p.Value) ? MaskedValue : p.Value,
                 IsSecret = p.IsSecret
             }).ToList();
+
+        /// <summary>
+        /// Rebuilds Profile from the legacy fields of a merged section and validates it. Throws
+        /// <see cref="SettingsValidationException"/> so the caller's write is aborted. A Custom
+        /// profile is never overwritten, only validated.
+        /// </summary>
+        public static void RegenerateProfile(JsonObject section)
+        {
+            var settings = ToSettings(section);
+            if (!string.Equals(settings.ProfileSource, ProfileSources.Legacy, StringComparison.OrdinalIgnoreCase))
+            {
+                var customErrors = ProfileValidator.Validate(settings.Profile);
+                if (customErrors.Count > 0)
+                    throw new SettingsValidationException(customErrors);
+                return;
+            }
+
+            var profile = LegacyProfileConverter.Convert(settings);
+            var errors = ProfileValidator.Validate(profile);
+            if (errors.Count > 0)
+                throw new SettingsValidationException(errors);
+            section["Profile"] = JsonSerializer.SerializeToNode(profile);
+            section["ProfileSource"] = ProfileSources.Legacy;
+        }
 
         /// <summary>Typed view of a (merged) SmsSettings section, for validation.</summary>
         public static SmsSettings ToSettings(JsonObject section) =>

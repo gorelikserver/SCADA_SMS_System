@@ -36,10 +36,11 @@ namespace SCADASMSSystem.Web.Services
         IReadOnlyList<string> BadSpoolFiles,
         IReadOnlyList<EmptyGroup> EmptyGroups,
         IReadOnlyList<InvalidPhoneUser> InvalidPhones,
+        IReadOnlyList<string> ProfileErrors,
         bool TestMode)
     {
         public bool NeedsAttention =>
-            Alarms.Count > 0 || BadSpoolFiles.Count > 0 || EmptyGroups.Count > 0 || InvalidPhones.Count > 0;
+            Alarms.Count > 0 || BadSpoolFiles.Count > 0 || EmptyGroups.Count > 0 || InvalidPhones.Count > 0 || ProfileErrors.Count > 0;
     }
 
     public interface IDeliveryAlertService
@@ -164,7 +165,8 @@ namespace SCADASMSSystem.Web.Services
                 : new List<string>();
 
             return new DeliveryAlertSummary(
-                alarms.OrderByDescending(a => a.FirstSeen).ToList(), bad, emptyGroups, invalidPhones, _smsSettings.CurrentValue.TestMode);
+                alarms.OrderByDescending(a => a.FirstSeen).ToList(), bad, emptyGroups, invalidPhones,
+                Providers.ProfileValidator.Validate(_smsSettings.CurrentValue.Profile), _smsSettings.CurrentValue.TestMode);
         }
 
         public async Task AcknowledgeAsync(string alarmId, string? note, string? acknowledgedBy, CancellationToken ct = default)

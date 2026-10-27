@@ -96,6 +96,21 @@ namespace SCADASMSSystem.Web.Models
 
         // ─── SOAP XML logging ────────────────────────────────────────────────────────
         public bool LogSoapXml { get; set; } = false;
+
+        // ─── Provider profile ────────────────────────────────────────────────────────
+        // The only thing SmsService sends with. Every field above except TestMode, LogSoapXml,
+        // rate/timeout/retry settings and ScadaPcimObjectId is input for LegacyProfileConverter.
+        public ProviderProfile? Profile { get; set; }
+
+        // "Legacy": Profile is regenerated from the fields above whenever Settings is saved.
+        // "Custom": Profile was written directly and is never overwritten by a Settings save.
+        public string ProfileSource { get; set; } = ProfileSources.Legacy;
+    }
+
+    public static class ProfileSources
+    {
+        public const string Legacy = "Legacy";
+        public const string Custom = "Custom";
     }
 
     public class SmsParam

@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.Extensions.Options;
 using SCADASMSSystem.Web.Models;
 using SCADASMSSystem.Web.Services;
+using SCADASMSSystem.Web.Services.Providers;
 using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -179,9 +180,7 @@ namespace SCADASMSSystem.Web.Pages.Settings
 
                     // Validate the merged result, not the raw post: stored fields the form does not
                     // render still count. Throwing here aborts the write.
-                    var errors = SmsContractValidator.Validate(SmsSettingsMerge.ToSettings(section));
-                    if (errors.Count > 0)
-                        throw new SettingsValidationException(errors);
+                    SmsSettingsMerge.RegenerateProfile(section);
                 });
 
                 _logger.LogInformation("SMS settings saved to appsettings.json by user");
@@ -216,8 +215,16 @@ namespace SCADASMSSystem.Web.Pages.Settings
             {
                 if (input.ProviderType.Equals("SOAP", StringComparison.OrdinalIgnoreCase))
                 {
-                    var result = SmsService.EvaluateSoapResponse(input.ResponseBody ?? "", input.SuccessPattern ?? "", input.ErrorPattern);
-                    return new JsonResult(new { accepted = result.Success, message = result.Success ? "SOAP response confirms provider acceptance." : result.ErrorMessage });
+                    var probe = LegacyProfileConverter.Convert(new SmsSettings
+                    {
+                        ProviderType = "SOAP",
+                        SoapSuccessPattern = input.SuccessPattern ?? "",
+                        SoapErrorPattern = input.ErrorPattern ?? ""
+                    });
+                    if (probe.Success.Match == MatchTypes.None)
+                        return new JsonResult(new { accepted = false, message = "A SOAP success pattern is required to confirm acceptance." });
+                    var verdict = ResponseEvaluator.Evaluate(probe, 200, input.ResponseBody ?? "");
+                    return new JsonResult(new { accepted = verdict.Accepted, message = verdict.Accepted ? "SOAP response confirms provider acceptance." : verdict.Reason });
                 }
 
                 var body = input.ResponseBody ?? "";

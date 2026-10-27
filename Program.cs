@@ -237,6 +237,36 @@ try
         }
     }
 
+    // Hard cutover to provider profiles: SmsService sends only with SmsSettings:Profile. A site
+    // upgraded from an older version gets one converted from its old REST/SOAP fields (the
+    // previous appsettings.json is kept in settings-backups). Stored even if invalid, so the
+    // banner and Settings show what to fix.
+    {
+        var startupLogger = app.Services.GetRequiredService<ILogger<Program>>();
+        var smsSettings = app.Services.GetRequiredService<Microsoft.Extensions.Options.IOptionsMonitor<SmsSettings>>().CurrentValue;
+        if (smsSettings.Profile == null)
+        {
+            try
+            {
+                var profile = SCADASMSSystem.Web.Services.Providers.LegacyProfileConverter.Convert(smsSettings);
+                await app.Services.GetRequiredService<ISettingsStore>().UpdateSmsSettingsAsync(section =>
+                {
+                    section["Profile"] = System.Text.Json.JsonSerializer.SerializeToNode(profile);
+                    section["ProfileSource"] = ProfileSources.Legacy;
+                });
+                var errors = SCADASMSSystem.Web.Services.Providers.ProfileValidator.Validate(profile);
+                if (errors.Count == 0)
+                    startupLogger.LogWarning("Converted the old {Kind} provider settings into a provider profile", profile.Kind);
+                else
+                    startupLogger.LogCritical("Converted provider profile is invalid; alarms will not be sent until it is fixed: {Errors}", string.Join("; ", errors));
+            }
+            catch (Exception ex)
+            {
+                startupLogger.LogCritical(ex, "Could not convert the old provider settings into a provider profile");
+            }
+        }
+    }
+
     // Configure the HTTP request pipeline.
     if (!app.Environment.IsDevelopment())
     {

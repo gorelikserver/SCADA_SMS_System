@@ -9,6 +9,18 @@
     return;
 }
 
+@if (Model.ProfileErrors.Count > 0)
+{
+    <div class="alert alert-danger rounded-0 mb-0 py-2 px-4 d-flex align-items-center gap-3" role="alert">
+        <i class="fas fa-plug"></i>
+        <div class="flex-grow-1">
+            <strong>SMS provider is not configured correctly &mdash; alarms cannot be sent.</strong>
+            @Model.ProfileErrors[0]@(Model.ProfileErrors.Count > 1 ? $" (+{Model.ProfileErrors.Count - 1} more)" : "")
+        </div>
+        <a href="/Settings" class="btn btn-sm btn-light">Settings</a>
+    </div>
+}
+
 @if (Model.TestMode)
 {
     <div class="alert alert-warning rounded-0 mb-0 py-2 px-4 d-flex align-items-center gap-3" role="alert">

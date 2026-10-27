@@ -322,10 +322,15 @@ namespace SCADASMSSystem.Web.Pages.Test
                         existing["Username"]           = req.Username;
                     if (!SmsSettingsMerge.IsBlankOrMasked(req.Password))
                         existing["Password"]           = req.Password;
+                    SmsSettingsMerge.RegenerateProfile(existing);
                 });
 
                 _logger.LogInformation("SOAP config saved from workbench by user");
                 return new JsonResult(new { success = true });
+            }
+            catch (SettingsValidationException ex)
+            {
+                return new JsonResult(new { success = false, message = string.Join("; ", ex.Errors) }) { StatusCode = 400 };
             }
             catch (Exception ex)
             {

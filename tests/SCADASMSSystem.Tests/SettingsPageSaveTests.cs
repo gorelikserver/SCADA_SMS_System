@@ -105,6 +105,11 @@ public sealed class SettingsPageSaveTests : IDisposable
         Assert.Equal("{\"Phone\":\"phone\"}", (string?)s["SoapParams"]);
         Assert.Equal("Bearer live", (string?)s["RestHeaders"]![0]!["Value"]);
         Assert.Equal("Settings saved successfully. Changes are active immediately.", page.TempData["SuccessMessage"]);
+
+        // Sending uses only the profile, regenerated from the saved fields.
+        Assert.Equal("Legacy", (string?)s["ProfileSource"]);
+        Assert.Equal("https://gw.example/v2/send", (string?)s["Profile"]!["Url"]);
+        Assert.Equal("Bearer", (string?)s["Profile"]!["Auth"]!["Type"]);
     }
 
     [Fact]
@@ -130,7 +135,7 @@ public sealed class SettingsPageSaveTests : IDisposable
         await page.OnPostSaveSettingsAsync();
 
         Assert.Equal(original, File.ReadAllText(_path));
-        Assert.Contains("'phone'", (string?)page.TempData["ErrorMessage"]);
+        Assert.Contains("{Phone}", (string?)page.TempData["ErrorMessage"]);
     }
 
     private sealed class NullTempDataProvider : ITempDataProvider

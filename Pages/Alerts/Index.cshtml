@@ -106,6 +106,18 @@
         </ul>
     }
 
+    @if (Model.Summary.ProfileErrors.Count > 0)
+    {
+        <h2 class="h5 mt-4 text-danger">SMS provider configuration errors</h2>
+        <p class="text-muted small">No alarm can be sent until these are fixed in Settings.</p>
+        <ul>
+            @foreach (var e in Model.Summary.ProfileErrors)
+            {
+                <li>@e</li>
+            }
+        </ul>
+    }
+
     @if (Model.Summary.InvalidPhones.Count > 0)
     {
         <h2 class="h5 mt-4">Users with an invalid phone number</h2>
