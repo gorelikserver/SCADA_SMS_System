@@ -19,7 +19,7 @@ This system sends SMS alerts to plant operators when equipment failures occur. I
 
 ## Technology Stack
 
-- **.NET 9** - Latest LTS framework
+- **.NET 9** - Short-term support framework
 - **ASP.NET Core Razor Pages** - Web interface
 - **Entity Framework Core** - Database access
 - **SQL Server** - Data persistence
