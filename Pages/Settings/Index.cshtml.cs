@@ -151,18 +151,6 @@ namespace SCADASMSSystem.Web.Pages.Settings
                     catch { ModelState.AddModelError("SmsSettingsInput.ApiHeaders", "ApiHeaders must be valid JSON"); }
                 }
 
-                // Mandatory dynamic vars: when SOAP provider is active and a template is supplied,
-                // the template MUST contain the {Message} placeholder (per SCADA integration guide).
-                // Phone is no longer enforced server-side \u2014 admins choose whether their gateway needs
-                // a {Phone} token (added via the "+ Add variable" picker in Settings).
-                if (string.Equals(SmsSettingsInput.ProviderType, "SOAP", StringComparison.OrdinalIgnoreCase) &&
-                    !string.IsNullOrWhiteSpace(SmsSettingsInput.SoapBodyTemplate))
-                {
-                    var tpl = SmsSettingsInput.SoapBodyTemplate;
-                    if (tpl.IndexOf("{Message}", StringComparison.Ordinal) < 0)
-                        ModelState.AddModelError("SmsSettingsInput.SoapBodyTemplate",
-                            "SOAP body template must include the mandatory {Message} placeholder.");
-                }
                 if (!ModelState.IsValid)
                 {
                     await LoadSystemInformationAsync();
@@ -188,10 +176,25 @@ namespace SCADASMSSystem.Web.Pages.Settings
                     SmsSettingsMerge.ApplyParamList(section, nameof(SmsSettings.RestHeaders),      Posted(nameof(RestHeadersJson), RestHeadersJson));
                     SmsSettingsMerge.ApplyParamList(section, nameof(SmsSettings.RestBodyParams),   Posted(nameof(RestBodyParamsJson), RestBodyParamsJson));
                     SmsSettingsMerge.ApplyParamList(section, nameof(SmsSettings.SoapPlaceholders), Posted(nameof(SoapPlaceholdersJson), SoapPlaceholdersJson));
+
+                    // Validate the merged result, not the raw post: stored fields the form does not
+                    // render still count. Throwing here aborts the write.
+                    var errors = SmsContractValidator.Validate(SmsSettingsMerge.ToSettings(section));
+                    if (errors.Count > 0)
+                        throw new SettingsValidationException(errors);
                 });
 
                 _logger.LogInformation("SMS settings saved to appsettings.json by user");
                 TempData["SuccessMessage"] = "Settings saved successfully. Changes are active immediately.";
+            }
+            catch (SettingsValidationException ex)
+            {
+                _logger.LogWarning("Rejected settings save: {Errors}", string.Join("; ", ex.Errors));
+                await LoadSystemInformationAsync();
+                LoadSmsSettings();
+                await LoadHealthStatusAsync();
+                TempData["ErrorMessage"] = "Settings not saved. Validation errors: " + string.Join("; ", ex.Errors);
+                return Page();
             }
             catch (JsonException ex)
             {
@@ -205,6 +208,27 @@ namespace SCADASMSSystem.Web.Pages.Settings
             }
 
             return RedirectToPage();
+        }
+
+        public IActionResult OnPostEvaluateResponse([FromBody] ResponseEvaluationInput input)
+        {
+            try
+            {
+                if (input.ProviderType.Equals("SOAP", StringComparison.OrdinalIgnoreCase))
+                {
+                    var result = SmsService.EvaluateSoapResponse(input.ResponseBody ?? "", input.SuccessPattern ?? "", input.ErrorPattern);
+                    return new JsonResult(new { accepted = result.Success, message = result.Success ? "SOAP response confirms provider acceptance." : result.ErrorMessage });
+                }
+
+                var body = input.ResponseBody ?? "";
+                var failed = !string.IsNullOrEmpty(input.ErrorPattern) && body.Contains(input.ErrorPattern, StringComparison.OrdinalIgnoreCase);
+                var accepted = !failed && (string.IsNullOrEmpty(input.SuccessPattern) || body.Contains(input.SuccessPattern, StringComparison.OrdinalIgnoreCase));
+                return new JsonResult(new { accepted, message = accepted ? "REST response body satisfies configured rules." : "REST response body does not satisfy configured rules." });
+            }
+            catch (Exception ex) when (ex is InvalidOperationException or System.Xml.XmlException)
+            {
+                return new JsonResult(new { accepted = false, message = ex.Message });
+            }
         }
 
         public async Task<IActionResult> OnPostTestConnectionAsync()
@@ -314,6 +338,14 @@ namespace SCADASMSSystem.Web.Pages.Settings
             SoapPlaceholdersJson = JsonSerializer.Serialize(SmsSettingsInput.SoapPlaceholders);
         }
 
+
+        public sealed class ResponseEvaluationInput
+        {
+            public string ProviderType { get; set; } = "REST";
+            public string ResponseBody { get; set; } = "";
+            public string SuccessPattern { get; set; } = "";
+            public string ErrorPattern { get; set; } = "";
+        }
 
         private async Task LoadSystemInformationAsync()
         {

@@ -161,6 +161,10 @@ namespace SCADASMSSystem.Web.Services
             section[listName] = JsonSerializer.SerializeToNode(postedList);
         }
 
+        /// <summary>Typed view of a (merged) SmsSettings section, for validation.</summary>
+        public static SmsSettings ToSettings(JsonObject section) =>
+            section.Deserialize<SmsSettings>(ReadOptions) ?? new SmsSettings();
+
         private static List<SmsParam> ReadParamList(JsonObject section, string listName)
         {
             try
@@ -174,5 +178,17 @@ namespace SCADASMSSystem.Web.Services
         }
 
         private static bool IsScalar(Type t) => t == typeof(string) || t == typeof(int) || t == typeof(bool);
+    }
+
+    /// <summary>Thrown inside a settings update to reject the merged result; nothing is written.</summary>
+    public class SettingsValidationException : Exception
+    {
+        public IReadOnlyList<string> Errors { get; }
+
+        public SettingsValidationException(IReadOnlyList<string> errors)
+            : base("Settings failed validation: " + string.Join("; ", errors))
+        {
+            Errors = errors;
+        }
     }
 }

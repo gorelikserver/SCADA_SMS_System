@@ -1099,14 +1099,35 @@
 
                         <hr class="section-divider">
 
+                        <div class="alert mb-3" :class="contractErrors.length ? 'alert-danger' : 'alert-success'">
+                            <div class="fw-semibold" x-text="contractErrors.length ? 'Contract cannot be saved' : 'Contract is structurally valid'"></div>
+                            <ul x-show="contractErrors.length" class="mb-0 mt-1">
+                                <template x-for="error in contractErrors" :key="error"><li x-text="error"></li></template>
+                            </ul>
+                        </div>
+
+                        <div class="card bg-light border-0 mb-3">
+                            <div class="card-body py-3">
+                                <label class="form-label fw-semibold">Test provider response rules</label>
+                                <textarea x-model="sampleResponse" class="form-control font-monospace" rows="4"
+                                          placeholder="Paste a sanitized REST or SOAP response"></textarea>
+                                <div class="d-flex align-items-center gap-2 mt-2">
+                                    <button type="button" class="btn btn-sm btn-outline-primary" @@click="evaluateResponse()">Evaluate response</button>
+                                    <span x-show="responseResult" class="small fw-semibold"
+                                          :class="responseAccepted ? 'text-success' : 'text-danger'" x-text="responseResult"></span>
+                                </div>
+                            </div>
+                        </div>
+
                         <!-- Save row -->
                         <div class="d-flex align-items-center justify-content-between">
-                            <span class="text-muted" style="font-size:0.8rem;">
-                                <i class="fas fa-file-code me-1"></i>
-                                Saves to <code>appsettings.json</code> — restart app to fully apply.
-                            </span>
+                            <div class="d-flex gap-2">
+                                <button type="button" class="btn btn-outline-secondary btn-sm" @@click="exportContract()">Export contract</button>
+                                <button type="button" class="btn btn-outline-secondary btn-sm" @@click="$refs.contractImport.click()">Import contract</button>
+                                <input type="file" x-ref="contractImport" accept="application/json" class="d-none" @@change="importContract($event)" />
+                            </div>
                             <button type="submit" class="btn btn-primary save-btn" id="saveBtn"
-                                    @@click="syncParamJsonInputs()">
+                                    :disabled="contractErrors.length > 0" @@click="syncParamJsonInputs()">
                                 <i class="fas fa-save me-2"></i>Save Settings
                             </button>
                         </div>
@@ -1272,6 +1293,9 @@
             restTab: 'params',
             testMode: false,
             restAuthType: 'None',
+            sampleResponse: '',
+            responseResult: '',
+            responseAccepted: false,
 
             init() {
                 // 1. Load baseline from server-rendered hidden inputs
@@ -1322,8 +1346,8 @@
                 //   * Per-recipient (phone/tz/firstName/lastName) and platform (username/
                 //     password/sender_name/sendingSystem/messageType) vars are added manually
                 //     via the \"Add variable\" picker dropdown.
-                const restMandatory  = [{ keyword: 'message',  defaultKey: 'message' }];
-                const soapMandatory  = [{ keyword: 'message',  defaultKey: 'Message' }];
+                const restMandatory  = [{ keyword: 'message', defaultKey: 'message' }, { keyword: 'phone', defaultKey: 'phone' }];
+                const soapMandatory  = [{ keyword: 'message', defaultKey: 'Message' }, { keyword: 'phone', defaultKey: 'Phone' }];
                 const scadaOptional  = [
                     { keyword: 'group_id', defaultKey: 'group_id' },
                     { keyword: 'value',    defaultKey: 'value' },
@@ -1574,6 +1598,88 @@
                 const s = ta.selectionStart, e = ta.selectionEnd;
                 this.soapTemplate = this.soapTemplate.substring(0, s) + ph + this.soapTemplate.substring(e);
                 this.$nextTick(() => { ta.selectionStart = ta.selectionEnd = s + ph.length; ta.focus(); });
+            },
+
+            get contractErrors() {
+                const errors = [];
+                try { const u = new URL(this.endpoint); if (!['http:', 'https:'].includes(u.protocol)) throw 0; }
+                catch { errors.push('Provider endpoint must be an absolute HTTP or HTTPS URL.'); }
+                const rows = this.providerType === 'SOAP' ? this.soapParamRows : this.paramRows;
+                const enabled = rows.filter(r => r.enabled);
+                const count = words => enabled.filter(r => words.includes(String(r.value).toLowerCase().trim())).length;
+                if (count(['phone','phonenumber','sendtophonenumbers','mobile','number']) !== 1)
+                    errors.push(this.providerType + " contract must map exactly one field to 'phone'.");
+                if (count(['message','msg','text','body']) !== 1)
+                    errors.push(this.providerType + " contract must map exactly one field to 'message'.");
+                if (this.providerType === 'SOAP') {
+                    if (!this.soapAction.trim()) errors.push('SOAP action is required.');
+                    if (!this.soapTemplate.trim()) errors.push('SOAP body template is required.');
+                    if (!this.soapSuccessPattern.trim()) errors.push('SOAP success pattern is required.');
+                    enabled.filter(r => ['phone','phonenumber','mobile','number','message','msg','text','body'].includes(String(r.value).toLowerCase().trim()))
+                        .forEach(r => {
+                            const token = '{' + r.key.trim() + '}';
+                            if (this.soapTemplate.split(token).length - 1 !== 1)
+                                errors.push('SOAP body template must contain exactly one ' + token + '.');
+                        });
+                }
+                return [...new Set(errors)];
+            },
+
+            async evaluateResponse() {
+                this.responseResult = 'Checking…';
+                try {
+                    const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
+                    const response = await fetch('?handler=EvaluateResponse', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': token },
+                        body: JSON.stringify({
+                            providerType: this.providerType,
+                            responseBody: this.sampleResponse,
+                            successPattern: this.providerType === 'SOAP' ? this.soapSuccessPattern : this.successPattern,
+                            errorPattern: this.providerType === 'SOAP' ? this.soapErrorPattern : this.failurePattern
+                        })
+                    });
+                    const result = await response.json();
+                    this.responseAccepted = !!result.accepted;
+                    this.responseResult = result.message || 'No result.';
+                } catch { this.responseAccepted = false; this.responseResult = 'Response evaluation failed.'; }
+            },
+
+            exportContract() {
+                const cleanRows = rows => rows.filter(r => r.enabled && r.key.trim()).map(r => ({
+                    key: r.key.trim(), value: r.isSecret ? '' : r.value, isSecret: !!r.isSecret
+                }));
+                const contract = {
+                    version: 1, providerType: this.providerType, endpoint: this.endpoint,
+                    httpMethod: this.httpMethod, contentType: this.contentType,
+                    restHeaders: cleanRows(this.headerRows), restBodyParams: cleanRows(this.paramRows),
+                    restSuccessPattern: this.successPattern, restFailurePattern: this.failurePattern,
+                    soapAction: this.soapAction, soapAuthType: this.soapAuthType,
+                    soapBodyTemplate: this.soapTemplate, soapEnvelopeNamespaces: this.soapNamespaces,
+                    soapSuccessPattern: this.soapSuccessPattern, soapErrorPattern: this.soapErrorPattern,
+                    soapPlaceholders: cleanRows(this.soapParamRows)
+                };
+                const blob = new Blob([JSON.stringify(contract, null, 2)], { type: 'application/json' });
+                const link = document.createElement('a'); link.href = URL.createObjectURL(blob);
+                link.download = 'sms-provider-contract.json'; link.click(); URL.revokeObjectURL(link.href);
+            },
+
+            async importContract(event) {
+                const file = event.target.files?.[0]; if (!file) return;
+                try {
+                    const c = JSON.parse(await file.text());
+                    if (c.version !== 1 || !['REST','SOAP'].includes(c.providerType)) throw 0;
+                    const rows = items => (items || []).map(p => ({ ...makeRow(), enabled: true, key: p.key || '', value: p.value || '', isSecret: !!p.isSecret, isDynamic: DYNAMIC_KEYWORDS.includes(String(p.value).toLowerCase()) }));
+                    this.providerType = c.providerType; this.endpoint = c.endpoint || '';
+                    this.httpMethod = c.httpMethod || 'POST'; this.contentType = c.contentType || 'application/json';
+                    this.headerRows = rows(c.restHeaders); this.paramRows = rows(c.restBodyParams);
+                    this.successPattern = c.restSuccessPattern || ''; this.failurePattern = c.restFailurePattern || '';
+                    this.soapAction = c.soapAction || ''; this.soapAuthType = c.soapAuthType || 'None';
+                    this.soapTemplate = c.soapBodyTemplate || ''; this.soapNamespaces = c.soapEnvelopeNamespaces || '';
+                    this.soapSuccessPattern = c.soapSuccessPattern || ''; this.soapErrorPattern = c.soapErrorPattern || '';
+                    this.soapParamRows = rows(c.soapPlaceholders); this._saveDraft();
+                } catch { window.alert('Invalid SMS provider contract file.'); }
+                event.target.value = '';
             },
 
             get restPreview() {

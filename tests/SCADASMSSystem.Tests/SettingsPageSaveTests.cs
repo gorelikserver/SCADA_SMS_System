@@ -39,7 +39,8 @@ public sealed class SettingsPageSaveTests : IDisposable
                 "RestApiKeyName": "X-API-Key",
                 "RestApiKeyValue": "key-456",
                 "SoapParams": "{\"Phone\":\"phone\"}",
-                "RestHeaders": [ { "Key": "Authorization", "Value": "Bearer live", "IsSecret": true } ]
+                "RestHeaders": [ { "Key": "Authorization", "Value": "Bearer live", "IsSecret": true } ],
+                "RestBodyParams": [ { "Key": "to", "Value": "phone" }, { "Key": "text", "Value": "message" } ]
               }
             }
             """);
@@ -57,14 +58,16 @@ public sealed class SettingsPageSaveTests : IDisposable
         "SoapSuccessPattern", "TestMode", "TimeoutSeconds",
     };
 
-    private IndexModel CreatePage(SmsSettings posted, string restHeadersJson)
+    private const string ValidBodyParams = """[ { "Key": "to", "Value": "phone" }, { "Key": "text", "Value": "message" } ]""";
+
+    private IndexModel CreatePage(SmsSettings posted, string restHeadersJson, string restBodyParamsJson = ValidBodyParams)
     {
         var store = new SettingsStore(_path, configuration: null, NullLogger<SettingsStore>.Instance);
         var page = new IndexModel(null!, null!, null!, null!, null!, null!, null!, store, NullLogger<IndexModel>.Instance);
 
         var form = FormFields.ToDictionary(f => "SmsSettingsInput." + f, _ => new StringValues("x"));
         form["RestHeadersJson"] = restHeadersJson;
-        form["RestBodyParamsJson"] = "[]";
+        form["RestBodyParamsJson"] = restBodyParamsJson;
         form["SoapPlaceholdersJson"] = "[]";
 
         var http = new DefaultHttpContext();
@@ -75,7 +78,7 @@ public sealed class SettingsPageSaveTests : IDisposable
         page.TempData = new TempDataDictionary(http, new NullTempDataProvider());
         page.SmsSettingsInput = posted;
         page.RestHeadersJson = restHeadersJson;
-        page.RestBodyParamsJson = "[]";
+        page.RestBodyParamsJson = restBodyParamsJson;
         page.SoapPlaceholdersJson = "[]";
         return page;
     }
@@ -114,6 +117,20 @@ public sealed class SettingsPageSaveTests : IDisposable
 
         Assert.Equal(original, File.ReadAllText(_path));
         Assert.StartsWith("Settings not saved", (string?)page.TempData["ErrorMessage"]);
+    }
+
+    [Fact]
+    public async Task Save_WhenMergedSettingsFailContractValidation_LeavesFileUntouched()
+    {
+        var original = File.ReadAllText(_path);
+        // Removing the phone mapping makes the REST contract invalid.
+        var page = CreatePage(new SmsSettings { ApiEndpoint = "https://gw.example/send" }, "[]",
+            restBodyParamsJson: """[ { "Key": "text", "Value": "message" } ]""");
+
+        await page.OnPostSaveSettingsAsync();
+
+        Assert.Equal(original, File.ReadAllText(_path));
+        Assert.Contains("'phone'", (string?)page.TempData["ErrorMessage"]);
     }
 
     private sealed class NullTempDataProvider : ITempDataProvider
