@@ -1,324 +1,98 @@
 ﻿@page
 @model IndexModel
 @{
-    ViewData["Title"] = "SCADA SMS System Dashboard";
+    ViewData["Title"] = "Operations overview";
 }
 
-<div class="container-fluid">
-    <!-- Branding and Header Row -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="d-flex justify-content-between align-items-center">
-                <div class="d-flex align-items-center">
-                    <img src="~/img/logo.jpg" alt="SCADA Logo" style="height: 60px; width: auto; margin-right: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-                    <div>
-                        <h1 class="h2 mb-0 text-primary">
-                            SCADA SMS System
-                        </h1>
-                        <p class="text-muted mb-0">Industrial SMS Notification Dashboard</p>
-                    </div>
-                </div>
-                <div class="text-end">
-                    <div class="text-muted">
-                        <small>Last Updated: <span id="lastUpdated">@DateTime.Now.ToString("HH:mm:ss")</span></small>
-                    </div>
-                    <div class="mt-1">
-                        <span class="badge bg-success">
-                            <i class="fas fa-circle me-1" style="font-size: 8px;"></i>
-                            System Online
-                        </span>
-                    </div>
-                </div>
-            </div>
+@if (Model.TestModeActive)
+{
+    <div class="environment-banner" role="status">
+        <i class="fas fa-flask"></i><strong>Test mode</strong>
+        Provider calls are routed to the configured test path. No production delivery should be assumed.
+    </div>
+}
+
+<div class="operations-overview">
+    <header class="overview-heading">
+        <div>
+            <p class="overview-kicker">Operations</p>
+            <h1>Alarm delivery overview</h1>
+            <p>Monitor the SCADA-to-provider pipeline and act on delivery exceptions.</p>
         </div>
+        <div class="overview-actions">
+            <span class="last-sync">Updated <strong id="lastUpdated">@DateTime.Now.ToString("HH:mm:ss")</strong></span>
+            <button class="btn btn-outline-primary" type="button" onclick="refreshHealthStatus()"><i class="fas fa-rotate me-1"></i>Refresh</button>
+            <a class="btn btn-primary" href="/Alerts"><i class="fas fa-triangle-exclamation me-1"></i>Review alerts</a>
+        </div>
+    </header>
+
+    <section class="operations-metrics" aria-label="Delivery status">
+        <article class="operation-metric metric-health" id="smsHealthCard">
+            <div class="metric-topline"><span>Delivery worker</span><i class="fas fa-wave-square" id="smsHealthIcon"></i></div>
+            <div class="metric-primary" id="smsHealthStatus">
+                @if (Model.Dashboard.SmsServiceStatus.IsHealthy) { <span class="state-pill state-good"><i class="fas fa-circle-check"></i>Healthy</span> }
+                else { <span class="state-pill state-warning"><i class="fas fa-triangle-exclamation"></i>Attention</span> }
+            </div>
+            <p id="smsHealthDetails">Queue <strong id="smsQueueSize">@Model.Dashboard.SmsServiceStatus.QueueSize</strong> · Uptime <strong id="smsUptime">@Model.Dashboard.SmsServiceStatus.ServiceUptime.ToString(@"d\.hh\:mm\:ss")</strong></p>
+        </article>
+        <article class="operation-metric metric-danger">
+            <div class="metric-topline"><span>Failed deliveries</span><i class="fas fa-circle-xmark"></i></div>
+            <div class="metric-number" id="messagesFailed">@Model.Dashboard.SmsServiceStatus.MessagesFailed</div>
+            <p>Since the delivery worker started</p>
+        </article>
+        <article class="operation-metric">
+            <div class="metric-topline"><span>Queued messages</span><i class="fas fa-list-check"></i></div>
+            <div class="metric-number" id="detailedQueueSize">@Model.Dashboard.SmsServiceStatus.QueueSize</div>
+            <p>Waiting for provider processing</p>
+        </article>
+        <article class="operation-metric">
+            <div class="metric-topline"><span>Accepted by provider</span><i class="fas fa-paper-plane"></i></div>
+            <div class="metric-number" id="messagesToday">@Model.Dashboard.SmsServiceStatus.MessagesSent</div>
+            <p>Since the delivery worker started</p>
+        </article>
+    </section>
+
+    <div class="overview-grid">
+        <section class="overview-panel activity-panel">
+            <div class="panel-heading">
+                <div><p class="panel-eyebrow">Live delivery log</p><h2>Recent activity</h2></div>
+                <a href="/Audit">View delivery history <i class="fas fa-arrow-right"></i></a>
+            </div>
+            <div class="table-responsive">
+                <table class="table activity-table align-middle mb-0">
+                    <thead><tr><th>Time</th><th>Delivery</th><th>Recipient</th><th>Status</th></tr></thead>
+                    <tbody id="recentActivityTable"><tr><td colspan="4" class="empty-row"><i class="fas fa-spinner fa-spin me-2"></i>Loading recent activity…</td></tr></tbody>
+                </table>
+            </div>
+        </section>
+
+        <aside class="overview-panel pipeline-panel">
+            <div class="panel-heading"><div><p class="panel-eyebrow">Pipeline</p><h2>Runtime details</h2></div></div>
+            <dl class="runtime-list">
+                <div><dt>Rate limit</dt><dd id="rateLimit">@Model.Dashboard.SmsServiceStatus.RateLimit/min</dd></div>
+                <div><dt>Deduplication</dt><dd id="deduplication">@(Model.Dashboard.SmsServiceStatus.DeduplicationEnabled ? "Enabled" : "Disabled")</dd></div>
+                <div><dt>Last message</dt><dd id="lastMessage">@(Model.Dashboard.SmsServiceStatus.LastMessageTime?.ToString("HH:mm:ss") ?? "Never")</dd></div>
+                <div><dt>Server time</dt><dd id="serverTime">@DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")</dd></div>
+            </dl>
+            @if (User.IsInRole(SCADASMSSystem.Web.Models.AccountRoles.Admin))
+            {
+                <div class="pipeline-actions">
+                    <a href="/Settings"><i class="fas fa-plug"></i><span><strong>Integration settings</strong><small>Provider, SCADA and delivery policy</small></span><i class="fas fa-chevron-right"></i></a>
+                    <a href="/Test/Sms"><i class="fas fa-vial"></i><span><strong>Run delivery test</strong><small>Exercise the configured route safely</small></span><i class="fas fa-chevron-right"></i></a>
+                </div>
+            }
+        </aside>
     </div>
 
-    <!-- Status Cards Row -->
-    <div class="row mb-4">
-        <!-- SMS Service Health Card -->
-        <div class="col-xl-3 col-md-6 mb-4">
-            <div class="card border-left-success shadow h-100 py-2" id="smsHealthCard">
-                <div class="card-body">
-                    <div class="row no-gutters align-items-center">
-                        <div class="col mr-2">
-                            <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
-                                SMS Service
-                            </div>
-                            <div class="h5 mb-0 font-weight-bold text-gray-800" id="smsHealthStatus">
-                                @if (Model.Dashboard.SmsServiceStatus.QueueSize < 50)
-                                {
-                                    <span class="badge bg-success">Healthy</span>
-                                }
-                                else if (Model.Dashboard.SmsServiceStatus.QueueSize < 100)
-                                {
-                                    <span class="badge bg-warning">Busy</span>
-                                }
-                                else
-                                {
-                                    <span class="badge bg-danger">Overloaded</span>
-                                }
-                            </div>
-                            <div class="text-xs text-muted mt-1" id="smsHealthDetails">
-                                Queue: <span id="smsQueueSize">@Model.Dashboard.SmsServiceStatus.QueueSize</span> | 
-                                Uptime: <span id="smsUptime">@Model.Dashboard.SmsServiceStatus.ServiceUptime.ToString(@"d\.hh\:mm\:ss")</span>
-                            </div>
-                        </div>
-                        <div class="col-auto">
-                            <i class="fas fa-heartbeat fa-2x text-gray-300" id="smsHealthIcon"></i>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-xl-3 col-md-6 mb-4">
-            <div class="card border-left-primary shadow h-100 py-2">
-                <div class="card-body">
-                    <div class="row no-gutters align-items-center">
-                        <div class="col mr-2">
-                            <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
-                                Active Users
-                            </div>
-                            <div class="h5 mb-0 font-weight-bold text-gray-800" id="activeUsersCount">
-                                @Model.Dashboard.ActiveUsers
-                            </div>
-                            <div class="text-xs text-muted">
-                                Total: @Model.Dashboard.TotalUsers
-                            </div>
-                        </div>
-                        <div class="col-auto">
-                            <i class="fas fa-users fa-2x text-gray-300"></i>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-xl-3 col-md-6 mb-4">
-            <div class="card border-left-info shadow h-100 py-2">
-                <div class="card-body">
-                    <div class="row no-gutters align-items-center">
-                        <div class="col mr-2">
-                            <div class="text-xs font-weight-bold text-info text-uppercase mb-1">
-                                Active Groups
-                            </div>
-                            <div class="h5 mb-0 font-weight-bold text-gray-800" id="activeGroupsCount">
-                                @Model.Dashboard.ActiveGroups
-                            </div>
-                            <div class="text-xs text-muted">
-                                Total: @Model.Dashboard.TotalGroups
-                            </div>
-                        </div>
-                        <div class="col-auto">
-                            <i class="fas fa-layer-group fa-2x text-gray-300"></i>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-xl-3 col-md-6 mb-4">
-            <div class="card border-left-warning shadow h-100 py-2">
-                <div class="card-body">
-                    <div class="row no-gutters align-items-center">
-                        <div class="col mr-2">
-                            <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">
-                                Total Messages Sent
-                            </div>
-                            <div class="h5 mb-0 font-weight-bold text-gray-800" id="messagesToday">
-                                @Model.Dashboard.SmsServiceStatus.MessagesSent
-                            </div>
-                            <div class="text-xs text-muted">
-                                Failed: <span id="messagesFailed">@Model.Dashboard.SmsServiceStatus.MessagesFailed</span>
-                            </div>
-                        </div>
-                        <div class="col-auto">
-                            <i class="fas fa-envelope fa-2x text-gray-300"></i>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- SMS Service Details Row -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="card shadow">
-                <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
-                    <h6 class="m-0 font-weight-bold text-primary">
-                        <i class="fas fa-heartbeat me-2"></i>SMS Service Health Monitor
-                    </h6>
-                    <div>
-                        <button class="btn btn-sm btn-outline-primary" onclick="refreshHealthStatus()">
-                            <i class="fas fa-sync-alt me-1"></i>Refresh
-                        </button>
-                        <a href="/Test/Sms" class="btn btn-sm btn-success">
-                            <i class="fas fa-vial me-1"></i>Test SMS
-                        </a>
-                    </div>
-                </div>
-                <div class="card-body">
-                    <div class="row">
-                        <div class="col-lg-3 col-md-6 mb-3">
-                            <div class="border-left-primary p-3">
-                                <div class="text-muted small">Queue Size</div>
-                                <div class="h6 mb-0" id="detailedQueueSize">@Model.Dashboard.SmsServiceStatus.QueueSize</div>
-                            </div>
-                        </div>
-                        <div class="col-lg-3 col-md-6 mb-3">
-                            <div class="border-left-success p-3">
-                                <div class="text-muted small">Rate Limit</div>
-                                <div class="h6 mb-0" id="rateLimit">@Model.Dashboard.SmsServiceStatus.RateLimit/min</div>
-                            </div>
-                        </div>
-                        <div class="col-lg-3 col-md-6 mb-3">
-                            <div class="border-left-info p-3">
-                                <div class="text-muted small">Deduplication</div>
-                                <div class="h6 mb-0" id="deduplication">
-                                    @if (Model.Dashboard.SmsServiceStatus.DeduplicationEnabled)
-                                    {
-                                        <span class="text-success">Enabled</span>
-                                    }
-                                    else
-                                    {
-                                        <span class="text-warning">Disabled</span>
-                                    }
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col-lg-3 col-md-6 mb-3">
-                            <div class="border-left-warning p-3">
-                                <div class="text-muted small">Last Message</div>
-                                <div class="h6 mb-0" id="lastMessage">
-                                    @if (Model.Dashboard.SmsServiceStatus.LastMessageTime.HasValue)
-                                    {
-                                        @Model.Dashboard.SmsServiceStatus.LastMessageTime.Value.ToString("HH:mm:ss")
-                                    }
-                                    else
-                                    {
-                                        <span class="text-muted">Never</span>
-                                    }
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Quick Actions Row -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="card shadow">
-                <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
-                    <h6 class="m-0 font-weight-bold text-primary">Quick Actions</h6>
-                </div>
-                <div class="card-body">
-                    <div class="row">
-                        @if (User.IsInRole(SCADASMSSystem.Web.Models.AccountRoles.Admin))
-                        {
-                            <div class="col-lg-3 col-md-6 mb-3">
-                                <a href="/Users" class="btn btn-primary btn-lg btn-block">
-                                    <i class="fas fa-users me-2"></i>
-                                    Manage Users
-                                </a>
-                            </div>
-                            <div class="col-lg-3 col-md-6 mb-3">
-                                <a href="/Groups" class="btn btn-success btn-lg btn-block">
-                                    <i class="fas fa-layer-group me-2"></i>
-                                    Manage Groups
-                                </a>
-                            </div>
-                            <div class="col-lg-3 col-md-6 mb-3">
-                                <a href="/Test/Sms" class="btn btn-info btn-lg btn-block">
-                                    <i class="fas fa-sms me-2"></i>
-                                    Send SMS
-                                </a>
-                            </div>
-                        }
-                        <div class="col-lg-3 col-md-6 mb-3">
-                            <a href="/Audit" class="btn btn-warning btn-lg btn-block">
-                                <i class="fas fa-chart-bar me-2"></i>
-                                Audit Reports
-                            </a>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Recent Activity Row -->
-    <div class="row">
-        <div class="col-lg-8 mb-4">
-            <div class="card shadow">
-                <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
-                    <h6 class="m-0 font-weight-bold text-primary">Recent Activity</h6>
-                    <a href="/Audit" class="btn btn-sm btn-outline-primary">View All</a>
-                </div>
-                <div class="card-body">
-                    <div class="table-responsive">
-                        <table class="table table-hover">
-                            <thead>
-                                <tr>
-                                    <th>Time</th>
-                                    <th>Action</th>
-                                    <th>User</th>
-                                    <th>Status</th>
-                                </tr>
-                            </thead>
-                            <tbody id="recentActivityTable">
-                                <tr>
-                                    <td colspan="4" class="text-center text-muted">
-                                        <i class="fas fa-spinner fa-spin me-2"></i>
-                                        Loading recent activity...
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-lg-4 mb-4">
-            <div class="card shadow">
-                <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
-                    <h6 class="m-0 font-weight-bold text-primary">System Information</h6>
-                </div>
-                <div class="card-body">
-                    <div class="row g-0">
-                        <div class="col-12 mb-3">
-                            <div class="d-flex justify-content-between">
-                                <span class="text-muted">Version:</span>
-                                <span class="fw-bold">1.0.0</span>
-                            </div>
-                        </div>
-                        <div class="col-12 mb-3">
-                            <div class="d-flex justify-content-between">
-                                <span class="text-muted">Uptime:</span>
-                                <span class="fw-bold" id="systemUptime">--</span>
-                            </div>
-                        </div>
-                        <div class="col-12 mb-3">
-                            <div class="d-flex justify-content-between">
-                                <span class="text-muted">Last Backup:</span>
-                                <span class="fw-bold">--</span>
-                            </div>
-                        </div>
-                        <div class="col-12">
-                            <div class="d-flex justify-content-between">
-                                <span class="text-muted">Server Time:</span>
-                                <span class="fw-bold" id="serverTime">@DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
+    <section class="routing-summary" aria-label="Routing readiness">
+        <div><p class="panel-eyebrow">Routing readiness</p><h2>People and teams</h2><p>Recipients and notification teams available to routing rules.</p></div>
+        <div class="routing-stat"><span id="activeUsersCount">@Model.Dashboard.ActiveUsers</span><small>Active recipients</small></div>
+        <div class="routing-stat"><span id="activeGroupsCount">@Model.Dashboard.ActiveGroups</span><small>Notification teams</small></div>
+        @if (User.IsInRole(SCADASMSSystem.Web.Models.AccountRoles.Admin))
+        {
+            <a class="btn btn-outline-primary" href="/Alarms/ManageGroups">Manage routing rules</a>
+        }
+    </section>
 </div>
 
 @section Scripts {
@@ -389,24 +163,25 @@
             const healthStatus = document.getElementById('smsHealthStatus');
             const healthIcon = document.getElementById('smsHealthIcon');
             
-            let statusHtml, cardClass, iconClass;
+            let statusHtml, stateClass, iconClass;
             
             if (smsService.isHealthy) {
-                statusHtml = '<span class="badge bg-success">Healthy</span>';
-                cardClass = 'border-left-success';
-                iconClass = 'fas fa-heartbeat fa-2x text-success';
+                statusHtml = '<span class="state-pill state-good"><i class="fas fa-circle-check"></i>Healthy</span>';
+                stateClass = 'is-healthy';
+                iconClass = 'fas fa-wave-square';
             } else if (smsService.queueSize < 100) {
-                statusHtml = '<span class="badge bg-warning">Busy</span>';
-                cardClass = 'border-left-warning';
-                iconClass = 'fas fa-heartbeat fa-2x text-warning';
+                statusHtml = '<span class="state-pill state-warning"><i class="fas fa-clock"></i>Busy</span>';
+                stateClass = 'is-warning';
+                iconClass = 'fas fa-wave-square';
             } else {
-                statusHtml = '<span class="badge bg-danger">Overloaded</span>';
-                cardClass = 'border-left-danger';
-                iconClass = 'fas fa-heartbeat fa-2x text-danger';
+                statusHtml = '<span class="state-pill state-danger"><i class="fas fa-triangle-exclamation"></i>Overloaded</span>';
+                stateClass = 'is-danger';
+                iconClass = 'fas fa-wave-square';
             }
             
             healthStatus.innerHTML = statusHtml;
-            healthCard.className = `card ${cardClass} shadow h-100 py-2`;
+            healthCard.classList.remove('is-healthy', 'is-warning', 'is-danger');
+            healthCard.classList.add(stateClass);
             healthIcon.className = iconClass;
             
             // Update details
@@ -442,9 +217,9 @@
             }, 1000);
         }
 
-        // Health status click for more details
+        // Health status opens the operational exception queue.
         document.getElementById('smsHealthCard').addEventListener('click', function() {
-            window.location.href = '/Test/Sms';
+            window.location.href = '/Alerts';
         });
 
         // Add hover effect to health card

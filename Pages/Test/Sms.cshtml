@@ -9,17 +9,17 @@
     <div class="container-fluid px-4">
         <nav aria-label="breadcrumb">
             <ol class="breadcrumb">
-                <li class="breadcrumb-item"><a asp-page="/Index"><i class="fas fa-home me-1"></i>Dashboard</a></li>
-                <li class="breadcrumb-item active">Test SMS</li>
+                <li class="breadcrumb-item"><a asp-page="/Index"><i class="fas fa-home me-1"></i>Overview</a></li>
+                <li class="breadcrumb-item active">Delivery test</li>
             </ol>
         </nav>
     </div>
 </div>
 }
 
-<div class="container-fluid">
+<div class="container-fluid admin-workspace">
     <div class="d-sm-flex align-items-center justify-content-between mb-4">
-        <h1 class="h3 mb-0 text-gray-800"><i class="fas fa-vial me-2"></i>Test SMS</h1>
+        <h1 class="h3 mb-0 text-gray-800"><i class="fas fa-vial me-2"></i>Delivery test</h1>
         <a asp-page="/Settings/Provider" class="btn btn-sm btn-outline-secondary"><i class="fas fa-plug me-1"></i>Provider editor</a>
     </div>
 
@@ -44,7 +44,7 @@
                             <label asp-for="TestMessage.GroupId" class="form-label"></label>
                             <select asp-for="TestMessage.GroupId" class="form-select" id="groupSelect"
                                     asp-items="@(new SelectList(Model.AvailableGroups, "GroupId", "GroupName"))">
-                                <option value="">Select a group</option>
+                                <option value="">Select a notification team</option>
                             </select>
                             <span asp-validation-for="TestMessage.GroupId" class="text-danger small"></span>
                             <ul class="list-unstyled small mt-2 mb-0" id="groupMembers"></ul>

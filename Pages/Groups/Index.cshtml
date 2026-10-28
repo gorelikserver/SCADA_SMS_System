@@ -1,7 +1,7 @@
 @page
 @model SCADASMSSystem.Web.Pages.Groups.IndexModel
 @{
-    ViewData["Title"] = "Groups Management";
+    ViewData["Title"] = "Notification Teams";
 }
 
 @section Breadcrumb {
@@ -9,24 +9,22 @@
     <div class="container-fluid px-4">
         <nav aria-label="breadcrumb">
             <ol class="breadcrumb">
-                <li class="breadcrumb-item"><a asp-page="/Index"><i class="fas fa-home me-1"></i>Dashboard</a></li>
-                <li class="breadcrumb-item active">Groups</li>
+                <li class="breadcrumb-item"><a asp-page="/Index"><i class="fas fa-gauge-high me-1"></i>Overview</a></li>
+                <li class="breadcrumb-item active">Notification Teams</li>
             </ol>
         </nav>
     </div>
 </div>
 }
 
-<div class="container-fluid">
+<div class="directory-workspace">
     <!-- Page Heading -->
-    <div class="d-sm-flex align-items-center justify-content-between mb-4">
-        <h1 class="h3 mb-0 text-gray-800">
-            <i class="fas fa-layer-group me-2"></i>Groups Management
-        </h1>
-        <a href="/Groups/Create" class="d-none d-sm-inline-block btn btn-sm btn-primary shadow-sm">
-            <i class="fas fa-plus fa-sm text-white-50"></i> Create New Group
+    <header class="overview-heading">
+        <div><p class="overview-kicker">Routing</p><h1>Notification teams</h1><p>Organize recipients into the teams targeted by SCADA routing rules.</p></div>
+        <a href="/Groups/Create" class="btn btn-primary">
+            <i class="fas fa-plus me-1"></i>Create team
         </a>
-    </div>
+    </header>
 
     <!-- Toast triggers from server messages -->
     @if (TempData["SuccessMessage"] != null)
@@ -39,25 +37,23 @@
     }
 
     <!-- Search and Filter Card -->
-    <div class="card shadow mb-4">
-        <div class="card-header card-header-gradient py-3">
-            <h6 class="m-0 fw-bold">
-                <i class="fas fa-search me-2"></i>Search and Filter Groups
-            </h6>
+    <section class="directory-filter-panel">
+        <div class="panel-heading">
+            <div><p class="panel-eyebrow">Team directory</p><h2>Find notification teams</h2></div><span class="directory-count">@Model.Groups.Count() shown</span>
         </div>
-        <div class="card-body">
+        <div class="directory-filter-body">
             <form method="get" class="row g-3">
                 <div class="col-md-6">
                     <label class="form-label">Search</label>
                     <input type="text" class="form-control" name="searchTerm" 
-                           value="@Model.SearchTerm" placeholder="Search by group name...">
+                           value="@Model.SearchTerm" placeholder="Search by team name">
                 </div>
                 <div class="col-md-3">
                     <label class="form-label">Filter</label>
                     <select name="statusFilter" class="form-select">
-                        <option value="">All Groups</option>
-                        <option value="active" selected="@(Model.StatusFilter == "active")">Active (Has Members)</option>
-                        <option value="empty" selected="@(Model.StatusFilter == "empty")">Empty Groups</option>
+                        <option value="">All teams</option>
+                        <option value="active" selected="@(Model.StatusFilter == "active")">Ready (has recipients)</option>
+                        <option value="empty" selected="@(Model.StatusFilter == "empty")">Needs recipients</option>
                     </select>
                 </div>
                 <div class="col-md-3 d-flex align-items-end">
@@ -70,102 +66,28 @@
                 </div>
             </form>
         </div>
-    </div>
+    </section>
 
     <!-- Groups Statistics Row -->
-    <div class="row mb-4">
-        <div class="col-xl-3 col-md-6 mb-4">
-            <div class="card border-left-primary shadow h-100 py-2">
-                <div class="card-body">
-                    <div class="row no-gutters align-items-center">
-                        <div class="col mr-2">
-                            <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
-                                Total Groups
-                            </div>
-                            <div class="h5 mb-0 font-weight-bold text-gray-800">
-                                @Model.Groups.Count()
-                            </div>
-                        </div>
-                        <div class="col-auto">
-                            <i class="fas fa-layer-group fa-2x text-gray-300"></i>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-xl-3 col-md-6 mb-4">
-            <div class="card border-left-success shadow h-100 py-2">
-                <div class="card-body">
-                    <div class="row no-gutters align-items-center">
-                        <div class="col mr-2">
-                            <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
-                                Active Groups
-                            </div>
-                            <div class="h5 mb-0 font-weight-bold text-gray-800">
-                                @Model.Groups.Count(g => g.MemberCount > 0)
-                            </div>
-                        </div>
-                        <div class="col-auto">
-                            <i class="fas fa-users fa-2x text-gray-300"></i>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-xl-3 col-md-6 mb-4">
-            <div class="card border-left-warning shadow h-100 py-2">
-                <div class="card-body">
-                    <div class="row no-gutters align-items-center">
-                        <div class="col mr-2">
-                            <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">
-                                Empty Groups
-                            </div>
-                            <div class="h5 mb-0 font-weight-bold text-gray-800">
-                                @Model.Groups.Count(g => g.MemberCount == 0)
-                            </div>
-                        </div>
-                        <div class="col-auto">
-                            <i class="fas fa-exclamation-triangle fa-2x text-gray-300"></i>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-xl-3 col-md-6 mb-4">
-            <div class="card border-left-info shadow h-100 py-2">
-                <div class="card-body">
-                    <div class="row no-gutters align-items-center">
-                        <div class="col mr-2">
-                            <div class="text-xs font-weight-bold text-info text-uppercase mb-1">
-                                Total Members
-                            </div>
-                            <div class="h5 mb-0 font-weight-bold text-gray-800">
-                                @Model.Groups.Sum(g => g.MemberCount)
-                            </div>
-                        </div>
-                        <div class="col-auto">
-                            <i class="fas fa-user-friends fa-2x text-gray-300"></i>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
+    <section class="directory-metrics" aria-label="Team readiness">
+        <div><span>Total teams</span><strong>@Model.Groups.Count()</strong><small>Matching current filters</small></div>
+        <div class="is-ready"><span>Ready teams</span><strong>@Model.Groups.Count(g => g.MemberCount > 0)</strong><small>At least one recipient</small></div>
+        <div class="is-warning"><span>Needs recipients</span><strong>@Model.Groups.Count(g => g.MemberCount == 0)</strong><small>An alarm would reach nobody</small></div>
+        <div><span>Team memberships</span><strong>@Model.Groups.Sum(g => g.MemberCount)</strong><small>Across matching teams</small></div>
+    </section>
 
     <!-- Groups Data Table -->
-    <div class="card shadow mb-4">
-        <div class="card-header card-header-gradient py-3 d-flex flex-row align-items-center justify-content-between">
-            <h6 class="m-0 fw-bold">
-                <i class="fas fa-table me-2"></i>Groups (@Model.Groups.Count())
-            </h6>
+    <div class="card directory-table-panel mb-4">
+        <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+            <h2 class="h6 m-0 fw-bold">Team directory</h2>
         </div>
         <div class="card-body">
             <div class="table-responsive">
-                <table class="table table-bordered" id="groupsTable" width="100%" cellspacing="0">
+                <table class="table directory-table" id="groupsTable" width="100%" cellspacing="0">
                     <thead>
                         <tr>
-                            <th>Group Name</th>
-                            <th>Members</th>
+                            <th>Notification team</th>
+                            <th>Routing readiness</th>
                             <th>Created</th>
                             <th>Actions</th>
                         </tr>
@@ -173,21 +95,21 @@
                     <tbody>
                         @foreach (var groupItem in Model.Groups)
                         {
-                            <tr>
+                            <tr class="@(groupItem.MemberCount == 0 ? "needs-attention" : "")">
                                 <td>
                                     <div class="d-flex align-items-center">
                                         <div class="me-3">
-                                            <i class="fas fa-layer-group fa-2x text-primary"></i>
+                                            <span class="team-avatar"><i class="fas fa-people-group"></i></span>
                                         </div>
                                         <div>
-                                            <div class="fw-semibold">@groupItem.Group.GroupName</div>
-                                            <small class="text-muted">ID: @groupItem.Group.GroupId</small>
+                                            <div class="fw-semibold" dir="auto">@groupItem.Group.GroupName</div>
+                                            <small class="text-muted">Team #@groupItem.Group.GroupId</small>
                                         </div>
                                     </div>
                                 </td>
                                 <td>
-                                    <span class="badge @(groupItem.MemberCount > 0 ? "bg-success" : "bg-warning text-dark")">
-                                        @groupItem.MemberCount @(groupItem.MemberCount == 1 ? "member" : "members")
+                                    <span class="delivery-state @(groupItem.MemberCount > 0 ? "state-good" : "state-warning")">
+                                        <i class="fas @(groupItem.MemberCount > 0 ? "fa-check" : "fa-triangle-exclamation")"></i>@(groupItem.MemberCount > 0 ? $"{groupItem.MemberCount} recipient{(groupItem.MemberCount == 1 ? "" : "s")}" : "No recipients")
                                     </span>
                                 </td>
                                 <td>
@@ -199,8 +121,8 @@
                                 </td>
                                 <td>
                                     <div class="btn-group" role="group">
-                                        <a href="/Groups/Edit/@groupItem.Group.GroupId" class="btn btn-sm btn-outline-primary" title="Edit Group">
-                                            <i class="fas fa-edit me-1"></i>Edit
+                                        <a href="/Groups/Edit/@groupItem.Group.GroupId" class="btn btn-sm btn-outline-primary" title="Edit notification team">
+                                            <i class="fas fa-edit me-1"></i>Edit team
                                         </a>
                                         <div class="btn-group" role="group">
                                             <button class="btn btn-sm btn-outline-info dropdown-toggle" type="button" 
@@ -210,12 +132,12 @@
                                             <ul class="dropdown-menu">
                                                 <li>
                                                     <a class="dropdown-item" href="/Audit?groupId=@groupItem.Group.GroupId">
-                                                        <i class="fas fa-history me-2"></i>SMS History
+                                                        <i class="fas fa-history me-2"></i>Delivery history
                                                     </a>
                                                 </li>
                                                 <li>
                                                     <a class="dropdown-item" href="#" onclick="sendTestSmsToGroup(@groupItem.Group.GroupId, '@groupItem.Group.GroupName')">
-                                                        <i class="fas fa-paper-plane me-2"></i>Send Test SMS
+                                                        <i class="fas fa-vial me-2"></i>Run delivery test
                                                     </a>
                                                 </li>
                                                 <li><hr class="dropdown-divider"></li>
@@ -224,7 +146,7 @@
                                                         <button type="button" class="dropdown-item text-danger"
                                                                 data-group-name="@groupItem.Group.GroupName"
                                                                 onclick="confirmDeleteGroup(this)">
-                                                            <i class="fas fa-trash me-2"></i>Delete Group
+                                                            <i class="fas fa-trash me-2"></i>Delete team
                                                         </button>
                                                     </form>
                                                 </li>
@@ -243,19 +165,19 @@
                         <div class="mb-3">
                             <i class="fas fa-layer-group fa-3x text-gray-300"></i>
                         </div>
-                        <h5 class="text-gray-500">No Groups Found</h5>
+                        <h5 class="text-gray-500">No notification teams found</h5>
                         <p class="text-gray-400">
                             @if (!string.IsNullOrWhiteSpace(Model.SearchTerm) || !string.IsNullOrWhiteSpace(Model.StatusFilter))
                             {
-                                <text>No groups match your current filters. Try adjusting your search criteria.</text>
+                                <text>No teams match the current filters.</text>
                             }
                             else
                             {
-                                <text>Get started by creating your first notification group.</text>
+                                <text>Create a team before assigning it to a SCADA routing rule.</text>
                             }
                         </p>
                         <a href="/Groups/Create" class="btn btn-primary">
-                            <i class="fas fa-plus me-2"></i>Create First Group
+                            <i class="fas fa-plus me-2"></i>Create first team
                         </a>
                     </div>
                 }

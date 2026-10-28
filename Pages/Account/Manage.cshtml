@@ -5,9 +5,9 @@
     ViewData["Title"] = "Accounts";
 }
 
-<div class="container-fluid">
+<div class="container-fluid admin-workspace">
     <div class="d-sm-flex align-items-center justify-content-between mb-4">
-        <h1 class="h3 mb-0 text-gray-800"><i class="fas fa-user-shield me-2"></i>Accounts</h1>
+        <h1 class="h3 mb-0 text-gray-800"><i class="fas fa-user-shield me-2"></i>Access management</h1>
     </div>
 
     @if (TempData["SuccessMessage"] != null)
@@ -24,7 +24,7 @@
         <strong>Viewer</strong>: dashboard, delivery alerts (can acknowledge), audit log, calendar and help.
     </p>
 
-    <table class="table table-sm align-middle">
+    <div class="card admin-table-panel"><div class="table-responsive"><table class="table table-sm align-middle mb-0">
         <thead><tr><th>User name</th><th>Role</th><th>Last sign-in</th><th>Reset password</th><th></th></tr></thead>
         <tbody>
         @foreach (var a in Model.Accounts)
@@ -59,10 +59,10 @@
             </tr>
         }
         </tbody>
-    </table>
+    </table></div></div>
 
-    <h2 class="h5 mt-4">Add account</h2>
-    <form method="post" asp-page-handler="Create" class="row g-2 align-items-end" style="max-width: 720px">
+    <h2 class="h5 mt-4">Add operator account</h2>
+    <form method="post" asp-page-handler="Create" class="row g-2 align-items-end admin-create-form">
         <div class="col-sm-4">
             <label class="form-label small">User name</label>
             <input name="userName" class="form-control form-control-sm" required autocomplete="off" />

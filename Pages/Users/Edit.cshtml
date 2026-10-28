@@ -1,7 +1,7 @@
 @page "{id:int}"
 @model SCADASMSSystem.Web.Pages.Users.EditModel
 @{
-    ViewData["Title"] = "Edit User";
+    ViewData["Title"] = "Edit Recipient";
 }
 
 @section Breadcrumb {
@@ -9,23 +9,23 @@
     <div class="container-fluid px-4">
         <nav aria-label="breadcrumb">
             <ol class="breadcrumb">
-                <li class="breadcrumb-item"><a asp-page="/Index"><i class="fas fa-home me-1"></i>Dashboard</a></li>
-                <li class="breadcrumb-item"><a asp-page="/Users/Index">Users</a></li>
-                <li class="breadcrumb-item active">Edit</li>
+                <li class="breadcrumb-item"><a asp-page="/Index"><i class="fas fa-home me-1"></i>Overview</a></li>
+                <li class="breadcrumb-item"><a asp-page="/Users/Index">Recipients</a></li>
+                <li class="breadcrumb-item active">Edit recipient</li>
             </ol>
         </nav>
     </div>
 </div>
 }
 
-<div class="container-fluid">
+<div class="container-fluid editor-workspace">
     <!-- Page Heading -->
     <div class="d-sm-flex align-items-center justify-content-between mb-4">
         <h1 class="h3 mb-0 text-gray-800">
-            <i class="fas fa-user-edit me-2"></i>Edit User
+            <i class="fas fa-user-edit me-2"></i>Edit recipient
         </h1>
         <a href="/Users" class="d-none d-sm-inline-block btn btn-sm btn-secondary shadow-sm">
-            <i class="fas fa-arrow-left fa-sm text-white-50"></i> Back to Users
+            <i class="fas fa-arrow-left fa-sm"></i> Back to recipients
         </a>
     </div>
 
@@ -35,7 +35,7 @@
             <div class="card shadow mb-4">
                 <div class="card-header card-header-gradient py-3">
                     <h6 class="m-0 fw-bold">
-                        <i class="fas fa-user-cog me-2"></i>User Information
+                        <i class="fas fa-address-card me-2"></i>Recipient details
                     </h6>
                 </div>
                 <div class="card-body">

@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>@ViewData["Title"] - SCADA SMS System</title>
+    <title>@ViewData["Title"] - AlarmBridge</title>
     
     <!-- Favicon -->
     <link rel="icon" type="image/x-icon" href="~/favicon.ico">
@@ -20,50 +20,21 @@
     
     @await RenderSectionAsync("Styles", required: false)
     
-    <style>
-        .navbar-brand-logo { height: 40px; width: auto; margin-right: 8px; border-radius: 4px; }
-        .navbar-brand { display: flex; align-items: center; font-weight: 600; font-size: 1.1rem; }
-        .navbar-brand:hover { text-decoration: none; color: #4361ee !important; }
-        .nav-link.active { color: #4361ee !important; font-weight: 600; }
-        .card { transition: box-shadow 0.2s ease; }
-        .card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.1) !important; }
-        .btn-block { width: 100%; }
-        .badge { font-size: 0.875em; }
-        /* Bootstrap 4 badge compat */
-        .badge-info    { color:#fff; background-color:#0dcaf0; }
-        .badge-success { color:#fff; background-color:#198754; }
-        .badge-danger  { color:#fff; background-color:#dc3545; }
-        .badge-warning { color:#212529; background-color:#ffc107; }
-        .badge-secondary { color:#fff; background-color:#6c757d; }
-        .badge-primary { color:#fff; background-color:#4361ee; }
-        .badge-light   { color:#212529; background-color:#f8f9fa; }
-        .table-success { background-color: rgba(25,135,84,.08); }
-        .table-danger  { background-color: rgba(220,53,69,.08); }
-        .table-warning { background-color: rgba(255,193,7,.10); }
-        .table-info    { background-color: rgba(13,202,240,.08); }
-        .loading-overlay { position:absolute; top:0; left:0; right:0; bottom:0; background:rgba(255,255,255,.8); display:flex; align-items:center; justify-content:center; z-index:10; }
-        .quick-filters { display:flex; gap:.5rem; flex-wrap:wrap; margin-bottom:1rem; }
-        .quick-filter-btn { font-size:.75rem; padding:.25rem .5rem; }
-        /* Breadcrumb bar */
-        .breadcrumb-bar { background:#f8f9fa; border-bottom:1px solid #e9ecef; padding:.35rem 0; }
-        .breadcrumb-bar .breadcrumb { margin-bottom:0; font-size:.82rem; }
-        .breadcrumb-bar .breadcrumb-item + .breadcrumb-item::before { color:#adb5bd; }
-    </style>
 </head>
 @{
     var _page = ViewContext.RouteData.Values["page"]?.ToString() ?? "";
     bool _isActive(string prefix) => _page.StartsWith(prefix, StringComparison.OrdinalIgnoreCase);
-    string _navCls(string prefix) => _isActive(prefix) ? "nav-link active" : "nav-link text-dark";
+    string _navCls(string prefix) => _isActive(prefix) ? "nav-link active" : "nav-link";
     var _signedIn = User.Identity?.IsAuthenticated == true;
     var _isAdmin = User.IsInRole(SCADASMSSystem.Web.Models.AccountRoles.Admin);
 }
 <body>
     <header>
-        <nav class="navbar navbar-expand-lg navbar-light bg-white border-bottom shadow-sm mb-0">
+        <nav class="navbar navbar-expand-xl app-navbar mb-0" aria-label="Primary navigation">
             <div class="container-fluid px-4">
                 <a class="navbar-brand" asp-area="" asp-page="/Index">
-                    <img src="~/img/logo.jpg" alt="SCADA Logo" class="navbar-brand-logo">
-                    <span class="text-primary">SCADA SMS</span>
+                    <span class="brand-mark" aria-hidden="true"><i class="fas fa-tower-broadcast"></i></span>
+                    <span class="brand-copy"><strong>AlarmBridge</strong><small>SCADA notification gateway</small></span>
                 </a>
                 <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNavbar"
                         aria-controls="mainNavbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -75,62 +46,58 @@
                     <ul class="navbar-nav me-auto">
                         <li class="nav-item">
                             <a class="@_navCls("/")" asp-area="" asp-page="/Index">
-                                <i class="fas fa-home me-1"></i>Dashboard
+                                <i class="fas fa-gauge-high me-1"></i>Overview
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="@_navCls("/Alerts")" asp-area="" asp-page="/Alerts/Index">
+                                <i class="fas fa-triangle-exclamation me-1"></i>Delivery Alerts
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="@_navCls("/Audit")" asp-area="" asp-page="/Audit/Index">
+                                <i class="fas fa-clock-rotate-left me-1"></i>Delivery History
                             </a>
                         </li>
                         @if (_isAdmin)
                         {
                             <li class="nav-item">
                                 <a class="@_navCls("/Users")" asp-area="" asp-page="/Users/Index">
-                                    <i class="fas fa-users me-1"></i>Users
+                                    <i class="fas fa-address-book me-1"></i>Recipients
                                 </a>
                             </li>
                             <li class="nav-item">
                                 <a class="@_navCls("/Groups")" asp-area="" asp-page="/Groups/Index">
-                                    <i class="fas fa-layer-group me-1"></i>Groups
+                                    <i class="fas fa-people-group me-1"></i>Notification Teams
                                 </a>
                             </li>
                             <li class="nav-item">
                                 <a class="@_navCls("/Alarms")" asp-area="" asp-page="/Alarms/ManageGroups">
-                                    <i class="fas fa-bell me-1"></i>Alarm Groups
-                                </a>
-                            </li>
-                            <li class="nav-item">
-                                <a class="@_navCls("/Settings")" asp-area="" asp-page="/Settings/Index">
-                                    <i class="fas fa-cogs me-1"></i>Settings
-                                </a>
-                            </li>
-                            <li class="nav-item">
-                                <a class="@_navCls("/Test")" asp-area="" asp-page="/Test/Sms">
-                                    <i class="fas fa-vial me-1"></i>Test SMS
+                                    <i class="fas fa-route me-1"></i>Routing Rules
                                 </a>
                             </li>
                         }
-                        <!-- More dropdown: Audit, Calendar, About -->
                         <li class="nav-item dropdown">
-                            <a class="nav-link dropdown-toggle @(_isActive("/Audit")||_isActive("/Alerts")||_isActive("/Calendar")||_isActive("/About")||_isActive("/Help") ? "active" : "text-dark")"
+                            <a class="nav-link dropdown-toggle @(_isActive("/Settings")||_isActive("/Test")||_isActive("/Calendar")||_isActive("/About")||_isActive("/Help") ? "active" : "")"
                                href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                                <i class="fas fa-ellipsis-h me-1"></i>More
+                                <i class="fas fa-sliders me-1"></i>System
                             </a>
                             <ul class="dropdown-menu shadow-sm border-0">
-                                <li>
-                                    <a class="dropdown-item @(_isActive("/Alerts") ? "active" : "")" asp-area="" asp-page="/Alerts/Index">
-                                        <i class="fas fa-bell me-2 text-muted"></i>Delivery Alerts
-                                    </a>
-                                </li>
-                                <li>
-                                    <a class="dropdown-item @(_isActive("/Audit") ? "active" : "")" asp-area="" asp-page="/Audit/Index">
-                                        <i class="fas fa-history me-2 text-muted"></i>Audit Log
-                                    </a>
-                                </li>
+                                @if (_isAdmin)
+                                {
+                                    <li><h6 class="dropdown-header">Configuration</h6></li>
+                                    <li><a class="dropdown-item @(_isActive("/Settings") ? "active" : "")" asp-page="/Settings/Index"><i class="fas fa-plug me-2 text-muted"></i>Integrations &amp; settings</a></li>
+                                    <li><a class="dropdown-item @(_isActive("/Test") ? "active" : "")" asp-page="/Test/Sms"><i class="fas fa-vial me-2 text-muted"></i>Delivery test</a></li>
+                                    <li><hr class="dropdown-divider"></li>
+                                }
                                 <li>
                                     <a class="dropdown-item @(_isActive("/Calendar") ? "active" : "")" asp-area="" asp-page="/Calendar/Index">
-                                        <i class="fas fa-calendar-alt me-2 text-muted"></i>Calendar
+                                        <i class="fas fa-calendar-alt me-2 text-muted"></i>Schedules &amp; holidays
                                     </a>
                                 </li>
                                 <li>
                                     <a class="dropdown-item @(_isActive("/Help") ? "active" : "")" asp-area="" asp-page="/Help/Integration">
-                                        <i class="fas fa-plug me-2 text-muted"></i>Integration Guide
+                                        <i class="fas fa-book me-2 text-muted"></i>Integration guide
                                     </a>
                                 </li>
                                 <li><hr class="dropdown-divider"></li>
@@ -158,7 +125,7 @@
                     </ul>
                     <ul class="navbar-nav">
                         <li class="nav-item dropdown">
-                            <a class="nav-link dropdown-toggle text-dark" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                                 <i class="fas fa-user-circle me-1"></i>@User.Identity!.Name
                                 <span class="badge bg-light text-muted border ms-1">@(_isAdmin ? "Admin" : "Viewer")</span>
                             </a>
@@ -187,8 +154,8 @@
         }
         @await RenderSectionAsync("Breadcrumb", required: false)
     </header>
-    <div class="container-fluid">
-        <main role="main" class="pb-3">
+    <div class="app-content container-fluid">
+        <main role="main" class="pb-3" id="main-content">
             @RenderBody()
         </main>
     </div>
@@ -198,8 +165,8 @@
             <div class="row align-items-center">
                 <div class="col-md-6">
                     <div class="d-flex align-items-center">
-                        <img src="~/img/logo.jpg" alt="SCADA Logo" style="height: 20px; width: auto; margin-right: 8px; border-radius: 2px;">
-                        <span>&copy; 2025 - SCADA SMS System</span>
+                        <span class="brand-mark brand-mark-sm" aria-hidden="true"><i class="fas fa-tower-broadcast"></i></span>
+                        <span>&copy; 2026 AlarmBridge</span>
                     </div>
                 </div>
                 <div class="col-md-6 text-end">
