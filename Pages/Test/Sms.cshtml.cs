@@ -1,125 +1,79 @@
+using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.Extensions.Options;
+using SCADASMSSystem.Web.Models;
 using SCADASMSSystem.Web.Services;
-using System.ComponentModel.DataAnnotations;
 
 namespace SCADASMSSystem.Web.Pages.Test
 {
+    /// <summary>
+    /// Sends a test alarm to a group through exactly the path Scada_sms.bat uses (synchronous,
+    /// per-recipient, recorded in the delivery table and audit), and shows each recipient's result.
+    /// Provider configuration and single-number verification live in Settings > Provider.
+    /// </summary>
     public class SmsModel : PageModel
     {
-        private readonly SmsBackgroundService _smsBackgroundService;
+        private readonly ISmsService _smsService;
         private readonly IGroupService _groupService;
+        private readonly IOptionsMonitor<SmsSettings> _smsSettings;
         private readonly ILogger<SmsModel> _logger;
 
-        public SmsModel(SmsBackgroundService smsBackgroundService, IGroupService groupService, ILogger<SmsModel> logger)
+        public SmsModel(ISmsService smsService, IGroupService groupService, IOptionsMonitor<SmsSettings> smsSettings, ILogger<SmsModel> logger)
         {
-            _smsBackgroundService = smsBackgroundService;
+            _smsService = smsService;
             _groupService = groupService;
+            _smsSettings = smsSettings;
             _logger = logger;
         }
 
         [BindProperty]
         public SmsTestModel TestMessage { get; set; } = new();
 
-        public IEnumerable<Models.Group> AvailableGroups { get; set; } = new List<Models.Group>();
-        public SmsServiceStatus ServiceStatus { get; set; } = new();
+        public IEnumerable<Group> AvailableGroups { get; private set; } = new List<Group>();
+        public bool TestModeActive => _smsSettings.CurrentValue.TestMode;
+        public string? ProviderName => _smsSettings.CurrentValue.Profile?.Name;
+        public CriticalSmsDeliveryResult? Result { get; private set; }
 
         public async Task OnGetAsync()
         {
+            AvailableGroups = await _groupService.GetAllGroupsAsync();
+        }
+
+        public async Task<IActionResult> OnGetGroupMembersAsync(int groupId)
+        {
             try
             {
-                AvailableGroups = await _groupService.GetAllGroupsAsync();
-                ServiceStatus = _smsBackgroundService.GetServiceStatus();
+                var members = await _groupService.GetGroupMembersAsync(groupId);
+                return new JsonResult(members.Select(u => new
+                {
+                    name = $"{u.FirstName} {u.LastName}".Trim().Length > 0 ? $"{u.FirstName} {u.LastName}".Trim() : u.UserName,
+                    maskedPhone = MaskPhone(u.PhoneNumber),
+                    smsEnabled = u.SmsEnabled
+                }));
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error loading SMS test page");
-                TempData["ErrorMessage"] = "Error loading page data.";
+                _logger.LogError(ex, "Error fetching group members for preview");
+                return new JsonResult(Array.Empty<object>());
             }
         }
 
-        public async Task<IActionResult> OnPostSendTestAsync()
+        public async Task<IActionResult> OnPostSendAsync()
         {
+            AvailableGroups = await _groupService.GetAllGroupsAsync();
             if (!ModelState.IsValid)
-            {
-                await OnGetAsync();
                 return Page();
-            }
 
-            try
-            {
-                var alarmId = $"TEST-{DateTime.Now:yyyyMMdd-HHmmss}";
-                var success = await _smsBackgroundService.QueueSmsMessageAsync(
-                    TestMessage.Message, 
-                    TestMessage.GroupId, 
-                    alarmId, 
-                    "normal");
-
-                if (success)
-                {
-                    TempData["SuccessMessage"] = $"Test SMS queued successfully! Alarm ID: {alarmId}";
-                    _logger.LogInformation("Test SMS queued for group {GroupId}", TestMessage.GroupId);
-                }
-                else
-                {
-                    TempData["ErrorMessage"] = "Failed to queue test SMS.";
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error sending test SMS");
-                TempData["ErrorMessage"] = "Error occurred while sending test SMS.";
-            }
-
-            return RedirectToPage();
+            var alarmId = $"TEST-{DateTime.Now:yyyyMMdd-HHmmss}-{Guid.NewGuid().ToString("N")[..6]}";
+            _logger.LogWarning("{User} sent test alarm {AlarmId} to group {GroupId}", User.Identity?.Name, alarmId, TestMessage.GroupId);
+            Result = await _smsService.SendCriticalSmsToGroupAsync(
+                TestMessage.Message, TestMessage.GroupId, alarmId, "normal", null, HttpContext.RequestAborted);
+            return Page();
         }
 
-        public IActionResult OnGetRefreshStatus()
-        {
-            try
-            {
-                ServiceStatus = _smsBackgroundService.GetServiceStatus();
-                return new JsonResult(new
-                {
-                    queueSize = ServiceStatus.QueueSize,
-                    messagesSent = ServiceStatus.MessagesSent,
-                    messagesFailed = ServiceStatus.MessagesFailed,
-                    uptime = ServiceStatus.ServiceUptime.ToString(@"d\.hh\:mm\:ss"),
-                    lastMessage = ServiceStatus.LastMessageTime?.ToString("yyyy-MM-dd HH:mm:ss")
-                });
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error refreshing service status");
-                return BadRequest("Error refreshing status");
-            }
-        }
-
-        public async Task<IActionResult> OnPostTestHealthAsync()
-        {
-            try
-            {
-                using var httpClient = new HttpClient();
-                var response = await httpClient.GetAsync("http://localhost:5000/api/sms/health");
-                var content = await response.Content.ReadAsStringAsync();
-                
-                if (response.IsSuccessStatusCode)
-                {
-                    TempData["SuccessMessage"] = $"Health check passed! Response: {content}";
-                }
-                else
-                {
-                    TempData["ErrorMessage"] = $"Health check failed! Status: {response.StatusCode}, Response: {content}";
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error testing health endpoint");
-                TempData["ErrorMessage"] = "Error occurred while testing health endpoint.";
-            }
-
-            return RedirectToPage();
-        }
+        private static string MaskPhone(string? phone) =>
+            string.IsNullOrEmpty(phone) || phone.Length <= 4 ? phone ?? "—" : new string('*', phone.Length - 4) + phone[^4..];
     }
 
     public class SmsTestModel

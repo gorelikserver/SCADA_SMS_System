@@ -3,7 +3,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace SCADASMSSystem.Web.Models
 {
-    [Table("sms_audit")]
+    [Table("scada_sms_audit")]
     public class SmsAudit
     {
         [Key]

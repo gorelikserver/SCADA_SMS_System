@@ -308,6 +308,10 @@ logs/
 config.ini
 SMS_credentials.txt
 
+# Build artifacts — ship via GitHub Releases, not git
+*.msi
+install_log.txt
+
 # Database files
 *.db
 *.sqlite
@@ -371,3 +375,5 @@ NEW_FILES_*.md
 
 # Commit helper scripts (temporary, not needed in repo)
 commit_*.bat
+# Settings backups written by SettingsStore
+settings-backups/

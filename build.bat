@@ -98,9 +98,9 @@ echo.
 REM ------------------------------------------
 REM Step 3: Restore Dependencies
 REM ------------------------------------------
-echo [3/8] Restoring NuGet packages...
+echo [3/9] Restoring NuGet packages...
 
-dotnet restore --verbosity quiet
+dotnet restore SCADASMSSystem.Web.csproj --verbosity quiet
 if %ERRORLEVEL% NEQ 0 (
     echo      [ERROR] Package restore failed
     pause
@@ -113,9 +113,9 @@ echo.
 REM ------------------------------------------
 REM Step 4: Build Application (Self-Contained - AIR-GAP COMPATIBLE)
 REM ------------------------------------------
-echo [4/8] Building self-contained application (R2R disabled for air-gap)...
+echo [4/9] Building self-contained application (R2R disabled for air-gap)...
 
-dotnet publish ^
+dotnet publish SCADASMSSystem.Web.csproj ^
     --configuration Release ^
     --runtime win-x64 ^
     --self-contained true ^
@@ -150,7 +150,7 @@ echo.
 REM ------------------------------------------
 REM Step 5: Create Package Structure
 REM ------------------------------------------
-echo [5/8] Creating deployment package structure...
+echo [5/9] Creating deployment package structure...
 
 REM Create folder structure
 mkdir deployment_package\Scripts 2>nul
@@ -164,7 +164,7 @@ echo.
 REM ------------------------------------------
 REM Step 6: Copy Service Management Scripts and Tools
 REM ------------------------------------------
-echo [6/8] Copying service management scripts and tools...
+echo [6/9] Copying service management scripts and tools...
 
 REM Copy curl.exe to Tools folder if available
 if exist "temp_curl\curl.exe" (
@@ -192,39 +192,13 @@ if exist check_service_status.bat (
     echo      [OK] check_service_status.bat
 )
 
-REM Create smart SCADA integration script with bundled curl support
-REM This replaces both the old standard and bundled versions
-(
-echo @echo off
-echo setlocal
-echo :: SCADA SMS Integration Script - Smart curl Detection
-echo :: Tries bundled curl first, falls back to system curl
-echo :: Works on both air-gapped and modern Windows systems
-echo if "%%~1"=="" exit /b 1
-echo if "%%~2"=="" exit /b 1
-echo set "MSG=%%~1"
-echo set "GRP=%%~2" 
-echo set "VALUE=%%~3"
-echo set "ALM=%%~4"
-echo set "PRI=%%~5"
-echo if not defined ALM set "ALM=SCADA-%%RANDOM%%"
-echo if not defined PRI set "PRI=normal"
-echo echo %%GRP%%^| findstr /r "^[0-9]*$" ^>nul ^|^| exit /b 1
-echo.
-echo :: Append VALUE parameter to message if provided
-echo if defined VALUE ^(
-echo     set "MSG=%%MSG%% - %%VALUE%%"
-echo ^)
-echo set "MSG=%%MSG:"=\"%%"
-echo.
-echo :: Smart curl detection: try bundled first, then system
-echo set "CURL_PATH=%%~dp0..\Tools\curl.exe"
-echo if not exist "%%CURL_PATH%%" set "CURL_PATH=curl.exe"
-echo.
-echo "%%CURL_PATH%%" -X POST http://localhost:5000/api/sms/send -H "Content-Type: application/json" -d "{\"message\":\"%%MSG%%\",\"groupId\":%%GRP%%,\"alarmId\":\"%%ALM%%\",\"priority\":\"%%PRI%%\"}" --silent --connect-timeout 5 --max-time 15 ^>nul 2^>^&1
-echo exit /b %%errorlevel%%
-) > deployment_package\Scripts\Scada_sms.bat
-echo      [OK] Scada_sms.bat (smart curl detection)
+REM Copy the canonical SCADA integration script. Never regenerate a second implementation here.
+copy /Y Scada_sms.bat deployment_package\Scripts\Scada_sms.bat >nul
+if errorlevel 1 (
+    echo      [ERROR] Failed to copy canonical Scada_sms.bat
+    exit /b 1
+)
+echo      [OK] Scada_sms.bat (canonical provider-confirmed delivery contract)
 
 REM Create quick restart script
 (
@@ -258,7 +232,7 @@ echo.
 REM ------------------------------------------
 REM Step 7: Create Documentation
 REM ------------------------------------------
-echo [7/8] Creating deployment documentation...
+echo [7/9] Creating deployment documentation...
 
 REM Copy existing documentation
 if exist WINDOWS_SERVICE_GUIDE.md (
@@ -410,9 +384,65 @@ if exist "temp_curl\curl.exe" (
 echo.
 
 REM ------------------------------------------
-REM Step 8: Create ZIP Archive
+REM Step 8: Build MSI Installer (WiX v4)
 REM ------------------------------------------
-echo [8/8] Creating ZIP archive...
+echo [8/9] Building MSI installer...
+
+REM Stage installer source: separate AppExe and appsettings.json from the rest
+REM (WiX v4 Files glob needs them in different dirs to avoid duplicate component errors)
+echo      Staging installer source files...
+if exist deployment_package\InstallerSrc rmdir /s /q deployment_package\InstallerSrc 2>nul
+mkdir deployment_package\InstallerSrc\Main 2>nul
+
+xcopy /E /I /Y "deployment_package\Application\*" "deployment_package\InstallerSrc\Main\" >nul
+move /Y "deployment_package\InstallerSrc\Main\SCADASMSSystem.Web.exe" "deployment_package\InstallerSrc\" >nul
+move /Y "deployment_package\InstallerSrc\Main\appsettings.json"       "deployment_package\InstallerSrc\" >nul
+REM SCADA integration: the MSI installs Scripts\Scada_sms.bat and, when present, Tools\curl.exe
+REM (same layout as this package, so the bat finds %~dp0..\Tools\curl.exe)
+mkdir deployment_package\InstallerSrc\Scripts 2>nul
+copy /Y deployment_package\Scripts\Scada_sms.bat deployment_package\InstallerSrc\Scripts\Scada_sms.bat >nul
+if errorlevel 1 (
+    echo      [ERROR] Failed to stage Scada_sms.bat for the MSI
+    exit /b 1
+)
+if exist deployment_package\Tools\curl.exe (
+    mkdir deployment_package\InstallerSrc\Tools 2>nul
+    copy /Y deployment_package\Tools\curl.exe deployment_package\InstallerSrc\Tools\curl.exe >nul
+    echo      [OK] MSI bundles Tools\curl.exe
+) else (
+    echo      [INFO] MSI without curl.exe - Scada_sms.bat will use the Windows built-in curl.exe
+)
+echo      [OK] Installer source staged
+
+REM Ensure WiX toolset is installed as a dotnet global tool
+dotnet tool install --global wix >nul 2>&1 || dotnet tool update --global wix >nul 2>&1
+wix extension add WixToolset.UI.wixext WixToolset.Util.wixext WixToolset.Firewall.wixext >nul 2>&1
+
+if exist "Installer\SCADASMSInstaller.wixproj" (
+    REM Pre-generate file harvest before WiX compile
+    mkdir Installer\obj\Release 2>nul
+    powershell -ExecutionPolicy Bypass -File "Installer\Scripts\Generate-HarvestedFiles.ps1" ^
+        -SourceDir "deployment_package\InstallerSrc\Main" ^
+        -OutputFile "Installer\obj\Release\HarvestedFiles.wxs" >> build.log 2>&1
+    dotnet build Installer\SCADASMSInstaller.wixproj -c Release --verbosity minimal >> build.log 2>&1
+    if !ERRORLEVEL! EQU 0 (
+        for %%F in (Installer\bin\x64\Release\*.msi) do (
+            copy /Y "%%F" deployment_package\ >nul
+            echo      [OK] MSI installer: %%~nxF
+        )
+    ) else (
+        echo      [WARNING] MSI build failed - check build.log
+        echo      [INFO] Deployment package still usable with ServiceScripts
+    )
+) else (
+    echo      [INFO] Installer project not found - skipping MSI build
+)
+echo.
+
+REM ------------------------------------------
+REM Step 9: Create ZIP Archive
+REM ------------------------------------------
+echo [9/9] Creating ZIP archive...
 
 set "TIMESTAMP=%DATE:~-4%%DATE:~3,2%%DATE:~0,2%_%TIME:~0,2%%TIME:~3,2%"
 set "TIMESTAMP=%TIMESTAMP: =0%"

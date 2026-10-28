@@ -217,24 +217,27 @@
                 </div>
                 <div class="card-body">
                     <div class="row">
-                        <div class="col-lg-3 col-md-6 mb-3">
-                            <a href="/Users" class="btn btn-primary btn-lg btn-block">
-                                <i class="fas fa-users me-2"></i>
-                                Manage Users
-                            </a>
-                        </div>
-                        <div class="col-lg-3 col-md-6 mb-3">
-                            <a href="/Groups" class="btn btn-success btn-lg btn-block">
-                                <i class="fas fa-layer-group me-2"></i>
-                                Manage Groups
-                            </a>
-                        </div>
-                        <div class="col-lg-3 col-md-6 mb-3">
-                            <a href="/Test/Sms" class="btn btn-info btn-lg btn-block">
-                                <i class="fas fa-sms me-2"></i>
-                                Send SMS
-                            </a>
-                        </div>
+                        @if (User.IsInRole(SCADASMSSystem.Web.Models.AccountRoles.Admin))
+                        {
+                            <div class="col-lg-3 col-md-6 mb-3">
+                                <a href="/Users" class="btn btn-primary btn-lg btn-block">
+                                    <i class="fas fa-users me-2"></i>
+                                    Manage Users
+                                </a>
+                            </div>
+                            <div class="col-lg-3 col-md-6 mb-3">
+                                <a href="/Groups" class="btn btn-success btn-lg btn-block">
+                                    <i class="fas fa-layer-group me-2"></i>
+                                    Manage Groups
+                                </a>
+                            </div>
+                            <div class="col-lg-3 col-md-6 mb-3">
+                                <a href="/Test/Sms" class="btn btn-info btn-lg btn-block">
+                                    <i class="fas fa-sms me-2"></i>
+                                    Send SMS
+                                </a>
+                            </div>
+                        }
                         <div class="col-lg-3 col-md-6 mb-3">
                             <a href="/Audit" class="btn btn-warning btn-lg btn-block">
                                 <i class="fas fa-chart-bar me-2"></i>
@@ -253,7 +256,7 @@
             <div class="card shadow">
                 <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
                     <h6 class="m-0 font-weight-bold text-primary">Recent Activity</h6>
-                    <a href="/Activity" class="btn btn-sm btn-outline-primary">View All</a>
+                    <a href="/Audit" class="btn btn-sm btn-outline-primary">View All</a>
                 </div>
                 <div class="card-body">
                     <div class="table-responsive">

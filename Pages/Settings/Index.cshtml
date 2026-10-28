@@ -4,423 +4,506 @@
     ViewData["Title"] = "System Settings";
 }
 
-<div class="container-fluid">
-    <!-- Page Heading -->
-    <div class="d-sm-flex align-items-center justify-content-between mb-4">
-        <h1 class="h3 mb-0 text-gray-800">
-            <i class="fas fa-cogs me-2"></i>System Settings
-        </h1>
-        <a href="/" class="d-none d-sm-inline-block btn btn-sm btn-secondary shadow-sm">
-            <i class="fas fa-arrow-left fa-sm text-white-50"></i> Back to Dashboard
-        </a>
+<style>
+    .settings-hero {
+        background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+        border-radius: 16px;
+        padding: 2rem;
+        margin-bottom: 2rem;
+        color: white;
+        position: relative;
+        overflow: hidden;
+    }
+    .settings-hero::before {
+        content: '';
+        position: absolute;
+        top: -50%;
+        right: -10%;
+        width: 300px;
+        height: 300px;
+        border-radius: 50%;
+        background: rgba(255,255,255,0.03);
+    }
+    .config-card {
+        border: none;
+        border-radius: 12px;
+        box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+        transition: box-shadow 0.2s;
+    }
+    .config-card:hover {
+        box-shadow: 0 4px 20px rgba(0,0,0,0.13);
+    }
+    .config-card .card-header {
+        border-radius: 12px 12px 0 0 !important;
+        border-bottom: 1px solid rgba(0,0,0,0.06);
+        padding: 1rem 1.25rem;
+        font-weight: 600;
+        font-size: 0.9rem;
+        letter-spacing: 0.3px;
+    }
+    .settings-tabs .nav-link {
+        border-radius: 8px !important;
+        font-size: 0.85rem;
+        font-weight: 500;
+        color: #6c757d;
+        padding: 0.5rem 1rem;
+        margin-bottom: 2px;
+        transition: all 0.15s;
+        border: none;
+    }
+    .settings-tabs .nav-link:hover {
+        background: #f0f4ff;
+        color: #4361ee;
+    }
+    .settings-tabs .nav-link.active {
+        background: linear-gradient(135deg, #4361ee, #3a86ff);
+        color: white !important;
+        box-shadow: 0 2px 8px rgba(67,97,238,0.3);
+    }
+    .settings-tabs .nav-link i {
+        width: 18px;
+        text-align: center;
+    }
+    .form-label {
+        font-size: 0.82rem;
+        font-weight: 600;
+        color: #495057;
+        margin-bottom: 0.35rem;
+        text-transform: uppercase;
+        letter-spacing: 0.4px;
+    }
+    .form-control, .form-select {
+        border-radius: 8px;
+        border-color: #dee2e6;
+        font-size: 0.9rem;
+        transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    .form-control:focus, .form-select:focus {
+        border-color: #4361ee;
+        box-shadow: 0 0 0 3px rgba(67,97,238,0.12);
+    }
+    .badge-provider {
+        font-size: 0.75rem;
+        padding: 0.35em 0.75em;
+        border-radius: 20px;
+    }
+    .section-divider {
+        border: none;
+        height: 1px;
+        background: linear-gradient(to right, transparent, #dee2e6, transparent);
+        margin: 1.5rem 0;
+    }
+    .health-metric {
+        padding: 0.75rem;
+        border-radius: 10px;
+        background: #f8f9ff;
+        border: 1px solid #e8ecff;
+        margin-bottom: 0.5rem;
+    }
+    .health-metric .metric-label { font-size: 0.75rem; color: #6c757d; font-weight: 600; text-transform: uppercase; }
+    .health-metric .metric-value { font-size: 1rem; font-weight: 700; color: #1a1a2e; }
+    .provider-toggle-rest { border-left: 4px solid #3a86ff !important; }
+    .provider-toggle-soap { border-left: 4px solid #f72585 !important; }
+    .input-with-icon { position: relative; }
+    .input-with-icon .form-control { padding-left: 2.5rem; }
+    .input-with-icon .input-icon {
+        position: absolute; left: 0.75rem; top: 50%; transform: translateY(-50%);
+        color: #adb5bd; font-size: 0.9rem; pointer-events: none;
+    }
+    .save-btn {
+        background: linear-gradient(135deg, #4361ee, #3a86ff);
+        border: none;
+        border-radius: 8px;
+        padding: 0.6rem 1.75rem;
+        font-weight: 600;
+        letter-spacing: 0.3px;
+        transition: opacity 0.2s, transform 0.1s;
+    }
+    .save-btn:hover { opacity: 0.92; transform: translateY(-1px); }
+    .info-box {
+        background: #f0f4ff;
+        border: 1px solid #c7d2fe;
+        border-radius: 8px;
+        padding: 0.75rem 1rem;
+        font-size: 0.82rem;
+        color: #4338ca;
+    }
+    .warning-box {
+        background: #fffbeb;
+        border: 1px solid #fcd34d;
+        border-radius: 8px;
+        padding: 0.75rem 1rem;
+        font-size: 0.82rem;
+        color: #92400e;
+    }
+
+    /* ── Postman-style provider UI ───────────────────────────────────────── */
+    .pm-provider-toggle { display:flex; border:1px solid #dee2e6; border-radius:8px; overflow:hidden; }
+    .pm-toggle-btn { border:none; background:#f8f9fa; padding:0.4rem 1.2rem; font-size:0.85rem; font-weight:500; color:#6c757d; cursor:pointer; transition:background .15s,color .15s; }
+    .pm-toggle-btn:hover { background:#e9ecef; }
+    .pm-toggle-btn.active { background:#4361ee; color:#fff; }
+
+    .pm-request-line { display:flex; border:1.5px solid #dee2e6; border-radius:8px; overflow:hidden; background:#fff; }
+    .pm-method-select { border:none; border-right:1.5px solid #dee2e6; padding:.45rem .75rem; font-size:.85rem; font-weight:700; background:#f8f9fa; min-width:86px; cursor:pointer; outline:none; border-radius:0; }
+    .pm-method-select:focus { box-shadow:none; }
+    .pm-method-get  { color:#49cc90; } .pm-method-post { color:#fca130; }
+    .pm-method-put  { color:#0d6efd; } .pm-method-patch{ color:#9013fe; }
+    .pm-method-soap { color:#f72585; background:#f8f9fa; font-size:.82rem; display:flex; align-items:center; padding:.45rem .75rem; border-right:1.5px solid #dee2e6; font-weight:700; white-space:nowrap; min-width:86px; }
+    .pm-url-input { flex:1; border:none; padding:.45rem .75rem; font-size:.85rem; outline:none; min-width:0; }
+    .pm-url-input:focus { box-shadow:none; }
+
+    .pm-inner-tabs { display:flex; gap:0; border-bottom:1.5px solid #dee2e6; margin-bottom:0; }
+    .pm-inner-tab { border:none; background:none; padding:.42rem .9rem; font-size:.8rem; font-weight:500; color:#6c757d; cursor:pointer; border-bottom:2px solid transparent; margin-bottom:-1.5px; transition:color .15s,border-color .15s; }
+    .pm-inner-tab:hover { color:#495057; }
+    .pm-inner-tab.active { color:#ef5c00; border-bottom-color:#ef5c00; font-weight:600; }
+    .pm-tab-badge { display:inline-block; background:#e8ecff; color:#4361ee; border-radius:10px; font-size:.63rem; padding:0 5px; margin-left:4px; min-width:15px; text-align:center; }
+
+    .pm-kv-table { border:1px solid #e9ecef; border-radius:8px; overflow:hidden; margin-bottom:.5rem; }
+    .pm-kv-header { display:grid; grid-template-columns:28px 1fr 1.5fr 30px; background:#f8f9fa; padding:.28rem .5rem; font-size:.7rem; font-weight:600; color:#6c757d; text-transform:uppercase; letter-spacing:.3px; gap:4px; }
+    .pm-kv-row { display:grid; grid-template-columns:28px 1fr 1.5fr 30px; border-top:1px solid #f0f0f0; align-items:center; padding:.18rem .5rem; transition:background .1s; gap:4px; }
+    .pm-kv-row:hover { background:#fafbff; }
+    .pm-row-disabled { opacity:.45; }
+    .pm-row-check { accent-color:#4361ee; margin:0; }
+    .pm-kv-key,.pm-kv-val-input { border:none; border-bottom:1px solid transparent; background:transparent; font-size:.82rem; padding:.28rem .25rem; outline:none; width:100%; color:#212529; transition:border-color .15s; }
+    .pm-kv-key:hover,.pm-kv-val-input:hover { border-bottom-color:#ced4da; }
+    .pm-kv-key:focus,.pm-kv-val-input:focus { background:#f0f4ff; border-radius:4px; border-bottom-color:#4361ee; }
+    .pm-kv-val-select-sm { font-size:.78rem; border:1px solid #dee2e6; border-radius:4px; padding:.18rem .35rem; color:#495057; background:#fff; flex-shrink:0; }
+    .pm-kv-dyn-picker { font-size:.78rem; border:1px solid #c8d0e7; border-radius:4px; padding:.18rem .2rem; color:#4361ee; background:#f0f4ff; width:36px; flex-shrink:0; cursor:pointer; }
+    .pm-row-del { border:none; background:transparent; color:#adb5bd; font-size:.78rem; padding:.18rem; cursor:pointer; border-radius:4px; line-height:1; }
+    .pm-row-del:hover { color:#dc3545; background:#fff5f5; }
+    .pm-value-cell { display:flex; align-items:center; gap:3px; overflow:hidden; min-width:0; }
+    .pm-dynamic-pill { background:#fff3cd; color:#7c4d00; border:1px solid #ffc107; border-radius:12px; font-size:.73rem; padding:1px 7px; white-space:nowrap; font-weight:600; font-family:monospace; flex-shrink:0; }
+    .pm-add-row-btn { border:1px dashed #ced4da; background:transparent; color:#6c757d; font-size:.79rem; padding:.28rem .75rem; border-radius:6px; cursor:pointer; transition:all .15s; width:100%; margin-top:2px; }
+    .pm-add-row-btn:hover { border-color:#4361ee; color:#4361ee; background:#f0f4ff; }
+
+    .pm-token { background:#fff3cd; color:#7c4d00; border:1px solid #ffc107; border-radius:3px; padding:0 3px; font-size:.82em; white-space:nowrap; }
+
+    .pm-preview-panel { border:1px solid #2d2d44; border-radius:10px; overflow:hidden; display:flex; flex-direction:column; background:#1e1e2e; min-height:340px; }
+    .pm-preview-header { background:#2a2a3d; padding:.45rem .85rem; font-size:.76rem; font-weight:600; color:#adb5bd; display:flex; align-items:center; gap:6px; border-bottom:1px solid rgba(255,255,255,.06); flex-shrink:0; }
+    .pm-preview-body { flex:1; margin:0; padding:.8rem; font-size:.74rem; font-family:'Courier New',monospace; color:#e2e8f0; overflow:auto; white-space:pre; background:transparent; line-height:1.55; }
+    .pm-preview-body .pm-token { background:rgba(255,193,7,.2); color:#ffc107; border-color:#ffc107; }
+
+    .pm-chip-bar { display:flex; flex-wrap:wrap; gap:4px; margin-bottom:.4rem; }
+    .pm-chip { background:#f3e8ff; color:#7c3aed; border:1px solid #c4b5fd; border-radius:12px; font-size:.7rem; padding:1px 8px; cursor:pointer; font-family:monospace; transition:background .1s; }
+    .pm-chip:hover { background:#ede9fe; border-color:#7c3aed; }
+    .pm-soap-textarea { font-size:.77rem; line-height:1.6; border-radius:8px; resize:vertical; }
+
+    .pm-body-preview { border:1px solid #e9ecef; border-radius:8px; overflow:hidden; }
+    .pm-preview-label { background:#f8f9fa; padding:.28rem .75rem; font-size:.7rem; color:#6c757d; font-weight:600; text-transform:uppercase; letter-spacing:.3px; border-bottom:1px solid #e9ecef; }
+    .pm-preview-code { margin:0; padding:.65rem; font-size:.76rem; background:#fff; color:#495057; max-height:200px; overflow:auto; white-space:pre-wrap; word-break:break-all; }
+    .pm-radio-label { font-size:.82rem; color:#495057; cursor:pointer; }
+    .pm-radio-label input { margin-right:4px; accent-color:#4361ee; }
+    .pm-tab-content { padding:.75rem 0 0; }
+
+    /* ── Param type selector ── */
+    .pm-kv-header { grid-template-columns: 28px 1fr 1.5fr 80px 30px !important; }
+    .pm-kv-row    { grid-template-columns: 28px 1fr 1.5fr 80px 30px !important; }
+    .pm-type-select { font-size:.7rem; border:1px solid #dee2e6; border-radius:4px; padding:.15rem .25rem; width:100%; cursor:pointer; }
+    .pm-type-select.pm-type-dynamic  { color:#7c3aed; background:#f3e8ff; border-color:#c4b5fd; font-weight:600; }
+    .pm-type-select.pm-type-static   { color:#0369a1; background:#e0f2fe; border-color:#bae6fd; }
+    .pm-type-select.pm-type-default  { color:#6b7280; background:#f9fafb; border-color:#d1d5db; }
+    .pm-row-default { opacity:.72; }
+    .pm-row-default .pm-kv-key { color:#9ca3af; }
+    .pm-row-mandatory { background:#fff8e1 !important; border-left:3px solid #ffc107; }
+    .pm-row-mandatory .pm-kv-key { font-weight:600; color:#7c4d00; }
+    .pm-row-mandatory .pm-row-del:disabled { color:#ffc107; cursor:not-allowed; }
+    .pm-row-scada-optional { background:#e7f5ff !important; border-left:3px solid #339af0; }
+    .pm-row-scada-optional .pm-kv-key { font-weight:600; color:#1864ab; }
+    .pm-row-scada-optional .pm-row-del:disabled { color:#339af0; cursor:not-allowed; }
+    .pm-param-legend { font-size:.68rem; color:#9ca3af; display:flex; gap:12px; margin-top:4px; margin-bottom:2px; }
+    .pm-param-legend span { display:flex; align-items:center; gap:3px; }
+    .pm-legend-dot-dynamic { width:7px;height:7px;border-radius:50%;background:#7c3aed;flex-shrink:0; }
+    .pm-legend-dot-static  { width:7px;height:7px;border-radius:50%;background:#0369a1;flex-shrink:0; }
+    .pm-legend-dot-default { width:7px;height:7px;border-radius:50%;background:#9ca3af;flex-shrink:0; }
+
+    /* ── SOAP chip categories ── */
+    .pm-chip-group-label { font-size:.62rem; font-weight:700; text-transform:uppercase; color:#9ca3af; letter-spacing:.05em; white-space:nowrap; }
+    .pm-chip-dynamic    { background:#f3e8ff; color:#7c3aed; border-color:#c4b5fd; }
+    .pm-chip-dynamic:hover { background:#ede9fe; }
+    .pm-chip-credential { background:#fff3cd; color:#7c4d00; border-color:#ffc107; }
+    .pm-chip-credential:hover { background:#fff0a8; }
+    .pm-chip-config     { background:#e0f2fe; color:#0369a1; border-color:#bae6fd; }
+    .pm-chip-config:hover { background:#cce8f8; }
+</style>
+
+<div id="settings-top" class="container-fluid px-4">
+
+    <!-- Hero Header -->
+    <div class="settings-hero mb-4">
+        <div class="row align-items-center">
+            <div class="col">
+                <h4 class="mb-1 fw-bold"><i class="fas fa-cogs me-2"></i>System Settings</h4>
+                <p class="mb-0 opacity-75" style="font-size:0.88rem;">SMS provider, limits, test mode and SCADA integration</p>
+            </div>
+            <div class="col-auto">
+                <a href="/" class="btn btn-sm btn-outline-light rounded-pill">
+                    <i class="fas fa-arrow-left me-1"></i> Dashboard
+                </a>
+            </div>
+        </div>
     </div>
 
-    <!-- Alert Messages -->
+    <!-- Alerts -->
     @if (TempData["SuccessMessage"] != null)
     {
-        <div class="alert alert-success alert-dismissible fade show" role="alert">
+        <div class="alert alert-success alert-dismissible fade show rounded-3 border-0 shadow-sm mb-4" role="alert">
             <i class="fas fa-check-circle me-2"></i>@TempData["SuccessMessage"]
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>
     }
-
     @if (TempData["ErrorMessage"] != null)
     {
-        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        <div class="alert alert-danger alert-dismissible fade show rounded-3 border-0 shadow-sm mb-4" role="alert">
             <i class="fas fa-exclamation-circle me-2"></i>@TempData["ErrorMessage"]
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>
     }
 
-    <div class="row">
-        <!-- System Health Column -->
-        <div class="col-lg-6">
-            <!-- System Health Card -->
-            <div class="card shadow mb-4">
-                <div class="card-header py-3">
-                    <h6 class="m-0 font-weight-bold text-success">
-                        <i class="fas fa-heartbeat me-2"></i>System Health Status
-                    </h6>
-                </div>
-                <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center mb-3">
-                        <span class="font-weight-bold">Overall Health:</span>
-                        <span class="badge @Model.HealthStatus.GetHealthBadgeClass() badge-lg">
-                            @Model.HealthStatus.SystemHealth
-                        </span>
-                    </div>
+    <div class="row g-4">
 
-                    <div class="row">
+        <!-- LEFT: Health + Actions -->
+        <div class="col-xl-3 col-lg-4">
+
+            <!-- Health Card -->
+            <div class="card config-card mb-4">
+                <div class="card-header bg-white">
+                    <i class="fas fa-heartbeat text-success me-2"></i>System Health
+                    <span class="float-end badge @Model.HealthStatus.GetHealthBadgeClass() badge-provider">
+                        @Model.HealthStatus.SystemHealth
+                    </span>
+                </div>
+                <div class="card-body pt-3">
+                    <div class="health-metric">
+                        <div class="metric-label">Database</div>
+                        <div class="metric-value">
+                            @if (Model.HealthStatus.DatabaseConnected)
+                            {
+                                <span class="text-success"><i class="fas fa-check-circle me-1"></i>Connected</span>
+                            }
+                            else
+                            {
+                                <span class="text-danger"><i class="fas fa-times-circle me-1"></i>Disconnected</span>
+                            }
+                        </div>
+                    </div>
+                    <div class="health-metric">
+                        <div class="metric-label">SMS Success (24h)</div>
+                        <div class="metric-value">@Model.HealthStatus.SmsSuccessRate.ToString("F1")%</div>
+                    </div>
+                    <div class="row g-2 mt-1">
                         <div class="col-6">
-                            <div class="border-bottom py-2">
-                                <small class="text-muted">Database</small>
-                                <div class="font-weight-bold">
-                                    @if (Model.HealthStatus.DatabaseConnected)
-                                    {
-                                        <span class="text-success"><i class="fas fa-check-circle"></i> Connected</span>
-                                    }
-                                    else
-                                    {
-                                        <span class="text-danger"><i class="fas fa-times-circle"></i> Disconnected</span>
-                                    }
-                                </div>
+                            <div class="health-metric text-center">
+                                <div class="metric-label">Users</div>
+                                <div class="metric-value">@Model.HealthStatus.ActiveUsers<small class="text-muted fw-normal">/@Model.HealthStatus.TotalUsers</small></div>
                             </div>
                         </div>
                         <div class="col-6">
-                            <div class="border-bottom py-2">
-                                <small class="text-muted">SMS Success Rate</small>
-                                <div class="font-weight-bold">@Model.HealthStatus.SmsSuccessRate.ToString("F1")%</div>
-                            </div>
-                        </div>
-                        <div class="col-6">
-                            <div class="border-bottom py-2">
-                                <small class="text-muted">Active Users</small>
-                                <div class="font-weight-bold">@Model.HealthStatus.ActiveUsers / @Model.HealthStatus.TotalUsers</div>
-                            </div>
-                        </div>
-                        <div class="col-6">
-                            <div class="border-bottom py-2">
-                                <small class="text-muted">Active Groups</small>
-                                <div class="font-weight-bold">@Model.HealthStatus.ActiveGroups / @Model.HealthStatus.TotalGroups</div>
-                            </div>
-                        </div>
-                        <div class="col-6">
-                            <div class="py-2">
-                                <small class="text-muted">Recent SMS (24h)</small>
-                                <div class="font-weight-bold">@Model.HealthStatus.RecentSmsCount</div>
-                            </div>
-                        </div>
-                        <div class="col-6">
-                            <div class="py-2">
-                                <small class="text-muted">Last SMS</small>
-                                <div class="font-weight-bold">
-                                    @if (Model.HealthStatus.LastSmsTime.HasValue)
-                                    {
-                                        @Model.HealthStatus.LastSmsTime.Value.ToString("MMM dd, HH:mm")
-                                    }
-                                    else
-                                    {
-                                        <span class="text-muted">Never</span>
-                                    }
-                                </div>
+                            <div class="health-metric text-center">
+                                <div class="metric-label">Groups</div>
+                                <div class="metric-value">@Model.HealthStatus.ActiveGroups<small class="text-muted fw-normal">/@Model.HealthStatus.TotalGroups</small></div>
                             </div>
                         </div>
                     </div>
+                    <div class="health-metric">
+                        <div class="metric-label">Recent SMS (24h)</div>
+                        <div class="metric-value">@Model.HealthStatus.RecentSmsCount</div>
+                    </div>
+                    @if (Model.HealthStatus.LastSmsTime.HasValue)
+                    {
+                        <div class="health-metric">
+                            <div class="metric-label">Last SMS</div>
+                            <div class="metric-value" style="font-size:0.88rem;">@Model.HealthStatus.LastSmsTime.Value.ToString("MMM dd, HH:mm")</div>
+                        </div>
+                    }
                 </div>
             </div>
 
-            <!-- System Actions Card -->
-            <div class="card shadow mb-4">
-                <div class="card-header py-3">
-                    <h6 class="m-0 font-weight-bold text-primary">
-                        <i class="fas fa-tools me-2"></i>System Actions
-                    </h6>
+            <!-- System Actions -->
+            <div class="card config-card mb-4">
+                <div class="card-header bg-white">
+                    <i class="fas fa-tools text-primary me-2"></i>System Actions
                 </div>
-                <div class="card-body">
-                    <div class="d-grid gap-2">
-                        <form method="post" asp-page-handler="TestConnection">
-                            <button type="submit" class="btn btn-outline-success btn-block">
-                                <i class="fas fa-database me-2"></i>Test Database Connection
-                            </button>
-                        </form>
-                        <form method="post" asp-page-handler="CleanupData">
-                            <button type="submit" class="btn btn-outline-warning btn-block" 
-                                    onclick="return confirm('This will delete audit records older than 90 days. Continue?')">
-                                <i class="fas fa-broom me-2"></i>Cleanup Old Data
-                            </button>
-                        </form>
-                        <a href="/Calendar" class="btn btn-outline-info btn-block">
-                            <i class="fas fa-calendar-alt me-2"></i>Refresh Holiday Calendar
-                        </a>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- System Information Column -->
-        <div class="col-lg-6">
-            <!-- System Information Card -->
-            <div class="card shadow mb-4">
-                <div class="card-header py-3">
-                    <h6 class="m-0 font-weight-bold text-info">
-                        <i class="fas fa-info-circle me-2"></i>System Information
-                    </h6>
-                </div>
-                <div class="card-body">
-                    <div class="row">
-                        <div class="col-6">
-                            <div class="border-bottom py-2">
-                                <small class="text-muted">Version</small>
-                                <div class="font-weight-bold">@Model.SystemInformation.Version</div>
-                            </div>
-                        </div>
-                        <div class="col-6">
-                            <div class="border-bottom py-2">
-                                <small class="text-muted">Environment</small>
-                                <div class="font-weight-bold">
-                                    <span class="badge @(Model.SystemInformation.Environment == "Development" ? "badge-warning" : "badge-success")">
-                                        @Model.SystemInformation.Environment
-                                    </span>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col-6">
-                            <div class="border-bottom py-2">
-                                <small class="text-muted">Build Date</small>
-                                <div class="font-weight-bold">
-                                    @if (Model.SystemInformation.BuildDate != DateTime.MinValue)
-                                    {
-                                        @Model.SystemInformation.BuildDate.ToString("MMM dd, yyyy")
-                                    }
-                                    else
-                                    {
-                                        <span class="text-muted">Unknown</span>
-                                    }
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col-6">
-                            <div class="border-bottom py-2">
-                                <small class="text-muted">Server Time</small>
-                                <div class="font-weight-bold">@Model.SystemInformation.ServerTime.ToString("HH:mm:ss")</div>
-                            </div>
-                        </div>
-                        <div class="col-6">
-                            <div class="border-bottom py-2">
-                                <small class="text-muted">Uptime</small>
-                                <div class="font-weight-bold">@Model.SystemInformation.Uptime.ToString(@"dd\.hh\:mm\:ss")</div>
-                            </div>
-                        </div>
-                        <div class="col-6">
-                            <div class="border-bottom py-2">
-                                <small class="text-muted">Machine</small>
-                                <div class="font-weight-bold">@Model.SystemInformation.MachineName</div>
-                            </div>
-                        </div>
-                        <div class="col-6">
-                            <div class="border-bottom py-2">
-                                <small class="text-muted">Processors</small>
-                                <div class="font-weight-bold">@Model.SystemInformation.ProcessorCount cores</div>
-                            </div>
-                        </div>
-                        <div class="col-6">
-                            <div class="py-2">
-                                <small class="text-muted">Memory Usage</small>
-                                <div class="font-weight-bold">@Model.SystemInformation.WorkingSetMemory MB</div>
-                            </div>
-                        </div>
-                    </div>
+                <div class="card-body d-grid gap-2 pt-3">
+                    <form method="post" asp-page-handler="TestConnection">
+                        <button type="submit" class="btn btn-outline-success btn-sm w-100">
+                            <i class="fas fa-database me-1"></i>Test DB Connection
+                        </button>
+                    </form>
+                    <form method="post" asp-page-handler="CleanupData" id="cleanupDataForm">
+                        <button type="button" class="btn btn-outline-warning btn-sm w-100"
+                                onclick="confirmCleanupData()">
+                            <i class="fas fa-broom me-1"></i>Cleanup Old Data
+                        </button>
+                    </form>
+                    <a href="/Calendar" class="btn btn-outline-info btn-sm">
+                        <i class="fas fa-calendar-alt me-1"></i>Refresh Calendar
+                    </a>
                 </div>
             </div>
 
-            <!-- SMS Configuration Card -->
-            <div class="card shadow mb-4">
-                <div class="card-header py-3">
-                    <h6 class="m-0 font-weight-bold text-warning">
-                        <i class="fas fa-sms me-2"></i>SMS Configuration
-                    </h6>
+            <!-- System Info -->
+            <div class="card config-card">
+                <div class="card-header bg-white">
+                    <i class="fas fa-info-circle text-info me-2"></i>System Info
                 </div>
-                <div class="card-body">
-                    <div class="row">
-                        <div class="col-12">
-                            <div class="border-bottom py-2">
-                                <small class="text-muted">API Endpoint</small>
-                                <div class="font-weight-bold text-truncate">
-                                    @if (!string.IsNullOrEmpty(Model.CurrentSmsSettings.ApiEndpoint))
-                                    {
-                                        @Model.CurrentSmsSettings.ApiEndpoint
-                                    }
-                                    else
-                                    {
-                                        <span class="text-muted">Not configured</span>
-                                    }
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col-6">
-                            <div class="border-bottom py-2">
-                                <small class="text-muted">Rate Limit</small>
-                                <div class="font-weight-bold">@Model.CurrentSmsSettings.RateLimit / minute</div>
-                            </div>
-                        </div>
-                        <div class="col-6">
-                            <div class="border-bottom py-2">
-                                <small class="text-muted">Duplicate Window</small>
-                                <div class="font-weight-bold">@Model.CurrentSmsSettings.DuplicateWindow minutes</div>
-                            </div>
-                        </div>
-                        <div class="col-6">
-                            <div class="border-bottom py-2">
-                                <small class="text-muted">Rate Window</small>
-                                <div class="font-weight-bold">@Model.CurrentSmsSettings.RateWindow seconds</div>
-                            </div>
-                        </div>
-                        <div class="col-6">
-                            <div class="py-2">
-                                <small class="text-muted">Sender Name</small>
-                                <div class="font-weight-bold">
-                                    @if (!string.IsNullOrEmpty(Model.CurrentSmsSettings.SenderName))
-                                    {
-                                        @Model.CurrentSmsSettings.SenderName
-                                    }
-                                    else
-                                    {
-                                        <span class="text-muted">Default</span>
-                                    }
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="alert alert-info mt-3 mb-0">
-                        <small>
-                            <i class="fas fa-info-circle me-1"></i>
-                            SMS settings are configured in <code>appsettings.json</code>. 
-                            Restart the application after making changes.
-                        </small>
-                    </div>
-                </div>
-            </div>
-
-            <!-- SCADA Configuration Card -->
-            <div class="card shadow mb-4">
-                <div class="card-header py-3">
-                    <h6 class="m-0 font-weight-bold text-danger">
-                        <i class="fas fa-project-diagram me-2"></i>SCADA Configuration
-                    </h6>
-                </div>
-                <div class="card-body">
-                    <div class="row">
-                        <div class="col-12">
-                            <div class="border-bottom py-2">
-                                <small class="text-muted">
-                                    <i class="fas fa-cog me-1"></i>PCIM Object ID
-                                    <span class="badge badge-warning ms-1" data-bs-toggle="tooltip" 
-                                          title="This ID varies by deployment and is used in alarm action commands">
-                                        <i class="fas fa-info-circle"></i>
-                                    </span>
-                                </small>
-                                <div class="font-weight-bold">
-                                    <code class="fs-5">@Model.CurrentSmsSettings.ScadaPcimObjectId</code>
-                                </div>
-                                <small class="text-muted">
-                                    Used in alarm commands as: 
-                                    <code>PFWALARMNG|PCIM!<span class="text-danger">@Model.CurrentSmsSettings.ScadaPcimObjectId</span>:(ThisObject).DESCRIPTION</code>
-                                </small>
-                            </div>
-                        </div>
-                        <div class="col-12 mt-2">
-                            <div class="py-2">
-                                <small class="text-muted">Alarm Command Syntax</small>
-                                <div class="font-weight-bold">
-                                    <code class="text-wrap" style="font-size: 0.75rem; word-break: break-all;">
-                                        'Run '+getalias('PCIMUTIL')+'Scada_sms.bat'+' "+'"+GetValue(PFWALARMNG|PCIM!<span class="text-danger">@Model.CurrentSmsSettings.ScadaPcimObjectId</span>:(ThisObject).DESCRIPTION)+'"'+<span class="text-primary">[GROUP_ID]</span>+' "+GetValue(PFWALARMNG|PCIM!<span class="text-danger">@Model.CurrentSmsSettings.ScadaPcimObjectId</span>:(ThisObject).ALM_VALUE)+'"'
-                                    </code>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="alert alert-warning mt-3 mb-0">
-                        <small>
-                            <i class="fas fa-exclamation-triangle me-1"></i>
-                            <strong>Important:</strong> The PCIM Object ID is deployment-specific and must be configured correctly in <code>appsettings.json</code> under 
-                            <code>SmsSettings.ScadaPcimObjectId</code>.
-                            <br />
-                            Common values: 1 (default), but may vary by installation.
-                            <br />
-                            <strong>Restart the application after changing this value.</strong>
-                        </small>
-                    </div>
+                <div class="card-body pt-3" style="font-size:0.83rem;">
+                    <table class="table table-sm table-borderless mb-0">
+                        <tr><td class="text-muted">Version</td><td class="fw-semibold">@Model.SystemInformation.Version</td></tr>
+                        <tr>
+                            <td class="text-muted">Env</td>
+                            <td>
+                                <span class="badge @(Model.SystemInformation.Environment == "Development" ? "bg-warning text-dark" : "bg-success")">
+                                    @Model.SystemInformation.Environment
+                                </span>
+                            </td>
+                        </tr>
+                        <tr><td class="text-muted">Machine</td><td class="fw-semibold">@Model.SystemInformation.MachineName</td></tr>
+                        <tr><td class="text-muted">Uptime</td><td class="fw-semibold">@Model.SystemInformation.Uptime.ToString(@"dd\.hh\:mm")</td></tr>
+                        <tr><td class="text-muted">CPU cores</td><td class="fw-semibold">@Model.SystemInformation.ProcessorCount</td></tr>
+                        <tr><td class="text-muted">Memory</td><td class="fw-semibold">@Model.SystemInformation.WorkingSetMemory MB</td></tr>
+                    </table>
                 </div>
             </div>
         </div>
-    </div>
 
-    <!-- Quick Links Row -->
-    <div class="row">
-        <div class="col-12">
-            <div class="card shadow">
-                <div class="card-header py-3">
-                    <h6 class="m-0 font-weight-bold text-secondary">
-                        <i class="fas fa-external-link-alt me-2"></i>Quick Management Links
-                    </h6>
+        <!-- RIGHT -->
+        <div class="col-xl-9 col-lg-8">
+            @{
+                var active = Model.ProviderState.Active;
+                var activeErrors = SCADASMSSystem.Web.Services.Providers.ProfileValidator.Validate(active);
+            }
+            <div class="card config-card mb-4 @(active == null || activeErrors.Count > 0 ? "border-danger" : "")">
+                <div class="card-header bg-white d-flex align-items-center">
+                    <i class="fas fa-plug text-primary me-2"></i>SMS Provider
+                    <a asp-page="/Settings/History" class="btn btn-sm btn-outline-secondary ms-auto me-2"><i class="fas fa-history me-1"></i>History</a>
+                    <a asp-page="/Settings/Provider" class="btn btn-sm btn-primary"><i class="fas fa-pen me-1"></i>Open provider editor</a>
                 </div>
-                <div class="card-body">
-                    <div class="row">
-                        <div class="col-md-3 mb-3">
-                            <a href="/Users" class="btn btn-outline-primary btn-block">
-                                <i class="fas fa-users fa-2x mb-2"></i>
-                                <br><strong>Manage Users</strong>
-                                <br><small class="text-muted">Add, edit, and configure users</small>
-                            </a>
+                <div class="card-body pt-3">
+                    @if (active == null)
+                    {
+                        <p class="text-danger mb-0"><strong>No active provider profile: alarms cannot be sent.</strong> Open the editor, start from a template, verify with a real test SMS and activate.</p>
+                    }
+                    else
+                    {
+                        <div class="fw-semibold">@active.Name <span class="badge bg-secondary">@active.Kind</span> <span class="badge bg-light text-dark border">@active.Method</span></div>
+                        <div class="font-monospace small text-muted">@active.Url.Split('?')[0]</div>
+                        @if (Model.ProviderState.Activation != null)
+                        {
+                            <div class="small text-muted mt-1">Activated @Model.ProviderState.Activation.ActivatedAt.ToString("yyyy-MM-dd HH:mm") by @(Model.ProviderState.Activation.ActivatedBy ?? "?")</div>
+                        }
+                        @if (activeErrors.Count > 0)
+                        {
+                            <ul class="small text-danger mb-0 mt-2">@foreach (var e in activeErrors) { <li>@e</li> }</ul>
+                        }
+                    }
+                    @if (Model.ProviderState.Draft != null)
+                    {
+                        <div class="small mt-2"><i class="fas fa-pen me-1 text-warning"></i>A draft is in progress@(Model.ProviderState.DraftVerified ? " and verified, ready to activate" : "").</div>
+                    }
+                </div>
+            </div>
+
+            <form method="post" asp-page-handler="SaveSettings" id="settingsForm">
+                <div class="card config-card mb-4">
+                    <div class="card-header bg-white"><i class="fas fa-flask text-warning me-2"></i>Test mode</div>
+                    <div class="card-body pt-3">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" asp-for="SmsSettingsInput.TestMode" style="width:3em; height:1.5em;" />
+                            <label class="form-check-label ms-2 fw-semibold" asp-for="SmsSettingsInput.TestMode">Route all SMS to the in-process mock (no real SMS is sent)</label>
                         </div>
-                        <div class="col-md-3 mb-3">
-                            <a href="/Groups" class="btn btn-outline-success btn-block">
-                                <i class="fas fa-layer-group fa-2x mb-2"></i>
-                                <br><strong>Manage Groups</strong>
-                                <br><small class="text-muted">Create and manage notification groups</small>
-                            </a>
+                        <small class="text-muted d-block mt-1">For trying the system without a provider. While it is on, a banner is shown on every page. Verifying a provider draft always sends a real SMS.</small>
+                    </div>
+                </div>
+
+                <div class="card config-card mb-4">
+                    <div class="card-header bg-white"><i class="fas fa-sliders-h text-primary me-2"></i>Limits and timing</div>
+                    <div class="card-body pt-3">
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <label class="form-label">Rate limit (SMS per window)</label>
+                                <input asp-for="SmsSettingsInput.RateLimit" class="form-control" type="number" min="1" max="10000" />
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Rate window (seconds)</label>
+                                <input asp-for="SmsSettingsInput.RateWindow" class="form-control" type="number" min="1" max="86400" />
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Duplicate window (minutes)</label>
+                                <input asp-for="SmsSettingsInput.DuplicateWindow" class="form-control" type="number" min="0" max="1440" />
+                                <small class="text-muted">Legacy queue only; critical alarms are never suppressed.</small>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Provider timeout (seconds)</label>
+                                <input asp-for="SmsSettingsInput.TimeoutSeconds" class="form-control" type="number" min="3" max="300" />
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Retries per recipient</label>
+                                <input asp-for="SmsSettingsInput.RetryAttempts" class="form-control" type="number" min="0" max="10" />
+                                <small class="text-muted">For timeouts, 429 and 5xx. Unfinished recipients are also retried from the spool.</small>
+                            </div>
                         </div>
-                        <div class="col-md-3 mb-3">
-                            <a href="/Audit" class="btn btn-outline-info btn-block">
-                                <i class="fas fa-history fa-2x mb-2"></i>
-                                <br><strong>SMS Audit</strong>
-                                <br><small class="text-muted">View SMS delivery history</small>
-                            </a>
-                        </div>
-                        <div class="col-md-3 mb-3">
-                            <a href="/Calendar" class="btn btn-outline-warning btn-block">
-                                <i class="fas fa-calendar-alt fa-2x mb-2"></i>
-                                <br><strong>Holiday Calendar</strong>
-                                <br><small class="text-muted">Manage Jewish holidays</small>
-                            </a>
+                        <div class="small text-muted mt-2">Keep timeout &times; (retries + 1) well under the batch file's MAXTIME (120 s by default).</div>
+                    </div>
+                </div>
+
+                <div class="card config-card mb-4">
+                    <div class="card-header bg-white"><i class="fas fa-microchip text-secondary me-2"></i>SCADA integration</div>
+                    <div class="card-body pt-3">
+                        @if (Model.ScadaLink != null)
+                        {
+                            var link = Model.ScadaLink;
+                            var (cls, icon, title) = link.State switch
+                            {
+                                SCADASMSSystem.Web.Services.ScadaLinkState.Ok => ("alert-success", "fa-check-circle", "Akara's Scada_sms.bat is up to date"),
+                                SCADASMSSystem.Web.Services.ScadaLinkState.NotConfigured or SCADASMSSystem.Web.Services.ScadaLinkState.NotInstalled => ("alert-secondary", "fa-info-circle", "Akara's Scada_sms.bat is not checked"),
+                                _ => ("alert-danger", "fa-link-slash", "Akara's Scada_sms.bat needs attention"),
+                            };
+                            <div class="alert @cls py-2 small mb-3">
+                                <i class="fas @icon me-1"></i><strong>@title.</strong> @link.Detail
+                                @if (link.PcimUtilDir != null) { <div class="font-monospace mt-1">PCIMUTIL: @link.PcimUtilDir</div> }
+                            </div>
+                        }
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <label class="form-label">PCIM Object ID</label>
+                                <input asp-for="SmsSettingsInput.ScadaPcimObjectId" class="form-control font-monospace" type="number" min="1" />
+                                <small class="text-muted">Used in the alarm action commands written to WinCC OA. After changing it, update existing alarm actions.</small>
+                            </div>
+                            <div class="col-md-8">
+                                <div class="form-check mt-4">
+                                    <input class="form-check-input" type="checkbox" asp-for="SmsSettingsInput.LogSoapXml" />
+                                    <label class="form-check-label" asp-for="SmsSettingsInput.LogSoapXml">Keep the last SOAP requests (secrets masked) for troubleshooting</label>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
-            </div>
-        </div>
-    </div>
+
+                <div class="text-end mb-4">
+                    <button type="submit" class="btn btn-primary"><i class="fas fa-save me-2"></i>Save settings</button>
+                </div>
+            </form>
+        </div><!-- /right col -->
+    </div><!-- /row -->
 </div>
 
 @section Scripts {
-    <script>
-        // Auto-dismiss alerts after 5 seconds
-        setTimeout(function() {
-            const alerts = document.querySelectorAll('.alert-dismissible');
-            alerts.forEach(alert => {
-                const bsAlert = new bootstrap.Alert(alert);
-                bsAlert.close();
-            });
-        }, 5000);
-
-        // Auto-refresh server time every second
-        function updateServerTime() {
-            const serverTimeElements = document.querySelectorAll('.server-time');
-            const now = new Date();
-            const timeString = now.toLocaleTimeString('en-US', { hour12: false });
-            
-            serverTimeElements.forEach(element => {
-                element.textContent = timeString;
-            });
+<script>
+    async function confirmCleanupData() {
+        if (!window.SCADAUtils || !SCADAUtils.confirmModal) {
+            if (window.confirm('Delete audit records older than 90 days?'))
+                document.getElementById('cleanupDataForm').submit();
+            return;
         }
+        const ok = await SCADAUtils.confirmModal(
+            'Delete Old Audit Records',
+            'This will permanently delete all SMS audit records older than 90 days. This action cannot be undone.',
+            'Delete', 'btn-danger');
+        if (ok) document.getElementById('cleanupDataForm').submit();
+    }
 
-        // Update server time display every second
-        setInterval(updateServerTime, 1000);
-
-        // Add loading states to action buttons
-        document.querySelectorAll('form button[type="submit"]').forEach(button => {
-            button.addEventListener('click', function() {
-                const originalText = this.innerHTML;
-                this.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Processing...';
-                this.disabled = true;
-                
-                // Re-enable after 5 seconds as fallback
-                setTimeout(() => {
-                    this.innerHTML = originalText;
-                    this.disabled = false;
-                }, 5000);
-            });
-        });
-    </script>
+    setTimeout(() => {
+        document.querySelectorAll('.alert-dismissible').forEach(el => new bootstrap.Alert(el).close());
+    }, 6000);
+</script>
 }

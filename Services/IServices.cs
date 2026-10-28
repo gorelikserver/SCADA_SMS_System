@@ -26,16 +26,47 @@ namespace SCADASMSSystem.Web.Services
         Task<IEnumerable<User>> GetAvailableUsersForGroupAsync(int groupId);
     }
 
+    public record SmsRecipient(
+        string PhoneNumber,
+        string? TZ = null,
+        string? FirstName = null,
+        string? LastName = null,
+        int UserId = 0
+    );
+
+    public record SmsRecipientDeliveryResult(
+        int UserId,
+        string MaskedPhoneNumber,
+        bool Accepted,
+        int StatusCode,
+        int Attempts,
+        string? Message,
+        bool PreviouslyAccepted = false
+    );
+
+    public record CriticalSmsDeliveryResult(
+        string AlarmId,
+        int RecipientCount,
+        int AcceptedCount,
+        IReadOnlyList<SmsRecipientDeliveryResult> Recipients
+    )
+    {
+        public bool Success => RecipientCount > 0 && AcceptedCount == RecipientCount;
+        public int FailedCount => RecipientCount - AcceptedCount;
+    }
+
     public interface ISmsService
     {
-        Task<bool> SendSmsAsync(string message, IEnumerable<string> phoneNumbers, string alarmId, int? groupId = null);
-        Task<bool> SendSmsToGroupAsync(string message, int groupId, string alarmId);
-        Task<SmsApiResponse> SendSmsApiCallAsync(string message, string phoneNumber);
+        Task<bool> SendSmsAsync(string message, IEnumerable<SmsRecipient> recipients, string alarmId, int? groupId = null, string? priority = null, string? value = null);
+        Task<bool> SendSmsToGroupAsync(string message, int groupId, string alarmId, string? priority = null, string? value = null);
+        Task<ProfileSendResult> SendWithProfileAsync(ProviderProfile profile, Providers.ProfileContext context, CancellationToken cancellationToken = default);
+        Task<CriticalSmsDeliveryResult> SendCriticalSmsToGroupAsync(string message, int groupId, string alarmId, string? priority = null, string? value = null, CancellationToken cancellationToken = default);
+        Task<SmsApiResponse> SendSmsApiCallAsync(string message, SmsRecipient recipient);
     }
 
     public interface ISmsBackgroundService
     {
-        Task<bool> QueueSmsMessageAsync(string message, int groupId, string alarmId, string priority = "normal");
+        Task<bool> QueueSmsMessageAsync(string message, int groupId, string alarmId, string priority = "normal", string? value = null);
         SmsServiceStatus GetServiceStatus();
     }
 
@@ -49,11 +80,13 @@ namespace SCADASMSSystem.Web.Services
     public interface IAuditService
     {
         Task<IEnumerable<SmsAudit>> GetAuditHistoryAsync(int page = 1, int pageSize = 50);
+        Task<IEnumerable<SmsAudit>> GetRecentAuditHistoryAsync(int hours = 24);
         Task<bool> LogSmsAuditAsync(string alarmId, int userId, string phoneNumber, 
             string alarmDescription, string status, string? messageStatus = null, string? response = null, int? groupId = null);
         Task<IEnumerable<SmsAudit>> SearchAuditAsync(string? searchTerm, DateTime? startDate, DateTime? endDate);
         Task<int> GetTotalAuditCountAsync();
         Task<IEnumerable<SmsAudit>> GetAuditsByAlarmIdAsync(string alarmId);
+        Task<IEnumerable<SmsAudit>> GetAuditsByAlarmIdStrictAsync(string alarmId);
         Task<IEnumerable<SmsAudit>> GetAuditsByUserIdAsync(int userId, int days = 30);
         Task<Dictionary<string, int>> GetAuditStatisticsAsync(int days = 30);
         Task<bool> CleanupOldAuditsAsync(int daysToKeep = 90);
@@ -62,6 +95,7 @@ namespace SCADASMSSystem.Web.Services
     public interface IAlarmActionService
     {
         Task<IEnumerable<AlarmAction>> GetAllAlarmActionsAsync();
+        Task<IReadOnlyList<string>> GetAlarmNamesUsingGroupAsync(int groupId);
         Task<AlarmAction?> GetAlarmActionByIdAsync(int blockId);
         Task<AlarmGroupAssignment?> GetAlarmGroupAssignmentAsync(int blockId);
         Task<bool> AddGroupToAlarmAsync(int blockId, int groupId, string modifiedBy, string? ipAddress = null);
@@ -79,4 +113,22 @@ namespace SCADASMSSystem.Web.Services
         public string? Response { get; set; }
         public int StatusCode { get; set; }
     }
+
+    public interface IMockSmsService
+    {
+        Task<SmsApiResponse> SimulateSmsAsync(string message, SmsRecipient recipient, string? providerType);
+        IReadOnlyList<MockSmsLogEntry> GetRecentLog();
+        int TotalSent { get; }
+        int TotalFailed { get; }
+        void Reset();
+    }
+
+    public record MockSmsLogEntry(
+        DateTime Timestamp,
+        string MaskedPhone,
+        string Message,
+        string ProviderType,
+        bool Success,
+        string MockMessageId
+    );
 }

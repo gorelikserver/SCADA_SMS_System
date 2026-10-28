@@ -1,0 +1,85 @@
+@page
+@model SCADASMSSystem.Web.Pages.Account.ManageModel
+@using SCADASMSSystem.Web.Models
+@{
+    ViewData["Title"] = "Accounts";
+}
+
+<div class="container-fluid">
+    <div class="d-sm-flex align-items-center justify-content-between mb-4">
+        <h1 class="h3 mb-0 text-gray-800"><i class="fas fa-user-shield me-2"></i>Accounts</h1>
+    </div>
+
+    @if (TempData["SuccessMessage"] != null)
+    {
+        <span class="d-none" data-toast-success="@TempData["SuccessMessage"]"></span>
+    }
+    @if (TempData["ErrorMessage"] != null)
+    {
+        <div class="alert alert-danger py-2">@TempData["ErrorMessage"]</div>
+    }
+
+    <p class="text-muted small">
+        <strong>Admin</strong>: everything, including SMS provider settings and accounts.
+        <strong>Viewer</strong>: dashboard, delivery alerts (can acknowledge), audit log, calendar and help.
+    </p>
+
+    <table class="table table-sm align-middle">
+        <thead><tr><th>User name</th><th>Role</th><th>Last sign-in</th><th>Reset password</th><th></th></tr></thead>
+        <tbody>
+        @foreach (var a in Model.Accounts)
+        {
+            <tr>
+                <td>@a.UserName @(a.LockedUntil > DateTime.Now ? "(locked)" : "")</td>
+                <td>
+                    <form method="post" asp-page-handler="Role" class="d-flex gap-1">
+                        <input type="hidden" name="accountId" value="@a.AccountId" />
+                        <select name="role" class="form-select form-select-sm w-auto" onchange="this.form.submit()">
+                            @foreach (var r in AccountRoles.All)
+                            {
+                                <option value="@r" selected="@(r == a.Role)">@r</option>
+                            }
+                        </select>
+                    </form>
+                </td>
+                <td>@(a.LastLoginAt?.ToString("yyyy-MM-dd HH:mm") ?? "never")</td>
+                <td>
+                    <form method="post" asp-page-handler="Reset" class="d-flex gap-1">
+                        <input type="hidden" name="accountId" value="@a.AccountId" />
+                        <input type="password" name="password" class="form-control form-control-sm" placeholder="New password" autocomplete="new-password" required />
+                        <button class="btn btn-sm btn-outline-secondary">Set</button>
+                    </form>
+                </td>
+                <td>
+                    <form method="post" asp-page-handler="Delete" onsubmit="return confirm('Delete account @a.UserName?');">
+                        <input type="hidden" name="accountId" value="@a.AccountId" />
+                        <button class="btn btn-sm btn-outline-danger">Delete</button>
+                    </form>
+                </td>
+            </tr>
+        }
+        </tbody>
+    </table>
+
+    <h2 class="h5 mt-4">Add account</h2>
+    <form method="post" asp-page-handler="Create" class="row g-2 align-items-end" style="max-width: 720px">
+        <div class="col-sm-4">
+            <label class="form-label small">User name</label>
+            <input name="userName" class="form-control form-control-sm" required autocomplete="off" />
+        </div>
+        <div class="col-sm-4">
+            <label class="form-label small">Password (min @SCADASMSSystem.Web.Services.AccountService.MinPasswordLength)</label>
+            <input type="password" name="password" class="form-control form-control-sm" required autocomplete="new-password" />
+        </div>
+        <div class="col-sm-2">
+            <label class="form-label small">Role</label>
+            <select name="role" class="form-select form-select-sm">
+                <option>@AccountRoles.Viewer</option>
+                <option>@AccountRoles.Admin</option>
+            </select>
+        </div>
+        <div class="col-sm-2">
+            <button class="btn btn-sm btn-primary w-100">Add</button>
+        </div>
+    </form>
+</div>

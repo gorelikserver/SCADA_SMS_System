@@ -1,0 +1,87 @@
+@model SCADASMSSystem.Web.Services.DeliveryAlertSummary?
+
+@if (Model == null)
+{
+    <div class="alert alert-danger rounded-0 mb-0 py-2 px-4" role="alert">
+        <i class="fas fa-exclamation-triangle me-2"></i>
+        <strong>Delivery status unavailable.</strong> The system could not check for failed alarms. Check the database connection.
+    </div>
+    return;
+}
+
+@if (Model.ScadaLink?.IsProblem == true)
+{
+    <div class="alert alert-danger rounded-0 mb-0 py-2 px-4 d-flex align-items-center gap-3" role="alert">
+        <i class="fas fa-link-slash"></i>
+        <div class="flex-grow-1">
+            <strong>Akara's copy of Scada_sms.bat needs attention &mdash; alarms may not reach this system.</strong>
+            @Model.ScadaLink.Detail
+        </div>
+        <a href="/Settings" class="btn btn-sm btn-light">Settings</a>
+    </div>
+}
+
+@if (Model.ProfileErrors.Count > 0)
+{
+    <div class="alert alert-danger rounded-0 mb-0 py-2 px-4 d-flex align-items-center gap-3" role="alert">
+        <i class="fas fa-plug"></i>
+        <div class="flex-grow-1">
+            <strong>SMS provider is not configured correctly &mdash; alarms cannot be sent.</strong>
+            @Model.ProfileErrors[0]@(Model.ProfileErrors.Count > 1 ? $" (+{Model.ProfileErrors.Count - 1} more)" : "")
+        </div>
+        <a href="/Settings" class="btn btn-sm btn-light">Settings</a>
+    </div>
+}
+
+@if (Model.TestMode)
+{
+    <div class="alert alert-warning rounded-0 mb-0 py-2 px-4 d-flex align-items-center gap-3" role="alert">
+        <i class="fas fa-flask"></i>
+        <div class="flex-grow-1">
+            <strong>TEST MODE ACTIVE</strong> &mdash; alarms go to the in-process mock. No real SMS is sent.
+        </div>
+        <a href="/mock/sms/status" target="_blank" class="btn btn-sm btn-warning">Mock log</a>
+        <a href="/Settings" class="btn btn-sm btn-outline-dark">Settings</a>
+    </div>
+}
+
+@if (Model.Alarms.Count > 0 || Model.BadSpoolFiles.Count > 0)
+{
+    var gaveUp = Model.Alarms.Count(a => a.State != SCADASMSSystem.Web.Services.AlarmRetryState.Retrying);
+    var retrying = Model.Alarms.Count - gaveUp;
+    <div class="alert alert-danger rounded-0 mb-0 py-2 px-4 d-flex align-items-center gap-3" role="alert">
+        <i class="fas fa-bell"></i>
+        <div class="flex-grow-1">
+            <strong>Critical alarms not delivered to everyone:</strong>
+            @if (gaveUp > 0) { <span>@gaveUp failed</span> }
+            @if (gaveUp > 0 && retrying > 0) { <span>&middot;</span> }
+            @if (retrying > 0) { <span>@retrying still retrying</span> }
+            @if (Model.BadSpoolFiles.Count > 0) { <span>&middot; @Model.BadSpoolFiles.Count unreadable spool file(s)</span> }
+        </div>
+        <a asp-page="/Alerts/Index" class="btn btn-sm btn-light">Review</a>
+    </div>
+}
+
+@if (Model.InvalidPhones.Count > 0)
+{
+    <div class="alert alert-warning rounded-0 mb-0 py-2 px-4 d-flex align-items-center gap-3" role="alert">
+        <i class="fas fa-phone-slash"></i>
+        <div class="flex-grow-1">
+            <strong>@Model.InvalidPhones.Count user(s) with an invalid phone number</strong> will not receive alarms.
+        </div>
+        <a asp-page="/Alerts/Index" class="btn btn-sm btn-outline-dark">Details</a>
+    </div>
+}
+
+@if (Model.EmptyGroups.Count > 0)
+{
+    <div class="alert alert-warning rounded-0 mb-0 py-2 px-4 d-flex align-items-center gap-3" role="alert">
+        <i class="fas fa-user-slash"></i>
+        <div class="flex-grow-1">
+            <strong>Groups with no eligible recipients right now:</strong>
+            @string.Join(", ", Model.EmptyGroups.Select(g => $"{g.GroupName} (#{g.GroupId})"))
+            &mdash; an alarm to these groups reaches nobody.
+        </div>
+        <a asp-page="/Alerts/Index" class="btn btn-sm btn-outline-dark">Details</a>
+    </div>
+}

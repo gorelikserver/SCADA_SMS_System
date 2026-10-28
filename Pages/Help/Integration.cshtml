@@ -1,0 +1,509 @@
+@page
+@model SCADASMSSystem.Web.Pages.Help.IntegrationModel
+@{
+    ViewData["Title"] = "Integration Guide";
+}
+
+@section Breadcrumb {
+<div class="breadcrumb-bar">
+    <div class="container-fluid px-4">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a asp-page="/Index">Dashboard</a></li>
+                <li class="breadcrumb-item active">Integration Guide</li>
+            </ol>
+        </nav>
+    </div>
+</div>
+}
+
+<style>
+    .guide-sidebar { position: sticky; top: 1rem; }
+    .guide-sidebar .nav-link { color: #495057; font-size: .875rem; padding: .3rem .75rem; border-left: 2px solid transparent; }
+    .guide-sidebar .nav-link:hover { color: #4361ee; border-left-color: #c5cff9; }
+    .guide-sidebar .nav-link.active { color: #4361ee; font-weight: 600; border-left-color: #4361ee; background: #f0f3ff; }
+    .guide-sidebar .nav-link.sub { padding-left: 1.5rem; font-size: .8rem; }
+    .section-anchor { scroll-margin-top: 1.5rem; }
+    .guide-section { margin-bottom: 2.5rem; }
+    pre.code-block { background: #1e1e2e; color: #cdd6f4; border-radius: 8px; padding: 1rem 1.25rem; font-size: .83rem; overflow-x: auto; margin: .75rem 0; line-height: 1.6; }
+    pre.code-block .cm  { color: #6c7086; }  /* comment */
+    pre.code-block .kw  { color: #89b4fa; }  /* keyword / tag */
+    pre.code-block .st  { color: #a6e3a1; }  /* string */
+    pre.code-block .pl  { color: #cba6f7; }  /* placeholder / variable */
+    pre.code-block .nu  { color: #fab387; }  /* number */
+    .param-table th  { background: #f8f9fa; font-size: .8rem; white-space: nowrap; }
+    .param-table td  { font-size: .82rem; vertical-align: middle; }
+    .param-table code { background: #f0f3ff; color: #4361ee; padding: .1em .35em; border-radius: 4px; font-size: .8rem; }
+    .badge-dynamic   { background: #f3e8ff; color: #7c3aed; }
+    .badge-static    { background: #e0f2fe; color: #0369a1; }
+    .badge-cred      { background: #fff3cd; color: #7c4d00; }
+    .callout         { border-left: 4px solid; border-radius: 0 6px 6px 0; padding: .75rem 1rem; margin: .75rem 0; font-size: .875rem; }
+    .callout-info    { border-color: #4361ee; background: #f0f3ff; }
+    .callout-warn    { border-color: #ffc107; background: #fffbea; }
+    .callout-tip     { border-color: #198754; background: #f0faf4; }
+    .callout-danger  { border-color: #dc3545; background: #fff5f5; }
+    .step-num        { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 50%; background: #4361ee; color: #fff; font-size: .75rem; font-weight: 700; flex-shrink: 0; margin-right: .5rem; }
+    .flow-box        { background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 8px; padding: .6rem 1rem; font-size: .82rem; font-family: monospace; text-align: center; }
+    .flow-arrow      { color: #adb5bd; font-size: 1.2rem; margin: 0 .5rem; }
+</style>
+
+<div class="container-fluid px-4 py-4">
+    <div class="row g-4">
+
+        <!-- Sidebar TOC -->
+        <div class="col-lg-2 d-none d-lg-block">
+            <div class="guide-sidebar">
+                <div class="text-uppercase text-muted fw-bold" style="font-size:.7rem;letter-spacing:.08em;padding:.3rem .75rem .5rem;">On this page</div>
+                <nav class="nav flex-column" id="guideToc">
+                    <a class="nav-link" href="#overview">Overview</a>
+                    <a class="nav-link" href="#scada-bat">SCADA → App (bat file)</a>
+                    <a class="nav-link sub" href="#bat-params">Parameters</a>
+                    <a class="nav-link sub" href="#bat-examples">Examples</a>
+                    <a class="nav-link" href="#rest-setup">REST Provider</a>
+                    <a class="nav-link sub" href="#rest-keywords">Dynamic keywords</a>
+                    <a class="nav-link sub" href="#rest-examples">Config examples</a>
+                    <a class="nav-link" href="#soap-setup">SOAP Provider</a>
+                    <a class="nav-link sub" href="#soap-placeholders">Placeholders</a>
+                    <a class="nav-link sub" href="#soap-auth">Auth types</a>
+                    <a class="nav-link sub" href="#soap-examples">Template examples</a>
+                    <a class="nav-link" href="#test-mode">Test Mode</a>
+                    <a class="nav-link" href="#troubleshooting">Troubleshooting</a>
+                </nav>
+            </div>
+        </div>
+
+        <!-- Main content -->
+        <div class="col-lg-10">
+
+            <div class="d-flex align-items-center gap-3 mb-4 pb-3 border-bottom">
+                <div class="rounded-3 d-flex align-items-center justify-content-center bg-primary bg-opacity-10" style="width:48px;height:48px;flex-shrink:0">
+                    <i class="fas fa-plug text-primary fs-5"></i>
+                </div>
+                <div>
+                    <h1 class="h3 fw-bold mb-0">Integration Guide</h1>
+                    <div class="text-muted" style="font-size:.875rem">For system integrators and technical operators</div>
+                </div>
+            </div>
+
+            <!-- OVERVIEW -->
+            <section class="guide-section section-anchor" id="overview">
+                <h2 class="h5 fw-bold mb-3"><i class="fas fa-sitemap me-2 text-primary"></i>Overview</h2>
+                <p class="text-muted">The SCADA SMS system acts as a bridge between your SCADA platform and your SMS provider. The integration has two legs:</p>
+
+                <div class="d-flex align-items-center flex-wrap gap-2 my-3">
+                    <div class="flow-box"><i class="fas fa-industry me-1"></i>SCADA alarm</div>
+                    <span class="flow-arrow">→</span>
+                    <div class="flow-box"><i class="fas fa-file-code me-1"></i>Scada_sms.bat</div>
+                    <span class="flow-arrow">→</span>
+                    <div class="flow-box"><i class="fas fa-server me-1"></i>/api/sms/send<br><small class="text-muted">localhost:5000</small></div>
+                    <span class="flow-arrow">→</span>
+                    <div class="flow-box"><i class="fas fa-code-branch me-1"></i>REST <em>or</em> SOAP</div>
+                    <span class="flow-arrow">→</span>
+                    <div class="flow-box"><i class="fas fa-broadcast-tower me-1"></i>SMS provider</div>
+                    <span class="flow-arrow">→</span>
+                    <div class="flow-box"><i class="fas fa-mobile-alt me-1"></i>Recipients</div>
+                </div>
+
+                <div class="callout callout-info">
+                    <strong>Leg 1</strong> (SCADA → App) is fixed and immutable — the bat file and its parameter order never change.<br>
+                    <strong>Leg 2</strong> (App → SMS provider) is fully configurable in <a asp-page="/Settings/Index">Settings → Provider</a>.
+                </div>
+            </section>
+
+            <!-- SCADA BAT -->
+            <section class="guide-section section-anchor" id="scada-bat">
+                <h2 class="h5 fw-bold mb-3"><i class="fas fa-terminal me-2 text-primary"></i>SCADA → App: the bat file</h2>
+                <p class="text-muted">The SCADA platform calls <code>Scada_sms.bat</code> when an alarm fires. The bat builds a JSON body and POSTs it to the local HTTP API. No direct SMS logic — that all lives in the app.</p>
+
+                <h6 class="fw-semibold mt-3 mb-2 section-anchor" id="bat-params">Parameters</h6>
+                <table class="table table-sm table-bordered param-table">
+                    <thead>
+                        <tr>
+                            <th>Position</th>
+                            <th>Variable</th>
+                            <th>Required</th>
+                            <th>Description</th>
+                            <th>Example</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><code>%1</code></td>
+                            <td><code>MESSAGE</code></td>
+                            <td><span class="badge bg-danger">Yes</span></td>
+                            <td>Alarm description text. Supports Hebrew / UTF-8.</td>
+                            <td><code>"Pump 3 overpressure"</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>%2</code></td>
+                            <td><code>GROUP_ID</code></td>
+                            <td><span class="badge bg-danger">Yes</span></td>
+                            <td>Numeric ID of the SMS group to notify. Must be a positive integer.</td>
+                            <td><code>7</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>%3</code></td>
+                            <td><code>VALUE</code></td>
+                            <td><span class="badge bg-secondary">No</span></td>
+                            <td>Sensor value or extra context. Appended to MESSAGE as <code>MESSAGE - VALUE</code>.</td>
+                            <td><code>"185.2 bar"</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>%4</code></td>
+                            <td><code>ALARM_ID</code></td>
+                            <td><span class="badge bg-secondary">No</span></td>
+                            <td>Unique alarm identifier for deduplication and audit. Auto-generated if omitted.</td>
+                            <td><code>"ALM-2024-0091"</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>%5</code></td>
+                            <td><code>PRIORITY</code></td>
+                            <td><span class="badge bg-secondary">No</span></td>
+                            <td>Text priority label stored in the audit log. Defaults to <code>normal</code>.</td>
+                            <td><code>"high"</code></td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <div class="callout callout-warn mt-2">
+                    <i class="fas fa-lock me-1"></i><strong>Immutable constraint:</strong> Parameter positions are hardwired into the SCADA platform scripts. Never reorder or rename them.
+                </div>
+
+                <h6 class="fw-semibold mt-4 mb-2 section-anchor" id="bat-examples">Examples</h6>
+<pre class="code-block"><span class="cm">:: Minimal — message + group only</span>
+Scada_sms.bat <span class="st">"High temperature alarm"</span> <span class="nu">3</span>
+
+<span class="cm">:: With sensor value appended to message</span>
+Scada_sms.bat <span class="st">"Pump pressure"</span> <span class="nu">7</span> <span class="st">"185.2 bar"</span>
+<span class="cm">:: → sends: "Pump pressure - 185.2 bar"</span>
+
+<span class="cm">:: Full — with alarm ID and priority</span>
+Scada_sms.bat <span class="st">"Fire alarm zone 4"</span> <span class="nu">2</span> <span class="st">""</span> <span class="st">"ALM-0091"</span> <span class="st">"critical"</span>
+
+<span class="cm">:: Hebrew message (file must be UTF-8 with BOM)</span>
+Scada_sms.bat <span class="st">"תקלה במשאבה"</span> <span class="nu">3</span></pre>
+
+                <p class="text-muted small">The bat writes a temp JSON file and sends it via curl to <code>http://localhost:5000/api/sms/send</code>. Curl is bundled at <code>..\Tools\curl.exe</code> with fallback to system curl.</p>
+            </section>
+
+            <!-- REST -->
+            <section class="guide-section section-anchor" id="rest-setup">
+                <h2 class="h5 fw-bold mb-3"><i class="fas fa-exchange-alt me-2 text-primary"></i>REST Provider</h2>
+                <p class="text-muted">Configure in <a asp-page="/Settings/Index">Settings → Provider → REST</a>. The <strong>ApiParams</strong> table maps your provider's parameter names to values. Each row is a key→value pair sent with every request.</p>
+
+                <h6 class="fw-semibold mt-3 mb-2 section-anchor" id="rest-keywords">Dynamic keywords</h6>
+                <p class="text-muted small">Set a value to one of these keywords and the app substitutes the real data at send time:</p>
+                <table class="table table-sm table-bordered param-table">
+                    <thead>
+                        <tr><th>Keyword(s)</th><th>Replaced with</th><th>Type</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><code>message</code> · <code>msg</code> · <code>text</code> · <code>body</code></td>
+                            <td>The alarm message text from SCADA</td>
+                            <td><span class="badge badge-dynamic">Dynamic</span></td>
+                        </tr>
+                        <tr>
+                            <td><code>phone</code> · <code>phonenumber</code> · <code>sendtophonenumbers</code> · <code>mobile</code> · <code>number</code></td>
+                            <td>Recipient's phone number</td>
+                            <td><span class="badge badge-dynamic">Dynamic</span></td>
+                        </tr>
+                        <tr>
+                            <td><code>username</code> · <code>user</code> · <code>userid</code></td>
+                            <td>Username from Settings → Credentials</td>
+                            <td><span class="badge badge-cred">Credential</span></td>
+                        </tr>
+                        <tr>
+                            <td><code>password</code> · <code>pass</code></td>
+                            <td>Password from Settings → Credentials</td>
+                            <td><span class="badge badge-cred">Credential</span></td>
+                        </tr>
+                        <tr>
+                            <td><code>sender_name</code> · <code>sendername</code> · <code>sender</code> · <code>from</code></td>
+                            <td>Sender name from Settings → Credentials</td>
+                            <td><span class="badge badge-cred">Credential</span></td>
+                        </tr>
+                        <tr>
+                            <td><em>anything else</em></td>
+                            <td>Sent as-is (static literal or empty placeholder)</td>
+                            <td><span class="badge badge-static">Static</span></td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <div class="callout callout-tip">
+                    <i class="fas fa-lightbulb me-1"></i>Leave a parameter value empty (<code>""</code>) to send an empty string for required-but-irrelevant fields (common with providers that require a fixed set of params).
+                </div>
+
+                <h6 class="fw-semibold mt-4 mb-2 section-anchor" id="rest-examples">Config examples</h6>
+
+                <p class="text-muted small mb-1"><strong>GET — query string (Inforu-style)</strong></p>
+<pre class="code-block"><span class="cm">// ApiParams JSON</span>
+{
+  <span class="st">"user"</span>: <span class="st">"username"</span>,
+  <span class="st">"password"</span>: <span class="st">"password"</span>,
+  <span class="st">"recipient"</span>: <span class="st">"phone"</span>,
+  <span class="st">"message"</span>: <span class="st">"message"</span>
+}
+<span class="cm">// HTTP Method: GET   Content-Type: —</span>
+<span class="cm">// Sends: GET https://api.provider.com/send?user=myuser&amp;password=***&amp;recipient=0521234567&amp;message=...</span></pre>
+
+                <p class="text-muted small mb-1 mt-3"><strong>POST JSON (generic)</strong></p>
+<pre class="code-block">{
+  <span class="st">"Username"</span>: <span class="st">"username"</span>,
+  <span class="st">"Password"</span>: <span class="st">"password"</span>,
+  <span class="st">"PhoneNumber"</span>: <span class="st">"phone"</span>,
+  <span class="st">"Message"</span>: <span class="st">"message"</span>,
+  <span class="st">"SenderName"</span>: <span class="st">"sender_name"</span>
+}
+<span class="cm">// HTTP Method: POST   Content-Type: application/json</span></pre>
+
+                <p class="text-muted small mb-1 mt-3"><strong>POST form-encoded with static fields</strong></p>
+<pre class="code-block">{
+  <span class="st">"api_key"</span>: <span class="st">"username"</span>,
+  <span class="st">"to"</span>: <span class="st">"phone"</span>,
+  <span class="st">"text"</span>: <span class="st">"message"</span>,
+  <span class="st">"type"</span>: <span class="st">"unicode"</span>,       <span class="cm">// static literal</span>
+  <span class="st">"cc"</span>: <span class="st">""</span>                   <span class="cm">// empty placeholder — sent as cc=</span>
+}
+<span class="cm">// HTTP Method: POST   Content-Type: application/x-www-form-urlencoded</span></pre>
+            </section>
+
+            <!-- SOAP -->
+            <section class="guide-section section-anchor" id="soap-setup">
+                <h2 class="h5 fw-bold mb-3"><i class="fas fa-code me-2 text-primary"></i>SOAP Provider</h2>
+                <p class="text-muted">Configure in <a asp-page="/Settings/Index">Settings → Provider → SOAP</a>. Unlike REST, SOAP ignores <code>ApiParams</code>. Instead you write the full XML body template once, inserting placeholders where dynamic values go.</p>
+
+                <div class="callout callout-danger mb-3">
+                    <i class="fas fa-exclamation-triangle me-1"></i><strong>Body Template is required.</strong> If left empty, every send attempt will throw an error. Each SMS provider has a different XML structure — consult their API docs.
+                </div>
+
+                <h6 class="fw-semibold mt-3 mb-2 section-anchor" id="soap-placeholders">Placeholders</h6>
+                <table class="table table-sm table-bordered param-table">
+                    <thead>
+                        <tr><th>Placeholder</th><th>Resolved to</th><th>Source</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td><code>{Message}</code></td><td>Alarm message text</td><td>From SCADA via bat</td></tr>
+                        <tr><td><code>{Phone}</code></td><td>Recipient phone number</td><td>User record in DB</td></tr>
+                        <tr><td><code>{FirstName}</code></td><td>Recipient first name</td><td>User record in DB</td></tr>
+                        <tr><td><code>{LastName}</code></td><td>Recipient last name</td><td>User record in DB</td></tr>
+                        <tr><td><code>{TZ}</code></td><td>Recipient ID number (Israeli TZ)</td><td>User record in DB</td></tr>
+                        <tr><td><code>{Username}</code></td><td>API username</td><td>Settings → Credentials</td></tr>
+                        <tr><td><code>{Password}</code></td><td>API password</td><td>Settings → Credentials</td></tr>
+                        <tr><td><code>{SenderName}</code></td><td>Sender display name</td><td>Settings → Credentials</td></tr>
+                        <tr><td><code>{SendingSystem}</code></td><td>System identifier string</td><td>Settings → SOAP → Sending System</td></tr>
+                        <tr><td><code>{MessageType}</code></td><td>Message type code</td><td>Settings → SOAP → Message Type</td></tr>
+                    </tbody>
+                </table>
+
+                <div class="callout callout-info">
+                    All placeholder values are XML-escaped automatically. You do not need to escape <code>&amp;</code>, <code>&lt;</code>, etc. in user data.
+                </div>
+
+                <h6 class="fw-semibold mt-4 mb-2 section-anchor" id="soap-auth">Auth types</h6>
+                <table class="table table-sm table-bordered param-table">
+                    <thead>
+                        <tr><th>Mode</th><th>What it sends</th><th>When to use</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><code>WSSecurity</code> <span class="badge bg-primary ms-1">default</span></td>
+                            <td>WS-Security <code>&lt;UsernameToken&gt;</code> in SOAP header</td>
+                            <td>Most Israeli SOAP SMS providers (Sheba, 019, etc.)</td>
+                        </tr>
+                        <tr>
+                            <td><code>HttpBasic</code></td>
+                            <td>HTTP <code>Authorization: Basic …</code> header, empty SOAP header</td>
+                            <td>Providers that use HTTP-level auth instead of WS-Security</td>
+                        </tr>
+                        <tr>
+                            <td><code>None</code></td>
+                            <td>Empty SOAP header, no auth header</td>
+                            <td>Providers that embed credentials in the body template itself</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <h6 class="fw-semibold mt-4 mb-2 section-anchor" id="soap-examples">Template examples</h6>
+
+                <p class="text-muted small mb-1"><strong>Generic single-recipient send</strong></p>
+<pre class="code-block"><span class="kw">&lt;SendSMS&gt;</span>
+  <span class="kw">&lt;Phone&gt;</span><span class="pl">{Phone}</span><span class="kw">&lt;/Phone&gt;</span>
+  <span class="kw">&lt;Message&gt;</span><span class="pl">{Message}</span><span class="kw">&lt;/Message&gt;</span>
+<span class="kw">&lt;/SendSMS&gt;</span></pre>
+
+                <p class="text-muted small mb-1 mt-3"><strong>Israeli provider with personal data (TZ, first/last name)</strong></p>
+<pre class="code-block"><span class="kw">&lt;SendMessage xmlns=</span><span class="st">"http://myprovider.co.il/"</span><span class="kw">&gt;</span>
+  <span class="kw">&lt;UserName&gt;</span><span class="pl">{Username}</span><span class="kw">&lt;/UserName&gt;</span>
+  <span class="kw">&lt;Password&gt;</span><span class="pl">{Password}</span><span class="kw">&lt;/Password&gt;</span>
+  <span class="kw">&lt;PhoneNumber&gt;</span><span class="pl">{Phone}</span><span class="kw">&lt;/PhoneNumber&gt;</span>
+  <span class="kw">&lt;MessageText&gt;</span><span class="pl">{Message}</span><span class="kw">&lt;/MessageText&gt;</span>
+  <span class="kw">&lt;FirstName&gt;</span><span class="pl">{FirstName}</span><span class="kw">&lt;/FirstName&gt;</span>
+  <span class="kw">&lt;LastName&gt;</span><span class="pl">{LastName}</span><span class="kw">&lt;/LastName&gt;</span>
+  <span class="kw">&lt;Teudat_Zehut&gt;</span><span class="pl">{TZ}</span><span class="kw">&lt;/Teudat_Zehut&gt;</span>
+  <span class="kw">&lt;SendingSystem&gt;</span><span class="pl">{SendingSystem}</span><span class="kw">&lt;/SendingSystem&gt;</span>
+<span class="kw">&lt;/SendMessage&gt;</span></pre>
+
+                <p class="text-muted small mb-1 mt-3"><strong>With extra namespace (set in SOAP Envelope Namespaces field)</strong></p>
+<pre class="code-block"><span class="cm">// Envelope Namespaces field:</span>
+xmlns:ns1=<span class="st">"http://myprovider.com/sms/v2"</span>
+
+<span class="cm">// Body Template:</span>
+<span class="kw">&lt;ns1:Send&gt;</span>
+  <span class="kw">&lt;ns1:To&gt;</span><span class="pl">{Phone}</span><span class="kw">&lt;/ns1:To&gt;</span>
+  <span class="kw">&lt;ns1:Body&gt;</span><span class="pl">{Message}</span><span class="kw">&lt;/ns1:Body&gt;</span>
+  <span class="kw">&lt;ns1:Type&gt;</span><span class="pl">{MessageType}</span><span class="kw">&lt;/ns1:Type&gt;</span>
+<span class="kw">&lt;/ns1:Send&gt;</span></pre>
+
+                <p class="text-muted small">The app wraps your body template in a full <code>&lt;soapenv:Envelope&gt;</code> + header automatically. Do not include the envelope in the template.</p>
+            </section>
+
+            <!-- TEST MODE -->
+            <section class="guide-section section-anchor" id="test-mode">
+                <h2 class="h5 fw-bold mb-3"><i class="fas fa-flask me-2 text-primary"></i>Test Mode</h2>
+                <p class="text-muted">Enable in <a asp-page="/Settings/Index">Settings → Advanced → Test Mode</a>. When active, <strong>no real SMS is ever sent</strong>. All sends are intercepted and routed to the built-in mock server.</p>
+
+                <div class="row g-3 mt-1">
+                    <div class="col-md-6">
+                        <div class="card border-0 bg-light h-100">
+                            <div class="card-body">
+                                <h6 class="fw-semibold"><i class="fas fa-broadcast-tower me-2 text-primary"></i>REST mock</h6>
+                                <p class="small text-muted mb-2">Endpoint: <code>GET /mock/sms/rest</code></p>
+                                <p class="small text-muted mb-2">Params: <code>phone</code>, <code>message</code> (query string or form)</p>
+                                <p class="small text-muted mb-0">Returns: <code>JSON { mock, success, messageId }</code></p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card border-0 bg-light h-100">
+                            <div class="card-body">
+                                <h6 class="fw-semibold"><i class="fas fa-code me-2 text-primary"></i>SOAP mock</h6>
+                                <p class="small text-muted mb-2">Endpoint: <code>POST /mock/sms/soap</code></p>
+                                <p class="small text-muted mb-2">Body: XML envelope with <code>&lt;Phone&gt;</code> and <code>&lt;Message&gt;</code> tags</p>
+                                <p class="small text-muted mb-0">Returns: SOAP envelope with <code>&lt;Success&gt;true/false&lt;/Success&gt;</code></p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <ul class="mt-3 small text-muted">
+                    <li>Simulated <strong>3% failure rate</strong> — use this to verify your retry logic</li>
+                    <li>In-memory log of last 100 messages — resets on service restart</li>
+                    <li>Use <a asp-page="/Test/Sms">Test SMS → Mock Server Tester</a> to fire calls directly from the browser and inspect the response</li>
+                </ul>
+            </section>
+
+            <!-- TROUBLESHOOTING -->
+            <section class="guide-section section-anchor" id="troubleshooting">
+                <h2 class="h5 fw-bold mb-3"><i class="fas fa-wrench me-2 text-primary"></i>Troubleshooting</h2>
+
+                <div class="accordion" id="troubleAccordion">
+
+                    <div class="accordion-item border mb-2 rounded">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed fw-semibold" type="button" data-bs-toggle="collapse" data-bs-target="#tr1">
+                                SOAP sends fail with "SOAP Body Template is required"
+                            </button>
+                        </h2>
+                        <div id="tr1" class="accordion-collapse collapse">
+                            <div class="accordion-body small text-muted">
+                                The Body Template field in Settings → Provider → SOAP is empty. Write the XML body structure for your provider (see examples above) and save settings. The app does not have a built-in default — every client has a different XML schema.
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="accordion-item border mb-2 rounded">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed fw-semibold" type="button" data-bs-toggle="collapse" data-bs-target="#tr2">
+                                SMS is sent but provider returns success — no message received
+                            </button>
+                        </h2>
+                        <div id="tr2" class="accordion-collapse collapse">
+                            <div class="accordion-body small text-muted">
+                                Check the Success Pattern field in Settings. If set, the response body must contain that string for the app to count the send as successful. Check the Audit Log for the raw provider response. Common cause: credentials misconfigured or phone number format wrong (some providers need country code, others don't).
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="accordion-item border mb-2 rounded">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed fw-semibold" type="button" data-bs-toggle="collapse" data-bs-target="#tr3">
+                                Bat file exits immediately with no effect
+                            </button>
+                        </h2>
+                        <div id="tr3" class="accordion-collapse collapse">
+                            <div class="accordion-body small text-muted">
+                                Check: (1) Service is running — open <code>http://localhost:5000/health</code> in a browser on the SCADA machine. (2) Group ID in <code>%2</code> is a valid numeric ID that exists in the app. (3) Curl is available at <code>..\Tools\curl.exe</code> or on system PATH. (4) Windows firewall is not blocking localhost:5000.
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="accordion-item border mb-2 rounded">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed fw-semibold" type="button" data-bs-toggle="collapse" data-bs-target="#tr4">
+                                Hebrew / Unicode characters appear garbled in SMS
+                            </button>
+                        </h2>
+                        <div id="tr4" class="accordion-collapse collapse">
+                            <div class="accordion-body small text-muted">
+                                The bat file sets code page 65001 (UTF-8) and writes message text to a temp file. If garbling occurs: (1) Ensure the bat file itself is saved as UTF-8 with BOM. (2) For REST, confirm Content-Type includes <code>charset=utf-8</code>. (3) For SOAP, the envelope declares <code>encoding="utf-8"</code> — check provider accepts UTF-8 bodies. (4) Some providers require a specific <code>{MessageType}</code> value for Unicode (e.g. <code>SmsType2</code> or <code>unicode</code>).
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="accordion-item border mb-2 rounded">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed fw-semibold" type="button" data-bs-toggle="collapse" data-bs-target="#tr5">
+                                Duplicate messages blocked unexpectedly
+                            </button>
+                        </h2>
+                        <div id="tr5" class="accordion-collapse collapse">
+                            <div class="accordion-body small text-muted">
+                                The app has a configurable duplicate window (default: 5 minutes). If the same message+phone combination is sent within that window, the second send is silently dropped. Adjust in Settings → Advanced → Duplicate Window. This is intentional to prevent alarm storms from flooding recipients.
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="accordion-item border mb-2 rounded">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed fw-semibold" type="button" data-bs-toggle="collapse" data-bs-target="#tr6">
+                                Rate limit exceeded — messages dropped
+                            </button>
+                        </h2>
+                        <div id="tr6" class="accordion-collapse collapse">
+                            <div class="accordion-body small text-muted">
+                                The rate limiter caps outgoing SMS per time window. Check the Audit Log for "Rate limit exceeded" warnings. Adjust Settings → Advanced → Rate Limit and Rate Window to suit your provider's limits and your site's alarm frequency.
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </section>
+
+        </div><!-- /col -->
+    </div><!-- /row -->
+</div>
+
+@section Scripts {
+<script>
+// Scrollspy: highlight TOC entry based on scroll position
+(function () {
+    const sections = document.querySelectorAll('.section-anchor');
+    const links    = document.querySelectorAll('#guideToc .nav-link');
+
+    function onScroll() {
+        let current = '';
+        sections.forEach(s => {
+            if (window.scrollY >= s.offsetTop - 60) current = s.id;
+        });
+        links.forEach(l => {
+            l.classList.toggle('active', l.getAttribute('href') === '#' + current);
+        });
+    }
+
+    window.addEventListener('scroll', onScroll, { passive: true });
+    onScroll();
+})();
+</script>
+}

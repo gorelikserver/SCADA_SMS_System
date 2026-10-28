@@ -1,0 +1,343 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:util="http://wixtoolset.org/schemas/v4/wxs/util"
+     xmlns:fire="http://wixtoolset.org/schemas/v4/wxs/firewall">
+
+  <?include Variables.wxi ?>
+
+  <Package
+    Name="$(ProductName)"
+    Version="$(ProductVersion)"
+    Manufacturer="$(Manufacturer)"
+    UpgradeCode="$(UpgradeCode)"
+    Language="1033"
+    Codepage="1252"
+    InstallerVersion="500">
+
+    <SummaryInformation Keywords="Installer"
+      Description="$(ProductName) $(ProductVersion) Setup" />
+
+    <MajorUpgrade
+      DowngradeErrorMessage="A newer version of [ProductName] is already installed."
+      Schedule="afterInstallInitialize" />
+
+    <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
+
+    <!-- ============================================================
+         PROPERTIES
+    ============================================================ -->
+    <Property Id="INSTALLDIR"    Secure="yes" />
+    <!--
+      Installer choices are remembered in HKLM\Software\$(Manufacturer)\$(ProductName) so an
+      upgrade shows and keeps them instead of resetting to the defaults (a reset port would
+      silently move the service away from where Scada_sms.bat posts).
+      AppSearch fills REMEMBERED_* only, never the real properties: it runs again in the execute
+      sequence and would overwrite what was typed in the dialog. The "first" SetProperty actions
+      run once (UI sequence, or execute sequence of a silent install) and only fill a property
+      that the command line left empty; the default applies when neither supplied a value.
+    -->
+    <Property Id="REMEMBERED_DB_SERVER" Secure="yes">
+      <RegistrySearch Id="RememberDbServer" Root="HKLM" Key="Software\$(Manufacturer)\$(ProductName)"
+                      Name="DbServer" Type="raw" Bitness="always64" />
+    </Property>
+    <Property Id="REMEMBERED_DB_NAME" Secure="yes">
+      <RegistrySearch Id="RememberDbName" Root="HKLM" Key="Software\$(Manufacturer)\$(ProductName)"
+                      Name="DbName" Type="raw" Bitness="always64" />
+    </Property>
+    <Property Id="REMEMBERED_DB_AUTH" Secure="yes">
+      <RegistrySearch Id="RememberDbAuth" Root="HKLM" Key="Software\$(Manufacturer)\$(ProductName)"
+                      Name="DbAuth" Type="raw" Bitness="always64" />
+    </Property>
+    <Property Id="REMEMBERED_DB_USER" Secure="yes">
+      <RegistrySearch Id="RememberDbUser" Root="HKLM" Key="Software\$(Manufacturer)\$(ProductName)"
+                      Name="DbUser" Type="raw" Bitness="always64" />
+    </Property>
+    <Property Id="REMEMBERED_APP_PORT" Secure="yes">
+      <RegistrySearch Id="RememberAppPort" Root="HKLM" Key="Software\$(Manufacturer)\$(ProductName)"
+                      Name="Port" Type="raw" Bitness="always64" />
+    </Property>
+    <Property Id="REMEMBERED_LOG_DIR" Secure="yes">
+      <RegistrySearch Id="RememberLogDir" Root="HKLM" Key="Software\$(Manufacturer)\$(ProductName)"
+                      Name="LogDir" Type="raw" Bitness="always64" />
+    </Property>
+    <Property Id="REMEMBERED_PCIMUTIL_DIR" Secure="yes">
+      <RegistrySearch Id="RememberPcimutilDir" Root="HKLM" Key="Software\$(Manufacturer)\$(ProductName)"
+                      Name="PcimUtilDir" Type="raw" Bitness="always64" />
+    </Property>
+    <Property Id="DB_SERVER" Secure="yes" />
+    <SetProperty Id="DB_SERVER" Action="RestoreDbServer" Value="[REMEMBERED_DB_SERVER]" After="AppSearch" Sequence="first"
+                 Condition="REMEMBERED_DB_SERVER AND NOT DB_SERVER" />
+    <SetProperty Id="DB_SERVER" Action="DefaultDbServer" Value="$(DefaultDbServer)" After="RestoreDbServer" Sequence="first" Condition="NOT DB_SERVER" />
+    <Property Id="DB_NAME" Secure="yes" />
+    <SetProperty Id="DB_NAME" Action="RestoreDbName" Value="[REMEMBERED_DB_NAME]" After="AppSearch" Sequence="first"
+                 Condition="REMEMBERED_DB_NAME AND NOT DB_NAME" />
+    <SetProperty Id="DB_NAME" Action="DefaultDbName" Value="$(DefaultDbName)" After="RestoreDbName" Sequence="first" Condition="NOT DB_NAME" />
+    <!-- The radio button group needs a value in the Property table (ICE34), so DB_AUTH is never
+         empty: the remembered value wins unless the command line chose WINDOWS. -->
+    <Property Id="DB_AUTH" Value="SQL" Secure="yes" />
+    <SetProperty Id="DB_AUTH" Action="RestoreDbAuth" Value="[REMEMBERED_DB_AUTH]" After="AppSearch" Sequence="first"
+                 Condition="REMEMBERED_DB_AUTH AND DB_AUTH = &quot;SQL&quot;" />
+    <Property Id="DB_USER" Secure="yes" />
+    <SetProperty Id="DB_USER" Action="RestoreDbUser" Value="[REMEMBERED_DB_USER]" After="AppSearch" Sequence="first"
+                 Condition="REMEMBERED_DB_USER AND NOT DB_USER" />
+    <SetProperty Id="DB_USER" Action="DefaultDbUser" Value="sa" After="RestoreDbUser" Sequence="first" Condition="NOT DB_USER" />
+    <Property Id="APP_PORT" Secure="yes" />
+    <SetProperty Id="APP_PORT" Action="RestoreAppPort" Value="[REMEMBERED_APP_PORT]" After="AppSearch" Sequence="first"
+                 Condition="REMEMBERED_APP_PORT AND NOT APP_PORT" />
+    <SetProperty Id="APP_PORT" Action="DefaultAppPort" Value="$(DefaultPort)" After="RestoreAppPort" Sequence="first" Condition="NOT APP_PORT" />
+    <Property Id="LOG_DIR" Secure="yes" />
+    <SetProperty Id="LOG_DIR" Action="RestoreLogDir" Value="[REMEMBERED_LOG_DIR]" After="AppSearch" Sequence="first"
+                 Condition="REMEMBERED_LOG_DIR AND NOT LOG_DIR" />
+    <SetProperty Id="LOG_DIR" Action="DefaultLogDir" Value="$(DefaultLogDir)" After="RestoreLogDir" Sequence="first" Condition="NOT LOG_DIR" />
+    <Property Id="PCIMUTIL_DIR" Secure="yes" />
+    <SetProperty Id="PCIMUTIL_DIR" Action="RestorePcimutilDir" Value="[REMEMBERED_PCIMUTIL_DIR]" After="AppSearch" Sequence="first"
+                 Condition="REMEMBERED_PCIMUTIL_DIR AND NOT PCIMUTIL_DIR" />
+    <!-- The password is not in the registry (readable by every user). ConfigureAppSettings keeps
+         it in %ProgramData%\SCADA_SMS\config (SYSTEM and Administrators only); on upgrade the
+         dialog starts empty and an empty password means "keep the saved one". -->
+    <Property Id="DB_PASSWORD" Secure="yes" Hidden="yes" />
+    <Property Id="DB_PASSWORD_SAVED" Secure="yes">
+      <RegistrySearch Id="RememberDbPasswordSaved" Root="HKLM" Key="Software\$(Manufacturer)\$(ProductName)"
+                      Name="DbPasswordSaved" Type="raw" Bitness="always64" />
+    </Property>
+    <SetProperty Id="DB_PASSWORD" Action="DefaultDbPassword" Value="pulse" After="AppSearch" Sequence="first"
+                 Condition="NOT DB_PASSWORD AND NOT DB_PASSWORD_SAVED" />
+    <Property Id="WIXUI_INSTALLDIR" Value="INSTALLDIR" />
+    <WixVariable Id="WixUILicenseRtf" Value="Resources\License.rtf" />
+
+    <!-- ============================================================
+         DIRECTORIES
+    ============================================================ -->
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="ManufacturerFolder" Name="$(Manufacturer)">
+        <Directory Id="INSTALLDIR" Name="$(ProductName)">
+          <!-- Scada_sms.bat looks for curl at %~dp0..\Tools\curl.exe -->
+          <Directory Id="SCRIPTSDIR" Name="Scripts" />
+          <Directory Id="TOOLSDIR" Name="Tools" />
+        </Directory>
+      </Directory>
+    </StandardDirectory>
+
+    <StandardDirectory Id="CommonAppDataFolder">
+      <!-- Default SPOOL_ROOT of Scada_sms.bat and ScadaSpool:Root of the service -->
+      <Directory Id="SCADASMSDATADIR" Name="SCADA_SMS">
+        <Directory Id="SPOOLDIR" Name="spool" />
+        <Directory Id="CONFIGDIR" Name="config" />
+      </Directory>
+    </StandardDirectory>
+
+    <!-- ============================================================
+         COMPONENTS — Main executable + Service + Firewall
+    ============================================================ -->
+    <ComponentGroup Id="AppFiles" Directory="INSTALLDIR">
+
+      <Component Id="AppExeComponent"
+                 Guid="B1E2F3A4-5C6D-7E8F-9A0B-C1D2E3F4A5B6">
+        <File Id="AppExe"
+              Source="$(AppExeFile)"
+              KeyPath="yes" />
+
+        <ServiceInstall
+          Id="SCADASMSServiceInstall"
+          Name="$(ServiceName)"
+          DisplayName="$(ServiceDisplayName)"
+          Type="ownProcess"
+          Start="auto"
+          Account="LocalSystem"
+          ErrorControl="normal"
+          Description="Industrial SCADA SMS notification system for alarm management"
+          Vital="yes" />
+
+        <ServiceControl
+          Id="SCADASMSServiceControl"
+          Name="$(ServiceName)"
+          Start="install"
+          Stop="both"
+          Remove="uninstall"
+          Wait="no" />
+
+        <util:ServiceConfig
+          ServiceName="$(ServiceName)"
+          FirstFailureActionType="restart"
+          SecondFailureActionType="restart"
+          ThirdFailureActionType="restart"
+          RestartServiceDelayInSeconds="60"
+          ResetPeriodInDays="1" />
+
+        <fire:FirewallException
+          Id="SCADASMSFirewall"
+          Name="SCADA SMS System HTTP"
+          Description="Allow inbound HTTP for SCADA SMS System web interface"
+          Protocol="tcp"
+          Port="[APP_PORT]"
+          Scope="any"
+          IgnoreFailure="yes" />
+      </Component>
+
+      <!-- appsettings.json — modified post-install by ConfigureAppSettings CA -->
+      <Component Id="AppSettingsComponent"
+                 Guid="C2D3E4F5-6A7B-8C9D-0E1F-A2B3C4D5E6F7">
+        <File Id="AppSettings"
+              Source="$(AppSettingsFile)"
+              KeyPath="yes" />
+      </Component>
+
+      <!--
+        Full install-folder cleanup on uninstall.
+        MSI by default only removes files it installed. Files created post-install
+        (configured appsettings backups, harvested folders, runtime artifacts) would
+        otherwise be orphaned. RemoveFolderEx walks INSTALLDIR and removes everything.
+      -->
+      <Component Id="InstallDirCleanupComp"
+                 Guid="E4F5A6B7-8C9D-0E1F-2A3B-C4D5E6F7A8B9">
+        <RegistryValue Root="HKLM"
+                       Key="Software\$(Manufacturer)\$(ProductName)"
+                       Name="InstallDir"
+                       Type="string"
+                       Value="[INSTALLDIR]"
+                       KeyPath="yes" />
+        <util:RemoveFolderEx On="uninstall" Property="INSTALLDIR" />
+      </Component>
+
+      <!-- Remaining files: harvested by Generate-HarvestedFiles.ps1 (HarvestedAppFiles component group) -->
+      <ComponentGroupRef Id="HarvestedAppFiles" />
+
+    </ComponentGroup>
+
+    <!-- ============================================================
+         SCADA INTEGRATION — Scada_sms.bat, optional curl.exe, spool
+         folder and the event log source used for delivery alerts
+    ============================================================ -->
+    <ComponentGroup Id="ScadaIntegration">
+
+      <!-- Copy of the repo-root Scada_sms.bat (UTF-8 BOM, CRLF), byte for byte.
+           Scada_sms.ini next to it is written by the ConfigureAppSettings CA. -->
+      <Component Id="ScadaSmsBatComponent" Directory="SCRIPTSDIR"
+                 Guid="31B3D710-55EC-4F23-B8FF-8E2FEB59D995">
+        <File Id="ScadaSmsBat" Source="$(ScadaBatFile)" KeyPath="yes" />
+      </Component>
+
+<?if $(BundleCurl) = "true" ?>
+      <!-- Bundled curl for sites without the Windows built-in curl.exe -->
+      <Component Id="CurlExeComponent" Directory="TOOLSDIR"
+                 Guid="B8B06F8F-EDEA-4989-A8DC-C5226F5426E7">
+        <File Id="CurlExe" Source="$(CurlExeFile)" KeyPath="yes" />
+      </Component>
+<?endif?>
+
+      <!-- Same registration as install_service.bat (New-EventLog under Windows
+           PowerShell uses the .NET Framework 4 message file). -->
+      <Component Id="EventSourceComponent" Directory="INSTALLDIR"
+                 Guid="1D94C873-D0D7-453B-8EF0-AFCF322F8EEC">
+        <util:EventSource Log="Application"
+                          Name="$(EventSourceName)"
+                          EventMessageFile="[WindowsFolder]Microsoft.NET\Framework64\v4.0.30319\EventLogMessages.dll"
+                          SupportsErrors="yes"
+                          SupportsWarnings="yes"
+                          SupportsInformationals="yes"
+                          KeyPath="yes" />
+      </Component>
+
+      <!--
+        %ProgramData%\SCADA_SMS holds the spool and Scada_sms.log. Akara runs the bat
+        under an unknown account, so BUILTIN\Users get Modify (0x1301bf) and
+        SYSTEM (the service) and Administrators Full control, inherited by spool,
+        spool\failed and spool\bad. Protected DACL: the ProgramData defaults would
+        only let the creator of a file change it, so a log created by one account
+        could not be appended by another.
+        Not removed on uninstall while it holds files: MSI owns no file here, so
+        undelivered spool files and Scada_sms.log always survive.
+      -->
+      <Component Id="ScadaDataDirComponent" Directory="SCADASMSDATADIR"
+                 Guid="6531ED07-D5BD-4AF4-BE88-7D0774E32A4D">
+        <CreateFolder>
+          <PermissionEx Sddl="D:PAI(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)(A;OICI;0x1301bf;;;BU)" />
+        </CreateFolder>
+      </Component>
+      <Component Id="RememberPcimUtilComponent" Directory="INSTALLDIR"
+                 Guid="C0523584-DEB1-4811-AA15-3988264D6246" Bitness="always64">
+        <RegistryValue Root="HKLM" Key="Software\$(Manufacturer)\$(ProductName)"
+                       Name="PcimUtilDir" Type="string" Value="[PCIMUTIL_DIR]" KeyPath="yes" />
+        <RegistryValue Root="HKLM" Key="Software\$(Manufacturer)\$(ProductName)"
+                       Name="LogDir" Type="string" Value="[LOG_DIR]" />
+        <RegistryValue Root="HKLM" Key="Software\$(Manufacturer)\$(ProductName)"
+                       Name="Port" Type="string" Value="[APP_PORT]" />
+        <RegistryValue Root="HKLM" Key="Software\$(Manufacturer)\$(ProductName)"
+                       Name="DbServer" Type="string" Value="[DB_SERVER]" />
+        <RegistryValue Root="HKLM" Key="Software\$(Manufacturer)\$(ProductName)"
+                       Name="DbName" Type="string" Value="[DB_NAME]" />
+        <RegistryValue Root="HKLM" Key="Software\$(Manufacturer)\$(ProductName)"
+                       Name="DbAuth" Type="string" Value="[DB_AUTH]" />
+        <RegistryValue Root="HKLM" Key="Software\$(Manufacturer)\$(ProductName)"
+                       Name="DbUser" Type="string" Value="[DB_USER]" />
+        <RegistryValue Root="HKLM" Key="Software\$(Manufacturer)\$(ProductName)"
+                       Name="DbPasswordSaved" Type="string" Value="1" />
+      </Component>
+      <Component Id="SpoolDirComponent" Directory="SPOOLDIR"
+                 Guid="CA5BC481-E456-47FC-A1B5-5F9C124A1F2E">
+        <CreateFolder />
+      </Component>
+      <!--
+        %ProgramData%\SCADA_SMS\config\settings.json holds the settings edited in the UI,
+        including the provider profile and its secrets. It lives outside INSTALLDIR because a
+        major upgrade deletes INSTALLDIR. Protected DACL without BUILTIN\Users: only SYSTEM
+        (the service) and Administrators may read it. Never removed on uninstall while it
+        holds files (MSI owns none).
+      -->
+      <Component Id="ConfigDirComponent" Directory="CONFIGDIR"
+                 Guid="5514E956-289F-466D-8A99-9FF4227AED5A">
+        <CreateFolder>
+          <PermissionEx Sddl="D:PAI(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)" />
+        </CreateFolder>
+      </Component>
+
+    </ComponentGroup>
+
+    <!-- ============================================================
+         FEATURES
+    ============================================================ -->
+    <Feature Id="Complete" Title="$(ProductName)" Level="1">
+      <Feature Id="MainApp" Title="Application" Level="1">
+        <ComponentGroupRef Id="AppFiles" />
+        <ComponentGroupRef Id="ScadaIntegration" />
+      </Feature>
+    </Feature>
+
+    <!-- ============================================================
+         CUSTOM ACTIONS — Inline VBScript (no managed DLL required)
+    ============================================================ -->
+
+    <!-- Pack deferred CA properties -->
+    <SetProperty Id="ConfigureAppSettings"
+      Before="ConfigureAppSettings"
+      Sequence="execute"
+      Value="INSTALLDIR=[INSTALLDIR];DB_SERVER=[DB_SERVER];DB_NAME=[DB_NAME];DB_AUTH=[DB_AUTH];DB_USER=[DB_USER];DB_PASSWORD=[DB_PASSWORD];APP_PORT=[APP_PORT];LOG_DIR=[LOG_DIR];PCIMUTIL_DIR=[PCIMUTIL_DIR]" />
+
+    <!--
+      Deferred VBScript CA: patches appsettings.json with user-supplied DB/port/log settings.
+      Runs after files are on disk, before service starts.
+    -->
+    <CustomAction Id="ConfigureAppSettings"
+      Script="vbscript"
+      ScriptSourceFile="Scripts\ConfigureAppSettings.vbs"
+      Execute="deferred"
+      Impersonate="no"
+      Return="check" />
+
+
+    <!-- ============================================================
+         INSTALL SEQUENCE
+    ============================================================ -->
+    <InstallExecuteSequence>
+      <Custom Action="ConfigureAppSettings"
+        After="InstallFiles"
+        Condition="NOT REMOVE" />
+    </InstallExecuteSequence>
+
+    <!-- ============================================================
+         UI
+    ============================================================ -->
+    <UIRef Id="SCADASMSInstallUI" />
+
+  </Package>
+</Wix>

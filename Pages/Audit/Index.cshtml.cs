@@ -306,6 +306,10 @@ namespace SCADASMSSystem.Web.Pages.Audit
 
         public async Task<IActionResult> OnPostCleanupAsync()
         {
+            // Viewers may open this page; only admins may change data from it.
+            if (!User.IsInRole(SCADASMSSystem.Web.Models.AccountRoles.Admin))
+                return Forbid();
+
             try
             {
                 var success = await _auditService.CleanupOldAuditsAsync(90); // Keep 90 days

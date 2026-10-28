@@ -96,6 +96,23 @@ if %ERRORLEVEL% EQU 0 (
 )
 echo.
 
+REM Register the event log source used for undelivered-alarm alerts
+powershell.exe -NoProfile -Command "if (-not [Diagnostics.EventLog]::SourceExists('SCADA SMS System')) { New-EventLog -LogName Application -Source 'SCADA SMS System' }" >nul 2>&1
+
+REM Spool folder for Scada_sms.bat, same ACL as the MSI: Akara runs the bat under an unknown
+REM account, so Users get Modify; SYSTEM (the service) and Administrators get Full control.
+REM Existing spool files and Scada_sms.log are kept.
+set "SCADA_DATA=%ProgramData%\SCADA_SMS"
+if not exist "%SCADA_DATA%\spool" mkdir "%SCADA_DATA%\spool" 2>nul
+icacls "%SCADA_DATA%" /inheritance:r /grant:r *S-1-5-18:(OI)(CI)F *S-1-5-32-544:(OI)(CI)F *S-1-5-32-545:(OI)(CI)M >nul 2>&1
+if errorlevel 1 echo [WARNING] Could not set permissions on %SCADA_DATA% - Scada_sms.bat may fail to spool alarms
+
+REM UI settings (provider profile with secrets) live in %SCADA_DATA%\config so upgrades keep them.
+REM Only SYSTEM (the service) and Administrators may read them.
+if not exist "%SCADA_DATA%\config" mkdir "%SCADA_DATA%\config" 2>nul
+icacls "%SCADA_DATA%\config" /inheritance:r /grant:r *S-1-5-18:(OI)(CI)F *S-1-5-32-544:(OI)(CI)F >nul 2>&1
+if errorlevel 1 echo [WARNING] Could not set permissions on %SCADA_DATA%\config - provider secrets may be readable by other users
+
 REM Create the service
 echo [3/8] Creating Windows Service...
 sc create SCADASMSSystem binPath= "%FULL_EXE_PATH%" DisplayName= "SCADA SMS Notification System" start= auto

@@ -1,0 +1,378 @@
+@page
+@model SCADASMSSystem.Web.Pages.Settings.ProviderModel
+@using SCADASMSSystem.Web.Models
+@using SCADASMSSystem.Web.Services.Providers
+@{
+    ViewData["Title"] = "SMS Provider";
+    var active = Model.State.Active;
+    var draft = Model.State.Draft;
+}
+
+@section Breadcrumb {
+<div class="breadcrumb-bar">
+    <div class="container-fluid px-4">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a asp-page="/Index"><i class="fas fa-home me-1"></i>Dashboard</a></li>
+                <li class="breadcrumb-item"><a asp-page="/Settings/Index">Settings</a></li>
+                <li class="breadcrumb-item active">SMS Provider</li>
+            </ol>
+        </nav>
+    </div>
+</div>
+}
+
+<style>
+    .pv-mono { font-family: Consolas, "Courier New", monospace; font-size: .85rem; }
+    .pv-section { font-size: .78rem; text-transform: uppercase; letter-spacing: .5px; color: #6c757d; font-weight: 700; margin: 1.25rem 0 .5rem; }
+    .pv-pre { background: #1e1e2e; color: #d4d4d4; border-radius: 8px; padding: .75rem; white-space: pre-wrap; word-break: break-all; font-size: .8rem; max-height: 420px; overflow: auto; }
+    .pv-steps .badge { font-size: .75rem; }
+</style>
+
+<div class="container-fluid" x-data="providerEditor()" x-init="init()">
+    <div class="d-sm-flex align-items-center justify-content-between mb-3">
+        <h1 class="h3 mb-0 text-gray-800"><i class="fas fa-plug me-2"></i>SMS Provider</h1>
+        <div class="d-flex gap-2">
+            <a asp-page="/Settings/History" class="btn btn-sm btn-outline-secondary"><i class="fas fa-history me-1"></i>History &amp; rollback</a>
+            <a asp-page="/Settings/Index" class="btn btn-sm btn-outline-secondary"><i class="fas fa-arrow-left me-1"></i>Settings</a>
+        </div>
+    </div>
+
+    @if (TempData["SuccessMessage"] != null)
+    {
+        <div class="alert alert-success py-2">@TempData["SuccessMessage"]</div>
+    }
+    @if (TempData["ErrorMessage"] != null)
+    {
+        <div class="alert alert-danger py-2">@TempData["ErrorMessage"]</div>
+    }
+
+    <div class="row g-3 mb-3">
+        <div class="col-lg-6">
+            <div class="card h-100 @(active == null || Model.ActiveErrors.Count > 0 ? "border-danger" : "border-success")">
+                <div class="card-body">
+                    <div class="pv-section mt-0">Active profile &mdash; used for every alarm</div>
+                    @if (active == null)
+                    {
+                        <p class="text-danger mb-0"><strong>No active profile.</strong> Alarms cannot be sent. Start a draft below, verify it and activate it.</p>
+                    }
+                    else
+                    {
+                        <h2 class="h5 mb-1">@active.Name <span class="badge bg-secondary">@active.Kind</span></h2>
+                        <div class="pv-mono text-muted mb-2">@active.Method @(Uri.TryCreate(active.Url.Split('?')[0], UriKind.Absolute, out var u) ? u.GetLeftPart(UriPartial.Path) : active.Url.Split('?')[0])</div>
+                        @if (Model.State.Activation != null)
+                        {
+                            <div class="small text-muted">
+                                Activated @Model.State.Activation.ActivatedAt.ToString("yyyy-MM-dd HH:mm") by @(Model.State.Activation.ActivatedBy ?? "?")
+                                @if (Model.State.Activation.VerifiedAt != null)
+                                {
+                                    <span>&middot; verified @Model.State.Activation.VerifiedAt?.ToString("yyyy-MM-dd HH:mm") by @(Model.State.Activation.VerifiedBy ?? "?")</span>
+                                }
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="small text-muted">Converted from the previous provider settings; not verified through this page yet.</div>
+                        }
+                        @if (Model.ActiveErrors.Count > 0)
+                        {
+                            <ul class="text-danger small mt-2 mb-0">@foreach (var e in Model.ActiveErrors) { <li>@e</li> }</ul>
+                        }
+                        <div class="mt-2 d-flex gap-2">
+                            @if (draft == null)
+                            {
+                                <span class="small text-muted align-self-center">Edit below to create a draft; the active profile keeps serving alarms until you activate.</span>
+                            }
+                            <a class="btn btn-sm btn-outline-secondary ms-auto" asp-page-handler="Export" asp-route-which="active"><i class="fas fa-download me-1"></i>Export</a>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-6">
+            <div class="card h-100">
+                <div class="card-body">
+                    <div class="pv-section mt-0">Draft</div>
+                    <div class="pv-steps d-flex flex-wrap gap-2 mb-2">
+                        <span class="badge" :class="hasDraft ? 'bg-primary' : 'bg-light text-muted border'">1 Saved</span>
+                        <span class="badge" :class="hasDraft && errors.length === 0 ? 'bg-primary' : 'bg-light text-muted border'">2 Valid</span>
+                        <span class="badge" :class="verified && !dirty ? 'bg-success' : 'bg-light text-muted border'">3 Verified by real send</span>
+                        <span class="badge bg-light text-muted border">4 Activate</span>
+                    </div>
+                    <div class="small mb-2" x-show="dirty"><i class="fas fa-pen me-1 text-warning"></i>Unsaved changes. Preview and Verify save the draft first.</div>
+                    @if (Model.State.Verification != null && Model.State.DraftVerified)
+                    {
+                        <div class="small text-success mb-2" x-show="!dirty">
+                            <i class="fas fa-check-circle me-1"></i>Verified @Model.State.Verification.VerifiedAt.ToString("yyyy-MM-dd HH:mm") to @Model.State.Verification.MaskedPhone by @(Model.State.Verification.VerifiedBy ?? "?"): @Model.State.Verification.Result
+                        </div>
+                    }
+                    <div class="d-flex flex-wrap gap-2">
+                        <form method="post" asp-page-handler="Activate" onsubmit="return confirm('Activate this draft? Every alarm will use it from now on.');">
+                            <button class="btn btn-sm btn-success" :disabled="!verified || dirty"><i class="fas fa-bolt me-1"></i>Activate</button>
+                        </form>
+                        @if (draft != null)
+                        {
+                            <form method="post" asp-page-handler="Discard" onsubmit="return confirm('Discard the draft? The active profile is not affected.');">
+                                <button class="btn btn-sm btn-outline-danger"><i class="fas fa-trash me-1"></i>Discard draft</button>
+                            </form>
+                            <a class="btn btn-sm btn-outline-secondary" asp-page-handler="Export" asp-route-which="draft"><i class="fas fa-download me-1"></i>Export draft</a>
+                        }
+                        <form method="post" asp-page-handler="Import" enctype="multipart/form-data" class="d-flex gap-1">
+                            <input type="file" name="file" accept="application/json,.json" class="form-control form-control-sm" style="max-width: 220px" required />
+                            <button class="btn btn-sm btn-outline-secondary"><i class="fas fa-upload me-1"></i>Import</button>
+                        </form>
+                    </div>
+                    <details class="mt-2">
+                        <summary class="small">Start from a template</summary>
+                        <div class="list-group mt-2">
+                            @foreach (var t in ProfileTemplates.All)
+                            {
+                                <form method="post" asp-page-handler="StartFromTemplate" class="list-group-item d-flex align-items-center gap-2"
+                                      onsubmit="return confirm('Replace the draft with this template?');">
+                                    <input type="hidden" name="id" value="@t.Id" />
+                                    <div class="flex-grow-1"><strong>@t.Title</strong><div class="small text-muted">@t.Description</div></div>
+                                    <button class="btn btn-sm btn-outline-primary">Use</button>
+                                </form>
+                            }
+                        </div>
+                    </details>
+                    <div class="small text-muted mt-2">Exports leave secret values empty, so a file can be carried to another site; fill them in after import.</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-3">
+        <div class="col-xl-7">
+            <div class="card">
+                <div class="card-body">
+                    <div class="row g-2">
+                        <div class="col-md-6"><label class="form-label small">Name</label><input class="form-control form-control-sm" x-model="p.Name" /></div>
+                        <div class="col-md-3">
+                            <label class="form-label small">Kind</label>
+                            <select class="form-select form-select-sm" x-model="p.Kind"><option>REST</option><option>SOAP</option></select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label small">Method</label>
+                            <select class="form-select form-select-sm" x-model="p.Method"><option>POST</option><option>GET</option><option>PUT</option><option>PATCH</option></select>
+                        </div>
+                        <div class="col-12"><label class="form-label small">URL</label><input class="form-control form-control-sm pv-mono" x-model="p.Url" placeholder="https://gateway/send?to={Phone}" /></div>
+                        <div class="col-md-8">
+                            <label class="form-label small">Content type</label>
+                            <input class="form-control form-control-sm pv-mono" x-model="p.ContentType" list="contentTypes" />
+                            <datalist id="contentTypes">
+                                <option value="application/json"></option>
+                                <option value="application/x-www-form-urlencoded"></option>
+                                <option value="text/xml; charset=utf-8"></option>
+                                <option value="application/soap+xml; charset=utf-8"></option>
+                                <option value="text/plain"></option>
+                            </datalist>
+                        </div>
+                    </div>
+
+                    <div class="pv-section">Body</div>
+                    <textarea class="form-control pv-mono" rows="12" x-model="p.Body" spellcheck="false"
+                              :placeholder="p.Method === 'GET' ? 'GET requests have no body: put values in the URL' : 'Body template'"></textarea>
+
+                    <div class="pv-section">Headers</div>
+                    <template x-for="(h, i) in p.Headers" :key="i">
+                        <div class="d-flex gap-2 mb-1">
+                            <input class="form-control form-control-sm pv-mono" style="max-width: 220px" x-model="h.Name" placeholder="Header" />
+                            <input class="form-control form-control-sm pv-mono" x-model="h.Value" placeholder="Value or {Variable}" />
+                            <button type="button" class="btn btn-sm btn-outline-danger" @@click="p.Headers.splice(i, 1)">&times;</button>
+                        </div>
+                    </template>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" @@click="p.Headers.push({ Name: '', Value: '' })">+ Header</button>
+
+                    <div class="pv-section">Variables (constants and secrets)</div>
+                    <template x-for="(v, i) in p.Variables" :key="i">
+                        <div class="d-flex gap-2 mb-1 align-items-center">
+                            <input class="form-control form-control-sm pv-mono" style="max-width: 180px" x-model="v.Key" placeholder="Name" />
+                            <input class="form-control form-control-sm pv-mono" :type="v.IsSecret ? 'password' : 'text'" x-model="v.Value"
+                                   :placeholder="v.IsSecret ? 'Leave *** to keep the stored secret' : 'Value'" autocomplete="new-password" />
+                            <div class="form-check text-nowrap"><input class="form-check-input" type="checkbox" x-model="v.IsSecret" :id="'sec' + i" /><label class="form-check-label small" :for="'sec' + i">Secret</label></div>
+                            <button type="button" class="btn btn-sm btn-outline-danger" @@click="p.Variables.splice(i, 1)">&times;</button>
+                        </div>
+                    </template>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" @@click="p.Variables.push({ Key: '', Value: '', IsSecret: false })">+ Variable</button>
+
+                    <div class="pv-section">Authentication</div>
+                    <div class="row g-2">
+                        <div class="col-md-4">
+                            <select class="form-select form-select-sm" x-model="p.Auth.Type">
+                                @foreach (var a in AuthTypes.All) { <option>@a</option> }
+                            </select>
+                        </div>
+                        <div class="col-md-4" x-show="p.Auth.Type === 'Basic' || p.Auth.Type === 'WsSecurity'"><input class="form-control form-control-sm pv-mono" x-model="p.Auth.User" placeholder="User, e.g. {Username}" /></div>
+                        <div class="col-md-4" x-show="p.Auth.Type !== 'None'"><input class="form-control form-control-sm pv-mono" x-model="p.Auth.Secret" placeholder="Password or token, e.g. {Password}" /></div>
+                    </div>
+
+                    <div class="pv-section">Phone number format</div>
+                    <div class="row g-2">
+                        <div class="col-md-4">
+                            <select class="form-select form-select-sm" x-model="p.PhoneFormat">
+                                @foreach (var f in PhoneFormats.All) { <option>@f</option> }
+                            </select>
+                        </div>
+                        <div class="col-md-3"><input class="form-control form-control-sm" x-model="p.CountryCode" placeholder="Country code, e.g. 972" /></div>
+                        <div class="col-md-5 small text-muted align-self-center">050-1234567 &rarr; <code x-text="phoneExample()"></code></div>
+                    </div>
+
+                    <template x-for="rule in [{ label: 'Failure rule (checked first)', r: p.Failure }, { label: 'Success rule', r: p.Success }]" :key="rule.label">
+                        <div>
+                            <div class="pv-section" x-text="rule.label"></div>
+                            <div class="row g-2">
+                                <div class="col-md-2"><input class="form-control form-control-sm pv-mono" x-model="rule.r.StatusCodes" placeholder="2xx or 200,202" title="Status codes; empty = any" /></div>
+                                <div class="col-md-3">
+                                    <select class="form-select form-select-sm" x-model="rule.r.Match">
+                                        @foreach (var m in MatchTypes.All) { <option>@m</option> }
+                                    </select>
+                                </div>
+                                <div class="col-md-4" x-show="rule.r.Match !== 'None'"><input class="form-control form-control-sm pv-mono" x-model="rule.r.Expression" :placeholder="rule.r.Match === 'JsonPath' ? '$.status' : rule.r.Match === 'XmlElement' ? 'Success or Result/Status' : 'text or pattern'" /></div>
+                                <div class="col-md-3" x-show="rule.r.Match === 'JsonPath' || rule.r.Match === 'XmlElement'"><input class="form-control form-control-sm pv-mono" x-model="rule.r.Expected" placeholder="Expected (empty = any value)" /></div>
+                            </div>
+                        </div>
+                    </template>
+
+                    <div class="d-flex flex-wrap gap-2 mt-4">
+                        <button type="button" class="btn btn-primary btn-sm" @@click="save()" :disabled="busy"><i class="fas fa-save me-1"></i>Save draft</button>
+                        <button type="button" class="btn btn-outline-primary btn-sm" @@click="preview()" :disabled="busy"><i class="fas fa-eye me-1"></i>Preview request</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-5">
+            <div class="card mb-3" x-show="errors.length">
+                <div class="card-body">
+                    <div class="pv-section mt-0 text-danger">Draft problems</div>
+                    <ul class="mb-0 small text-danger"><template x-for="e in errors" :key="e"><li x-text="e"></li></template></ul>
+                </div>
+            </div>
+
+            <div class="card mb-3">
+                <div class="card-body">
+                    <div class="pv-section mt-0">Verify with a real send</div>
+                    <p class="small text-muted mb-2">Sends one SMS through the provider with this draft, even in test mode. Activation is allowed only after the provider accepts it.</p>
+                    <div class="row g-2">
+                        <div class="col-md-5"><input class="form-control form-control-sm" x-model="verifyPhone" placeholder="Test phone, e.g. 050-1234567" /></div>
+                        <div class="col-md-7"><input class="form-control form-control-sm" x-model="verifyMessage" placeholder="Message (optional)" /></div>
+                    </div>
+                    <button type="button" class="btn btn-sm btn-warning mt-2" @@click="verify()" :disabled="busy || !verifyPhone"><i class="fas fa-paper-plane me-1"></i>Save and send test SMS</button>
+                    <template x-if="verifyResult">
+                        <div class="mt-3">
+                            <div class="alert py-2 mb-2" :class="verifyResult.accepted ? 'alert-success' : 'alert-danger'">
+                                <strong x-text="verifyResult.accepted ? 'Accepted by the provider. You can activate now.' : 'Not accepted.'"></strong>
+                                <span x-text="(verifyResult.statusCode ? 'HTTP ' + verifyResult.statusCode + ' - ' : '') + verifyResult.reason"></span>
+                            </div>
+                            <template x-if="verifyResult.displayUrl"><div class="pv-mono small mb-1" x-text="verifyResult.displayUrl"></div></template>
+                            <template x-if="verifyResult.responseBody"><pre class="pv-pre" x-text="verifyResult.responseBody"></pre></template>
+                        </div>
+                    </template>
+                </div>
+            </div>
+
+            <div class="card mb-3" x-show="previewData">
+                <div class="card-body">
+                    <div class="pv-section mt-0">Preview (sample alarm, secrets masked)</div>
+                    <template x-if="previewData">
+                        <div>
+                            <div class="pv-mono mb-2"><strong x-text="previewData.method"></strong> <span x-text="previewData.url"></span></div>
+                            <template x-for="h in previewData.headers" :key="h.name"><div class="pv-mono small"><span class="text-muted" x-text="h.name + ':'"></span> <span x-text="h.value"></span></div></template>
+                            <pre class="pv-pre mt-2" x-show="previewData.body" x-text="previewData.body"></pre>
+                        </div>
+                    </template>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-body small">
+                    <div class="pv-section mt-0">Tokens</div>
+                    <p class="mb-1">Write <code>{Name}</code> or <code>{Name:encoding}</code> in the URL, headers, body or auth fields.</p>
+                    <p class="mb-1"><strong>Built-in:</strong> <code>{Message}</code> <code>{Phone}</code> <code>{Value}</code> <code>{AlarmId}</code> <code>{Priority}</code> <code>{GroupId}</code> <code>{UserId}</code> <code>{FirstName}</code> <code>{LastName}</code> <code>{TZ}</code> <code>{Now:yyyyMMddHHmmss}</code> <code>{Guid}</code>. Anything else is a variable from the list.</p>
+                    <p class="mb-1"><strong>Encodings:</strong> <code>raw</code> <code>json</code> <code>xml</code> <code>url</code> <code>base64</code>. Without one, values are encoded for where they are: URL-encoded in the URL, JSON-, XML- or form-encoded in the body by content type, raw in headers.</p>
+                    <p class="mb-0"><strong>SOAP:</strong> put the full envelope in the body. WsSecurity adds the UsernameToken header automatically. A SOAP Fault always counts as failure, and a success rule on the body is required.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script src="~/js/alpine.min.js" defer></script>
+<script>
+    function providerEditor() {
+        return {
+            p: @Html.Raw(Model.EditorJson),
+            hasDraft: @(draft != null ? "true" : "false"),
+            verified: @(Model.State.DraftVerified ? "true" : "false"),
+            errors: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.DraftErrors)),
+            dirty: false,
+            busy: false,
+            previewData: null,
+            verifyResult: null,
+            verifyPhone: '',
+            verifyMessage: '',
+            init() {
+                for (const k of ['Headers', 'Variables']) this.p[k] = this.p[k] || [];
+                this.p.Auth = this.p.Auth || { Type: 'None', User: '', Secret: '' };
+                this.p.Failure = this.p.Failure || { StatusCodes: '', Match: 'None', Expression: '', Expected: '' };
+                this.p.Success = this.p.Success || { StatusCodes: '2xx', Match: 'None', Expression: '', Expected: '' };
+                this.$watch('p', () => { this.dirty = true; this.verified = false; }, { deep: true });
+                if (!this.hasDraft) this.dirty = false;
+            },
+            token() { return document.querySelector('input[name="__RequestVerificationToken"]')?.value || ''; },
+            async call(handler, payload) {
+                this.busy = true;
+                try {
+                    const res = await fetch('?handler=' + handler, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': this.token() },
+                        body: JSON.stringify(payload),
+                    });
+                    if (!res.ok) throw new Error('HTTP ' + res.status);
+                    return await res.json();
+                } catch (e) {
+                    alert('Request failed: ' + e.message);
+                    return null;
+                } finally {
+                    this.busy = false;
+                }
+            },
+            afterSave(data) {
+                if (!data) return;
+                this.hasDraft = true;
+                this.errors = data.errors || [];
+                this.$nextTick(() => { this.dirty = false; });
+            },
+            async save() { this.afterSave(await this.call('SaveDraft', this.p)); },
+            async preview() {
+                const data = await this.call('Preview', this.p);
+                this.afterSave(data);
+                this.previewData = data && data.method ? data : null;
+            },
+            async verify() {
+                const data = await this.call('Verify', { Profile: this.p, Phone: this.verifyPhone, Message: this.verifyMessage });
+                if (!data) return;
+                this.hasDraft = true;
+                this.$nextTick(() => { this.dirty = false; this.verified = !!data.accepted; });
+                this.verifyResult = data;
+            },
+            phoneExample() {
+                const digits = s => (s || '').replace(/\D/g, '');
+                const cc = digits(this.p.CountryCode), n = '0501234567';
+                const intl = cc ? cc + n.slice(1) : n;
+                switch (this.p.PhoneFormat) {
+                    case 'DigitsOnly': return n;
+                    case 'E164': return '+' + intl;
+                    case 'International': return intl;
+                    case 'Local': return n;
+                    default: return '050-1234567';
+                }
+            },
+        };
+    }
+</script>
+}
+
+@Html.AntiForgeryToken()

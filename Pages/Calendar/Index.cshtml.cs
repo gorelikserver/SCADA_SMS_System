@@ -48,6 +48,10 @@ namespace SCADASMSSystem.Web.Pages.Calendar
 
         public async Task<IActionResult> OnPostRefreshCalendarAsync()
         {
+            // Viewers may open this page; only admins may change data from it.
+            if (!User.IsInRole(SCADASMSSystem.Web.Models.AccountRoles.Admin))
+                return Forbid();
+
             try
             {
                 // Initialize/refresh the date dimension for the next 10 years

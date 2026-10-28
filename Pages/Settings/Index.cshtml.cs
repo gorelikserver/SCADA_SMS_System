@@ -3,25 +3,36 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.Extensions.Options;
 using SCADASMSSystem.Web.Models;
 using SCADASMSSystem.Web.Services;
+using SCADASMSSystem.Web.Services.Providers;
 using System.Reflection;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 
 namespace SCADASMSSystem.Web.Pages.Settings
 {
     public class IndexModel : PageModel
     {
-        private readonly IOptions<SmsSettings> _smsSettings;
+        private readonly IOptionsMonitor<SmsSettings> _smsSettings;
         private readonly IUserService _userService;
         private readonly IGroupService _groupService;
         private readonly IAuditService _auditService;
         private readonly IHolidayService _holidayService;
+        private readonly IWebHostEnvironment _env;
+        private readonly IConfiguration _configuration;
+        private readonly ISettingsStore _settingsStore;
+        private readonly ISettingsHistory _history;
         private readonly ILogger<IndexModel> _logger;
 
         public IndexModel(
-            IOptions<SmsSettings> smsSettings,
+            IOptionsMonitor<SmsSettings> smsSettings,
             IUserService userService,
             IGroupService groupService,
             IAuditService auditService,
             IHolidayService holidayService,
+            IWebHostEnvironment env,
+            IConfiguration configuration,
+            ISettingsStore settingsStore,
+            ISettingsHistory history,
             ILogger<IndexModel> logger)
         {
             _smsSettings = smsSettings;
@@ -29,12 +40,25 @@ namespace SCADASMSSystem.Web.Pages.Settings
             _groupService = groupService;
             _auditService = auditService;
             _holidayService = holidayService;
+            _env = env;
+            _configuration = configuration;
+            _settingsStore = settingsStore;
+            _history = history;
             _logger = logger;
         }
 
         public SystemInfo SystemInformation { get; set; } = new();
         public SmsSettings CurrentSmsSettings { get; set; } = new();
         public SystemHealthStatus HealthStatus { get; set; } = new();
+
+        [BindProperty]
+        public SmsSettings SmsSettingsInput { get; set; } = new();
+
+        // Provider summary for the link card; editing happens on Settings/Provider.
+        public ProfileEditorState ProviderState { get; private set; } = new(null, null, null, null);
+
+        // The Scada_sms.bat copy Akara actually runs (PCIMUTIL folder).
+        public ScadaLinkStatus? ScadaLink { get; private set; }
 
         public async Task OnGetAsync()
         {
@@ -46,6 +70,11 @@ namespace SCADASMSSystem.Web.Pages.Settings
                 LoadSmsSettings();
                 await LoadHealthStatusAsync();
 
+                SmsSettingsInput = CurrentSmsSettings;
+                ScadaLink = DeliveryAlertService.CheckScadaLink(_configuration, _env);
+                ProviderState = new ProfileEditorState(CurrentSmsSettings.Profile, CurrentSmsSettings.DraftProfile,
+                    CurrentSmsSettings.Verification, CurrentSmsSettings.Activation);
+
                 _logger.LogInformation("Settings page loaded successfully");
             }
             catch (Exception ex)
@@ -53,6 +82,60 @@ namespace SCADASMSSystem.Web.Pages.Settings
                 _logger.LogError(ex, "Error loading settings");
                 TempData["ErrorMessage"] = "Error loading system settings. Please try again.";
             }
+        }
+
+        // Only these fields are edited here; the provider profile has its own page.
+        private static readonly string[] GeneralFields =
+        {
+            nameof(SmsSettings.RateLimit), nameof(SmsSettings.RateWindow), nameof(SmsSettings.DuplicateWindow),
+            nameof(SmsSettings.TimeoutSeconds), nameof(SmsSettings.RetryAttempts), nameof(SmsSettings.ScadaPcimObjectId),
+            nameof(SmsSettings.TestMode), nameof(SmsSettings.LogSoapXml),
+        };
+
+        public async Task<IActionResult> OnPostSaveSettingsAsync()
+        {
+            var s = SmsSettingsInput;
+            var errors = new List<string>();
+            if (s.RateLimit is < 1 or > 10000) errors.Add("Rate limit must be 1-10000.");
+            if (s.RateWindow is < 1 or > 86400) errors.Add("Rate window must be 1-86400 seconds.");
+            if (s.DuplicateWindow is < 0 or > 1440) errors.Add("Duplicate window must be 0-1440 minutes.");
+            if (s.TimeoutSeconds is < 3 or > 300) errors.Add("Timeout must be 3-300 seconds.");
+            if (s.RetryAttempts is < 0 or > 10) errors.Add("Retry attempts must be 0-10.");
+            if (s.ScadaPcimObjectId <= 0) errors.Add("PCIM Object ID must be a positive number.");
+            if (errors.Count > 0)
+            {
+                TempData["ErrorMessage"] = "Settings not saved: " + string.Join(" ", errors);
+                return RedirectToPage();
+            }
+
+            const string prefix = "SmsSettingsInput.";
+            var posted = Request.Form.Keys
+                .Where(k => k.StartsWith(prefix, StringComparison.Ordinal))
+                .Select(k => k.Substring(prefix.Length))
+                .Intersect(GeneralFields, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            try
+            {
+                string? changes = null;
+                await _settingsStore.UpdateSmsSettingsAsync(section =>
+                {
+                    var before = SmsSettingsMerge.ToSettings(section);
+                    SmsSettingsMerge.ApplyPostedFields(section, s, posted);
+                    changes = SettingsChangeSummary.DiffGeneral(before, SmsSettingsMerge.ToSettings(section), GeneralFields);
+                });
+                _logger.LogWarning("{User} saved general SMS settings (test mode {TestMode})", User.Identity?.Name, s.TestMode);
+                TempData["SuccessMessage"] = "Settings saved. Changes are active immediately.";
+
+                if (changes != null)
+                    await _history.RecordChangeAsync(SettingsAreas.General, SettingsActions.GeneralSaved, changes, User.Identity?.Name);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to save settings");
+                TempData["ErrorMessage"] = $"Failed to save settings: {ex.Message}";
+            }
+            return RedirectToPage();
         }
 
         public async Task<IActionResult> OnPostTestConnectionAsync()
@@ -127,7 +210,7 @@ namespace SCADASMSSystem.Web.Pages.Settings
         {
             try
             {
-                CurrentSmsSettings = _smsSettings.Value ?? new SmsSettings();
+                CurrentSmsSettings = _smsSettings.CurrentValue ?? new SmsSettings();
             }
             catch (Exception ex)
             {
@@ -142,12 +225,11 @@ namespace SCADASMSSystem.Web.Pages.Settings
             {
                 var users = await _userService.GetAllUsersAsync();
                 var groups = await _groupService.GetAllGroupsAsync();
-                var auditRecords = await _auditService.GetAuditHistoryAsync();
-
-                // Check recent audit records for health status
-                var recentAudits = auditRecords.Where(a => a.CreatedAt >= DateTime.Now.AddHours(-24));
-                var successRate = recentAudits.Any() ? 
-                    (double)recentAudits.Count(a => a.Status == "SUCCESS") / recentAudits.Count() * 100 : 100;
+                var recentAudits = await _auditService.GetRecentAuditHistoryAsync(24);
+                var auditList = recentAudits.ToList();
+                var successRate = auditList.Any()
+                    ? (double)auditList.Count(a => a.Status == "SUCCESS") / auditList.Count * 100
+                    : 100.0;
 
                 HealthStatus = new SystemHealthStatus
                 {
@@ -156,9 +238,9 @@ namespace SCADASMSSystem.Web.Pages.Settings
                     ActiveUsers = users.Count(u => u.SmsEnabled),
                     TotalGroups = groups.Count(),
                     ActiveGroups = groups.Count(g => g.GroupMembers?.Any() == true),
-                    RecentSmsCount = recentAudits.Count(),
+                    RecentSmsCount = auditList.Count,
                     SmsSuccessRate = successRate,
-                    LastSmsTime = auditRecords.OrderByDescending(a => a.CreatedAt).FirstOrDefault()?.CreatedAt,
+                    LastSmsTime = auditList.OrderByDescending(a => a.CreatedAt).FirstOrDefault()?.CreatedAt,
                     SystemHealth = successRate >= 95 ? "Excellent" : 
                                   successRate >= 80 ? "Good" : 
                                   successRate >= 60 ? "Fair" : "Poor"

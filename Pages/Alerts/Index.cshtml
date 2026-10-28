@@ -1,0 +1,144 @@
+@page
+@model SCADASMSSystem.Web.Pages.Alerts.IndexModel
+@using SCADASMSSystem.Web.Services
+@{
+    ViewData["Title"] = "Delivery Alerts";
+}
+
+@section Breadcrumb {
+<div class="breadcrumb-bar">
+    <div class="container-fluid px-4">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a asp-page="/Index"><i class="fas fa-home me-1"></i>Dashboard</a></li>
+                <li class="breadcrumb-item active">Delivery Alerts</li>
+            </ol>
+        </nav>
+    </div>
+</div>
+}
+
+<div class="container-fluid">
+    <div class="d-sm-flex align-items-center justify-content-between mb-4">
+        <h1 class="h3 mb-0 text-gray-800"><i class="fas fa-bell me-2"></i>Delivery Alerts</h1>
+    </div>
+
+    @if (TempData["SuccessMessage"] != null)
+    {
+        <span class="d-none" data-toast-success="@TempData["SuccessMessage"]"></span>
+    }
+
+    @if (!Model.Summary.NeedsAttention)
+    {
+        <div class="alert alert-success"><i class="fas fa-check-circle me-2"></i>Every critical alarm reached all its recipients, and every group has someone to receive alarms.</div>
+    }
+
+    @if (Model.Summary.Alarms.Count > 0)
+    {
+        <h2 class="h5 mt-4">Critical alarms not delivered to everyone</h2>
+        <p class="text-muted small">
+            <strong>Retrying</strong>: the service re-sends failed recipients from the spool.
+            <strong>Failed</strong>: retries stopped; someone must contact the recipients directly.
+            Acknowledging hides the alarm from the banner. It does not stop retries.
+        </p>
+        @foreach (var alarm in Model.Summary.Alarms)
+        {
+            var (badge, label) = alarm.State switch
+            {
+                AlarmRetryState.Retrying => ("bg-warning text-dark", "Retrying"),
+                AlarmRetryState.GaveUp => ("bg-danger", "Failed"),
+                _ => ("bg-danger", "Failed (not spooled)")
+            };
+            <div class="card mb-3 border-danger">
+                <div class="card-header d-flex flex-wrap align-items-center gap-2">
+                    <span class="badge @badge">@label</span>
+                    <code>@alarm.AlarmId</code>
+                    <span>Group @(alarm.GroupName ?? "?") (#@alarm.GroupId)</span>
+                    <span class="text-muted small ms-auto">@alarm.FirstSeen.ToString("yyyy-MM-dd HH:mm:ss")</span>
+                </div>
+                <div class="card-body">
+                    @if (!string.IsNullOrEmpty(alarm.Message))
+                    {
+                        <p class="mb-2"><strong>Message:</strong> @alarm.Message</p>
+                    }
+                    @if (alarm.Recipients.Count == 0)
+                    {
+                        <p class="text-danger mb-2">No delivery attempts recorded: the group had no eligible recipients, or the database was unreachable.</p>
+                    }
+                    else
+                    {
+                        <p class="mb-2">@alarm.Accepted of @alarm.Recipients.Count recipients accepted.</p>
+                        <table class="table table-sm mb-2">
+                            <thead><tr><th>Phone</th><th>Status</th><th>HTTP</th><th>Attempts</th><th>Provider response</th></tr></thead>
+                            <tbody>
+                            @foreach (var r in alarm.Recipients)
+                            {
+                                <tr class="@(r.Status == "SUCCESS" ? "" : "table-danger")">
+                                    <td><code>@r.MaskedPhone</code></td>
+                                    <td>@r.Status</td>
+                                    <td>@(r.ProviderStatusCode == 0 ? "-" : r.ProviderStatusCode.ToString())</td>
+                                    <td>@r.Attempts</td>
+                                    <td class="small">@r.ProviderMessage</td>
+                                </tr>
+                            }
+                            </tbody>
+                        </table>
+                    }
+                    <form method="post" asp-page-handler="Acknowledge" class="d-flex gap-2">
+                        <input type="hidden" name="alarmId" value="@alarm.AlarmId" />
+                        <input type="text" name="note" class="form-control form-control-sm" maxlength="500" placeholder="Note, e.g. 'called on-call engineer'" />
+                        <button type="submit" class="btn btn-sm btn-outline-danger text-nowrap">Acknowledge</button>
+                    </form>
+                </div>
+            </div>
+        }
+    }
+
+    @if (Model.Summary.BadSpoolFiles.Count > 0)
+    {
+        <h2 class="h5 mt-4">Unreadable spool files</h2>
+        <p class="text-muted small">These alarms reached the server but could not be read, so they were never sent. Files are in the <code>spool\bad</code> folder.</p>
+        <ul>
+            @foreach (var f in Model.Summary.BadSpoolFiles)
+            {
+                <li><code>@f</code></li>
+            }
+        </ul>
+    }
+
+    @if (Model.Summary.ProfileErrors.Count > 0)
+    {
+        <h2 class="h5 mt-4 text-danger">SMS provider configuration errors</h2>
+        <p class="text-muted small">No alarm can be sent until these are fixed in Settings.</p>
+        <ul>
+            @foreach (var e in Model.Summary.ProfileErrors)
+            {
+                <li>@e</li>
+            }
+        </ul>
+    }
+
+    @if (Model.Summary.InvalidPhones.Count > 0)
+    {
+        <h2 class="h5 mt-4">Users with an invalid phone number</h2>
+        <p class="text-muted small">These users have SMS enabled, but their number does not have 7-15 digits, so the provider cannot deliver to them.</p>
+        <ul>
+            @foreach (var u in Model.Summary.InvalidPhones)
+            {
+                <li><a asp-page="/Users/Edit" asp-route-id="@u.UserId">@u.UserName</a> &mdash; <code>@u.PhoneNumber</code></li>
+            }
+        </ul>
+    }
+
+    @if (Model.Summary.EmptyGroups.Count > 0)
+    {
+        <h2 class="h5 mt-4">Groups with no eligible recipients right now</h2>
+        <p class="text-muted small">Members may be missing, have SMS turned off, or be excluded by today's holiday rule.</p>
+        <ul>
+            @foreach (var g in Model.Summary.EmptyGroups)
+            {
+                <li><a asp-page="/Groups/Edit" asp-route-id="@g.GroupId">@g.GroupName (#@g.GroupId)</a></li>
+            }
+        </ul>
+    }
+</div>

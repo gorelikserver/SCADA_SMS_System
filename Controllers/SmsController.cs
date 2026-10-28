@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SCADASMSSystem.Web.Services;
 using System.ComponentModel.DataAnnotations;
@@ -6,14 +7,19 @@ namespace SCADASMSSystem.Web.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
+    [AllowAnonymous] // called by Scada_sms.bat / the app itself, never by a signed-in browser
     public class SmsController : ControllerBase
     {
         private readonly SmsBackgroundService _smsBackgroundService;
+        private readonly ISmsService _smsService;
+        private readonly IAlertNotifier _alertNotifier;
         private readonly ILogger<SmsController> _logger;
 
-        public SmsController(SmsBackgroundService smsBackgroundService, ILogger<SmsController> logger)
+        public SmsController(SmsBackgroundService smsBackgroundService, ISmsService smsService, IAlertNotifier alertNotifier, ILogger<SmsController> logger)
         {
             _smsBackgroundService = smsBackgroundService;
+            _smsService = smsService;
+            _alertNotifier = alertNotifier;
             _logger = logger;
         }
 
@@ -27,22 +33,43 @@ namespace SCADASMSSystem.Web.Controllers
                     return BadRequest(ModelState);
                 }
 
-                var success = await _smsBackgroundService.QueueSmsMessageAsync(
-                    request.Message, 
-                    request.GroupId, 
-                    request.AlarmId ?? Guid.NewGuid().ToString(), 
-                    request.Priority ?? "normal");
+                if (string.IsNullOrWhiteSpace(request.AlarmId))
+                {
+                    return BadRequest(new
+                    {
+                        success = false,
+                        message = "AlarmId is required for critical delivery and must remain stable across retries"
+                    });
+                }
 
-                if (success)
+                var alarmId = request.AlarmId;
+                var result = await _smsService.SendCriticalSmsToGroupAsync(
+                    request.Message,
+                    request.GroupId,
+                    alarmId,
+                    request.Priority ?? "normal",
+                    request.Value,
+                    CancellationToken.None);
+
+                var response = new
                 {
-                    _logger.LogInformation("SMS queued successfully for group {GroupId}", request.GroupId);
-                    return Ok(new { success = true, message = "SMS queued successfully" });
-                }
-                else
+                    success = result.Success,
+                    alarm_id = result.AlarmId,
+                    recipients = result.RecipientCount,
+                    accepted = result.AcceptedCount,
+                    failed = result.FailedCount,
+                    deliveries = result.Recipients
+                };
+
+                if (result.Success)
                 {
-                    _logger.LogWarning("Failed to queue SMS for group {GroupId}", request.GroupId);
-                    return BadRequest(new { success = false, message = "Failed to queue SMS" });
+                    _logger.LogInformation("Critical alarm {AlarmId} accepted for all {RecipientCount} recipients", alarmId, result.RecipientCount);
+                    return Ok(response);
                 }
+
+                _logger.LogError("Critical alarm {AlarmId} failed or partially failed: {Accepted}/{RecipientCount} accepted", alarmId, result.AcceptedCount, result.RecipientCount);
+                _alertNotifier.DeliveryIncomplete(alarmId, request.GroupId, result.AcceptedCount, result.RecipientCount);
+                return StatusCode(StatusCodes.Status502BadGateway, response);
             }
             catch (Exception ex)
             {
@@ -159,14 +186,27 @@ namespace SCADASMSSystem.Web.Controllers
         [HttpPost("")]  // Root endpoint for compatibility with Python service
         public async Task<IActionResult> QueueMessage([FromBody] SmsRequest request)
         {
-            // This matches the Python service endpoint structure
-            return await SendSms(request);
+            if (!ModelState.IsValid)
+                return BadRequest(ModelState);
+
+            var success = await _smsBackgroundService.QueueSmsMessageAsync(
+                request.Message,
+                request.GroupId,
+                request.AlarmId ?? $"QUEUE-{Guid.NewGuid():N}",
+                request.Priority ?? "normal",
+                request.Value);
+
+            return success
+                ? Accepted(new { success = true, message = "SMS queued successfully" })
+                : StatusCode(StatusCodes.Status503ServiceUnavailable,
+                    new { success = false, message = "Failed to queue SMS" });
         }
     }
 
     // Legacy controller for root-level endpoints (Python compatibility)
     [ApiController]
     [Route("")]
+    [AllowAnonymous] // called by Scada_sms.bat / the app itself, never by a signed-in browser
     public class LegacySmsController : ControllerBase
     {
         private readonly SmsBackgroundService _smsBackgroundService;
@@ -192,7 +232,8 @@ namespace SCADASMSSystem.Web.Controllers
                     request.Message, 
                     request.GroupId, 
                     request.AlarmId ?? Guid.NewGuid().ToString(), 
-                    request.Priority ?? "normal");
+                    request.Priority ?? "normal",
+                    request.Value);
 
                 if (success)
                 {
@@ -252,6 +293,10 @@ namespace SCADASMSSystem.Web.Controllers
 
         [RegularExpression("^(normal|urgent|critical)$", ErrorMessage = "Priority must be normal, urgent, or critical")]
         public string? Priority { get; set; } = "normal";
+
+        // Optional measurement value forwarded by SCADA (e.g. tag reading at the time of the alarm).
+        // Available as the {Value} / value dynamic placeholder in REST and SOAP body templates.
+        public string? Value { get; set; }
     }
 
     public class SmsTestRequest
