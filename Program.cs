@@ -7,6 +7,8 @@ using SCADASMSSystem.Web.Models;
 using Serilog;
 using Serilog.Events;
 using System.IO;
+using System.Globalization;
+using Microsoft.AspNetCore.Localization;
 
 // Set content root to application directory when running as Windows Service
 var pathToExe = Environment.ProcessPath;
@@ -127,6 +129,19 @@ try
             options.Conventions.AuthorizeFolder(folder, AdminPolicy);
         options.Conventions.AuthorizePage("/Account/Manage", AdminPolicy);
         options.Conventions.AllowAnonymousToPage("/Error");
+        options.Conventions.AllowAnonymousToPage("/Language");
+    });
+    builder.Services.AddSingleton<IUiLocalizer, UiLocalizer>();
+    builder.Services.Configure<RequestLocalizationOptions>(options =>
+    {
+        var cultures = new[] { new CultureInfo("en"), new CultureInfo("he-IL") };
+        options.DefaultRequestCulture = new RequestCulture("en");
+        options.SupportedCultures = cultures;
+        options.SupportedUICultures = cultures;
+        options.RequestCultureProviders = new IRequestCultureProvider[]
+        {
+            new CookieRequestCultureProvider()
+        };
     });
 
     // Local accounts (air-gapped sites have no identity provider). Every page needs a sign-in;
@@ -351,6 +366,7 @@ try
         });
     }
 
+    app.UseRequestLocalization();
     app.UseRouting();
 
     app.UseAuthentication();

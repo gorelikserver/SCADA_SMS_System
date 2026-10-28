@@ -516,3 +516,30 @@ label.required::after {
 .error-panel h1 { margin:1rem 0 .5rem; font-size:1.5rem; }
 .error-panel p { color:var(--ab-muted); }
 .request-id code { color:#245a70; background:#edf4f6; }
+
+/* Bilingual shell and right-to-left layout */
+.language-switcher { position:fixed; right:1rem; bottom:1rem; z-index:1040; display:flex; align-items:center; gap:.4rem; padding:.4rem .6rem; border:1px solid var(--ab-line); border-radius:999px; background:rgba(255,255,255,.96); box-shadow:0 8px 24px rgba(22,49,57,.12); font-size:.72rem; }
+.language-switcher a { color:var(--ab-muted); font-weight:650; text-decoration:none; }
+.language-switcher a.active { color:var(--ab-primary); }
+
+html[dir="rtl"] body { direction:rtl; text-align:right; }
+html[dir="rtl"] .language-switcher { right:auto; left:1rem; }
+html[dir="rtl"] .navbar-nav.me-auto { margin-right:0 !important; margin-left:auto !important; }
+html[dir="rtl"] .dropdown-menu-end { --bs-position:end; left:0; right:auto; }
+html[dir="rtl"] .text-end { text-align:left !important; }
+html[dir="rtl"] .text-start { text-align:right !important; }
+html[dir="rtl"] .me-1 { margin-right:0 !important; margin-left:.25rem !important; }
+html[dir="rtl"] .me-2 { margin-right:0 !important; margin-left:.5rem !important; }
+html[dir="rtl"] .me-3 { margin-right:0 !important; margin-left:1rem !important; }
+html[dir="rtl"] .ms-1 { margin-left:0 !important; margin-right:.25rem !important; }
+html[dir="rtl"] .ms-2 { margin-left:0 !important; margin-right:.5rem !important; }
+html[dir="rtl"] .ms-3 { margin-left:0 !important; margin-right:1rem !important; }
+html[dir="rtl"] .breadcrumb-item + .breadcrumb-item { padding-left:0; padding-right:var(--bs-breadcrumb-item-padding-x); }
+html[dir="rtl"] .breadcrumb-item + .breadcrumb-item::before { float:right; padding-right:0; padding-left:var(--bs-breadcrumb-item-padding-x); }
+html[dir="rtl"] .form-check { padding-left:0; padding-right:1.5em; }
+html[dir="rtl"] .form-check .form-check-input { float:right; margin-left:0; margin-right:-1.5em; }
+html[dir="rtl"] .input-group > :not(:first-child) { margin-left:0; margin-right:-1px; }
+html[dir="rtl"] .input-group > :first-child { border-radius:0 var(--bs-border-radius) var(--bs-border-radius) 0; }
+html[dir="rtl"] .input-group > :last-child { border-radius:var(--bs-border-radius) 0 0 var(--bs-border-radius); }
+html[dir="rtl"] code,html[dir="rtl"] .font-monospace,html[dir="rtl"] input[type="tel"],html[dir="rtl"] input[type="email"] { direction:ltr; text-align:left; }
+html[dir="rtl"] [dir="auto"] { text-align:start; }

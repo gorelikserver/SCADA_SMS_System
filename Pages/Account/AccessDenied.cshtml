@@ -1,12 +1,12 @@
 @page
 @{
-    ViewData["Title"] = "Access denied";
+    ViewData["Title"] = T["Access denied"];
 }
 
 <div class="container mt-5 auth-workspace access-denied-panel">
     <div class="alert alert-warning">
-        <h1 class="h5"><i class="fas fa-ban me-2"></i>Access denied</h1>
+        <h1 class="h5"><i class="fas fa-ban me-2"></i>@T["Access denied"]</h1>
         <p class="mb-0">Your account (@User.Identity?.Name) can view operational status, delivery alerts, and history. Ask an administrator to change configuration, recipients, notification teams, or routing rules.</p>
     </div>
-    <a asp-page="/Index" class="btn btn-outline-primary">Back to overview</a>
+    <a asp-page="/Index" class="btn btn-outline-primary">@T["Back to overview"]</a>
 </div>

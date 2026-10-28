@@ -1,9 +1,9 @@
 ﻿<!DOCTYPE html>
-<html lang="en">
+<html lang="@(T.IsHebrew ? "he" : "en")" dir="@(T.IsHebrew ? "rtl" : "ltr")">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>@ViewData["Title"] - AlarmBridge</title>
+    <title>@T[ViewData["Title"]?.ToString() ?? "AlarmBridge"] - AlarmBridge</title>
     
     <!-- Favicon -->
     <link rel="icon" type="image/x-icon" href="~/favicon.ico">
@@ -27,6 +27,7 @@
     string _navCls(string prefix) => _isActive(prefix) ? "nav-link active" : "nav-link";
     var _signedIn = User.Identity?.IsAuthenticated == true;
     var _isAdmin = User.IsInRole(SCADASMSSystem.Web.Models.AccountRoles.Admin);
+    var _returnUrl = Context.Request.Path + Context.Request.QueryString;
 }
 <body>
     <header>
@@ -34,7 +35,7 @@
             <div class="container-fluid px-4">
                 <a class="navbar-brand" asp-area="" asp-page="/Index">
                     <span class="brand-mark" aria-hidden="true"><i class="fas fa-tower-broadcast"></i></span>
-                    <span class="brand-copy"><strong>AlarmBridge</strong><small>SCADA notification gateway</small></span>
+                    <span class="brand-copy"><strong>AlarmBridge</strong><small>@T["SCADA notification gateway"]</small></span>
                 </a>
                 <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNavbar"
                         aria-controls="mainNavbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -46,64 +47,64 @@
                     <ul class="navbar-nav me-auto">
                         <li class="nav-item">
                             <a class="@_navCls("/")" asp-area="" asp-page="/Index">
-                                <i class="fas fa-gauge-high me-1"></i>Overview
+                                <i class="fas fa-gauge-high me-1"></i>@T["Overview"]
                             </a>
                         </li>
                         <li class="nav-item">
                             <a class="@_navCls("/Alerts")" asp-area="" asp-page="/Alerts/Index">
-                                <i class="fas fa-triangle-exclamation me-1"></i>Delivery Alerts
+                                <i class="fas fa-triangle-exclamation me-1"></i>@T["Delivery Alerts"]
                             </a>
                         </li>
                         <li class="nav-item">
                             <a class="@_navCls("/Audit")" asp-area="" asp-page="/Audit/Index">
-                                <i class="fas fa-clock-rotate-left me-1"></i>Delivery History
+                                <i class="fas fa-clock-rotate-left me-1"></i>@T["Delivery History"]
                             </a>
                         </li>
                         @if (_isAdmin)
                         {
                             <li class="nav-item">
                                 <a class="@_navCls("/Users")" asp-area="" asp-page="/Users/Index">
-                                    <i class="fas fa-address-book me-1"></i>Recipients
+                                    <i class="fas fa-address-book me-1"></i>@T["Recipients"]
                                 </a>
                             </li>
                             <li class="nav-item">
                                 <a class="@_navCls("/Groups")" asp-area="" asp-page="/Groups/Index">
-                                    <i class="fas fa-people-group me-1"></i>Notification Teams
+                                    <i class="fas fa-people-group me-1"></i>@T["Notification Teams"]
                                 </a>
                             </li>
                             <li class="nav-item">
                                 <a class="@_navCls("/Alarms")" asp-area="" asp-page="/Alarms/ManageGroups">
-                                    <i class="fas fa-route me-1"></i>Routing Rules
+                                    <i class="fas fa-route me-1"></i>@T["Routing Rules"]
                                 </a>
                             </li>
                         }
                         <li class="nav-item dropdown">
                             <a class="nav-link dropdown-toggle @(_isActive("/Settings")||_isActive("/Test")||_isActive("/Calendar")||_isActive("/About")||_isActive("/Help") ? "active" : "")"
                                href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                                <i class="fas fa-sliders me-1"></i>System
+                                <i class="fas fa-sliders me-1"></i>@T["System"]
                             </a>
                             <ul class="dropdown-menu shadow-sm border-0">
                                 @if (_isAdmin)
                                 {
-                                    <li><h6 class="dropdown-header">Configuration</h6></li>
-                                    <li><a class="dropdown-item @(_isActive("/Settings") ? "active" : "")" asp-page="/Settings/Index"><i class="fas fa-plug me-2 text-muted"></i>Integrations &amp; settings</a></li>
-                                    <li><a class="dropdown-item @(_isActive("/Test") ? "active" : "")" asp-page="/Test/Sms"><i class="fas fa-vial me-2 text-muted"></i>Delivery test</a></li>
+                                    <li><h6 class="dropdown-header">@T["Configuration"]</h6></li>
+                                    <li><a class="dropdown-item @(_isActive("/Settings") ? "active" : "")" asp-page="/Settings/Index"><i class="fas fa-plug me-2 text-muted"></i>@T["Integrations & settings"]</a></li>
+                                    <li><a class="dropdown-item @(_isActive("/Test") ? "active" : "")" asp-page="/Test/Sms"><i class="fas fa-vial me-2 text-muted"></i>@T["Delivery test"]</a></li>
                                     <li><hr class="dropdown-divider"></li>
                                 }
                                 <li>
                                     <a class="dropdown-item @(_isActive("/Calendar") ? "active" : "")" asp-area="" asp-page="/Calendar/Index">
-                                        <i class="fas fa-calendar-alt me-2 text-muted"></i>Schedules &amp; holidays
+                                        <i class="fas fa-calendar-alt me-2 text-muted"></i>@T["Schedules & holidays"]
                                     </a>
                                 </li>
                                 <li>
                                     <a class="dropdown-item @(_isActive("/Help") ? "active" : "")" asp-area="" asp-page="/Help/Integration">
-                                        <i class="fas fa-book me-2 text-muted"></i>Integration guide
+                                        <i class="fas fa-book me-2 text-muted"></i>@T["Integration guide"]
                                     </a>
                                 </li>
                                 <li><hr class="dropdown-divider"></li>
                                 <li>
                                     <a class="dropdown-item @(_isActive("/About") ? "active" : "")" asp-area="" asp-page="/About">
-                                        <i class="fas fa-info-circle me-2 text-muted"></i>About
+                                        <i class="fas fa-info-circle me-2 text-muted"></i>@T["About"]
                                     </a>
                                 </li>
                             </ul>
@@ -127,18 +128,18 @@
                         <li class="nav-item dropdown">
                             <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                                 <i class="fas fa-user-circle me-1"></i>@User.Identity!.Name
-                                <span class="badge bg-light text-muted border ms-1">@(_isAdmin ? "Admin" : "Viewer")</span>
+                                <span class="badge bg-light text-muted border ms-1">@(T[_isAdmin ? "Admin" : "Viewer"])</span>
                             </a>
                             <ul class="dropdown-menu dropdown-menu-end shadow-sm border-0">
-                                <li><a class="dropdown-item" asp-page="/Account/Password"><i class="fas fa-key me-2 text-muted"></i>Change password</a></li>
+                                <li><a class="dropdown-item" asp-page="/Account/Password"><i class="fas fa-key me-2 text-muted"></i>@T["Change password"]</a></li>
                                 @if (_isAdmin)
                                 {
-                                    <li><a class="dropdown-item" asp-page="/Account/Manage"><i class="fas fa-user-shield me-2 text-muted"></i>Accounts</a></li>
+                                    <li><a class="dropdown-item" asp-page="/Account/Manage"><i class="fas fa-user-shield me-2 text-muted"></i>@T["Accounts"]</a></li>
                                 }
                                 <li><hr class="dropdown-divider"></li>
                                 <li>
                                     <form method="post" asp-page="/Account/Login" asp-page-handler="Logout" class="px-3">
-                                        <button type="submit" class="btn btn-sm btn-outline-secondary w-100"><i class="fas fa-sign-out-alt me-1"></i>Sign out</button>
+                                        <button type="submit" class="btn btn-sm btn-outline-secondary w-100"><i class="fas fa-sign-out-alt me-1"></i>@T["Sign out"]</button>
                                     </form>
                                 </li>
                             </ul>
@@ -170,9 +171,9 @@
                     </div>
                 </div>
                 <div class="col-md-6 text-end">
-                    <a asp-area="" asp-page="/About" class="text-decoration-none">About</a>
+                    <a asp-area="" asp-page="/About" class="text-decoration-none">@T["About"]</a>
                     <span class="mx-2">•</span>
-                    <a href="/health" class="text-decoration-none" target="_blank">System Status</a>
+                    <a href="/health" class="text-decoration-none" target="_blank">@T["System Status"]</a>
                 </div>
             </div>
         </div>
@@ -187,20 +188,26 @@
             <div class="modal-content border-0 shadow-lg">
                 <div class="modal-header border-0 pb-0">
                     <h5 class="modal-title fw-bold text-danger" id="confirmModalTitle"></h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="@T["Close"]"></button>
                 </div>
                 <div class="modal-body text-muted" id="confirmModalBody"></div>
                 <div class="modal-footer border-0 pt-0">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
-                        <i class="fas fa-times me-1"></i>Cancel
+                        <i class="fas fa-times me-1"></i>@T["Cancel"]
                     </button>
                     <button type="button" class="btn btn-danger" id="confirmModalOk">
-                        <i class="fas fa-trash me-1"></i>Delete
+                        <i class="fas fa-trash me-1"></i>@T["Delete"]
                     </button>
                 </div>
             </div>
         </div>
     </div>
+
+    <nav class="language-switcher" aria-label="Language">
+        <a asp-page="/Language" asp-route-culture="en" asp-route-returnUrl="@_returnUrl" class="@(!T.IsHebrew ? "active" : null)" lang="en">English</a>
+        <span aria-hidden="true">/</span>
+        <a asp-page="/Language" asp-route-culture="he-IL" asp-route-returnUrl="@_returnUrl" class="@(T.IsHebrew ? "active" : null)" lang="he">עברית</a>
+    </nav>
 
     <script src="~/lib/jquery/dist/jquery.min.js"></script>
     <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
