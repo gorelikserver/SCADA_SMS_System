@@ -71,6 +71,14 @@ try
         ContentRootPath = pathToContentRoot
     });
 
+    // Local runs use the executable directory as the content root, just like the Windows
+    // service. Enable the build-time static assets manifest so generated scoped CSS remains
+    // available outside the built-in Development environment. Published output is self-contained.
+    if (!builder.Environment.IsProduction())
+    {
+        builder.WebHost.UseStaticWebAssets();
+    }
+
     // UI-edited settings override appsettings*.json; environment variables and the command line
     // still override everything.
     {
