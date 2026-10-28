@@ -13,8 +13,8 @@
     <div class="container-fluid px-4">
         <nav aria-label="breadcrumb">
             <ol class="breadcrumb">
-                <li class="breadcrumb-item"><a asp-page="/Index"><i class="fas fa-home me-1"></i>Dashboard</a></li>
-                <li class="breadcrumb-item"><a asp-page="/Settings/Index">Settings</a></li>
+                <li class="breadcrumb-item"><a asp-page="/Index"><i class="fas fa-home me-1"></i>Overview</a></li>
+                <li class="breadcrumb-item"><a asp-page="/Settings/Index">Configuration</a></li>
                 <li class="breadcrumb-item active">SMS Provider</li>
             </ol>
         </nav>
@@ -29,12 +29,12 @@
     .pv-steps .badge { font-size: .75rem; }
 </style>
 
-<div class="container-fluid" x-data="providerEditor()" x-init="init()">
+<div class="container-fluid admin-workspace" x-data="providerEditor()" x-init="init()">
     <div class="d-sm-flex align-items-center justify-content-between mb-3">
         <h1 class="h3 mb-0 text-gray-800"><i class="fas fa-plug me-2"></i>SMS Provider</h1>
         <div class="d-flex gap-2">
             <a asp-page="/Settings/History" class="btn btn-sm btn-outline-secondary"><i class="fas fa-history me-1"></i>History &amp; rollback</a>
-            <a asp-page="/Settings/Index" class="btn btn-sm btn-outline-secondary"><i class="fas fa-arrow-left me-1"></i>Settings</a>
+            <a asp-page="/Settings/Index" class="btn btn-sm btn-outline-secondary"><i class="fas fa-arrow-left me-1"></i>Configuration</a>
         </div>
     </div>
 

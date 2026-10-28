@@ -1,24 +1,26 @@
 @page
 @model SCADASMSSystem.Web.Pages.Audit.IndexModel
 @{
-    ViewData["Title"] = "SMS Audit History";
+    ViewData["Title"] = "Delivery History";
 }
 
-<div class="container-fluid">
-    <!-- Page Heading -->
-    <div class="d-sm-flex align-items-center justify-content-between mb-4">
-        <h1 class="h3 mb-0 text-gray-800">
-            <i class="fas fa-history me-2"></i>SMS Audit History
-        </h1>
+<div class="delivery-history">
+    <header class="overview-heading">
+        <div>
+            <p class="overview-kicker">Operations</p>
+            <h1>Delivery history</h1>
+            <p>Trace every recipient attempt, provider outcome, and SCADA alarm correlation.</p>
+        </div>
         <div class="d-flex gap-2">
             <form method="post" asp-page-handler="Cleanup" id="cleanupForm">
-                <button type="button" class="btn btn-sm btn-warning shadow-sm" id="cleanupBtn"
+                <button type="button" class="btn btn-outline-secondary" id="cleanupBtn"
                         onclick="confirmCleanup()">
-                    <i class="fas fa-broom fa-sm text-white-50"></i> Cleanup Old Records
+                    <i class="fas fa-broom me-1"></i>Clean up old records
                 </button>
             </form>
+            <button type="button" class="btn btn-primary" id="exportBtn" onclick="exportAuditToCSV()"><i class="fas fa-download me-1"></i>Export CSV</button>
         </div>
-    </div>
+    </header>
 
     <!-- Toast triggers from server messages -->
     @if (TempData["SuccessMessage"] != null)
@@ -31,13 +33,13 @@
     }
 
     <!-- Advanced Filters Card -->
-    <div class="card shadow mb-4">
-        <div class="card-header card-header-gradient py-3">
-            <h6 class="m-0 fw-bold">
-                <i class="fas fa-filter me-2"></i>Advanced Filters
-            </h6>
+    <section class="history-filter-panel">
+        <div class="panel-heading">
+            <div><p class="panel-eyebrow">Find deliveries</p><h2>Filters</h2></div>
+            @if (!string.IsNullOrWhiteSpace(Model.SearchTerm) || Model.StartDate.HasValue || Model.EndDate.HasValue || !string.IsNullOrWhiteSpace(Model.StatusFilter) || Model.UserIdFilter.HasValue || Model.GroupIdFilter.HasValue)
+            { <span class="active-filter-indicator"><i class="fas fa-filter"></i>Filters active</span> }
         </div>
-        <div class="card-body">
+        <div class="history-filter-body">
             <form method="get" class="row g-3">
                 <div class="col-md-2">
                     <label class="form-label">Start Date</label>
@@ -59,9 +61,9 @@
                     </select>
                 </div>
                 <div class="col-md-2">
-                    <label class="form-label">User</label>
+                    <label class="form-label">Recipient</label>
                     <select name="userIdFilter" class="form-select">
-                        <option value="">All Users</option>
+                        <option value="">All recipients</option>
                         @foreach (var user in Model.AvailableUsers)
                         {
                             <option value="@user.UserId" selected="@(Model.UserIdFilter == user.UserId)">@user.UserName</option>
@@ -69,9 +71,9 @@
                     </select>
                 </div>
                 <div class="col-md-2">
-                    <label class="form-label">Group</label>
+                    <label class="form-label">Notification team</label>
                     <select name="groupIdFilter" class="form-select">
-                        <option value="">All Groups</option>
+                        <option value="">All teams</option>
                         @foreach (var group in Model.AvailableGroups)
                         {
                             <option value="@group.GroupId" selected="@(Model.GroupIdFilter == group.GroupId)">@group.GroupName</option>
@@ -91,10 +93,6 @@
                     <a href="/Audit" class="btn btn-outline-secondary me-2">
                         <i class="fas fa-times"></i> Clear
                     </a>
-                    <button type="button" class="btn btn-outline-success" id="exportBtn"
-                            onclick="exportAuditToCSV()">
-                        <i class="fas fa-download"></i> Export
-                    </button>
                 </div>
             </form>
             
@@ -127,99 +125,23 @@
                 </div>
             </div>
         </div>
-    </div>
+    </section>
 
     <!-- Audit Statistics Row -->
-    <div class="row mb-4">
-        <div class="col-xl-3 col-md-6 mb-4">
-            <div class="card border-left-primary shadow h-100 py-2">
-                <div class="card-body">
-                    <div class="row no-gutters align-items-center">
-                        <div class="col mr-2">
-                            <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
-                                Total SMS Sent
-                            </div>
-                            <div class="h5 mb-0 font-weight-bold text-gray-800">
-                                @Model.TotalRecords
-                            </div>
-                        </div>
-                        <div class="col-auto">
-                            <i class="fas fa-paper-plane fa-2x text-gray-300"></i>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-xl-3 col-md-6 mb-4">
-            <div class="card border-left-success shadow h-100 py-2">
-                <div class="card-body">
-                    <div class="row no-gutters align-items-center">
-                        <div class="col mr-2">
-                            <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
-                                Successful
-                            </div>
-                            <div class="h5 mb-0 font-weight-bold text-gray-800">
-                                @Model.AllFilteredRecords.Count(a => a.Audit.Status == "SUCCESS")
-                            </div>
-                        </div>
-                        <div class="col-auto">
-                            <i class="fas fa-check-circle fa-2x text-gray-300"></i>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-xl-3 col-md-6 mb-4">
-            <div class="card border-left-danger shadow h-100 py-2">
-                <div class="card-body">
-                    <div class="row no-gutters align-items-center">
-                        <div class="col mr-2">
-                            <div class="text-xs font-weight-bold text-danger text-uppercase mb-1">
-                                Failed
-                            </div>
-                            <div class="h5 mb-0 font-weight-bold text-gray-800">
-                                @Model.AllFilteredRecords.Count(a => a.Audit.Status == "FAILED")
-                            </div>
-                        </div>
-                        <div class="col-auto">
-                            <i class="fas fa-times-circle fa-2x text-gray-300"></i>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-xl-3 col-md-6 mb-4">
-            <div class="card border-left-info shadow h-100 py-2">
-                <div class="card-body">
-                    <div class="row no-gutters align-items-center">
-                        <div class="col mr-2">
-                            <div class="text-xs font-weight-bold text-info text-uppercase mb-1">
-                                Success Rate
-                            </div>
-                            <div class="h5 mb-0 font-weight-bold text-gray-800">
-                                @{
-                                    var total = Model.TotalRecords;
-                                    var successful = Model.AllFilteredRecords.Count(a => a.Audit.Status == "SUCCESS");
-                                    var successRate = total > 0 ? (successful * 100 / total) : 0;
-                                }
-                                @successRate%
-                            </div>
-                        </div>
-                        <div class="col-auto">
-                            <i class="fas fa-chart-pie fa-2x text-gray-300"></i>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
+    @{ var successful = Model.AllFilteredRecords.Count(a => a.Audit.Status == "SUCCESS"); var failed = Model.AllFilteredRecords.Count(a => a.Audit.Status == "FAILED"); var pending = Model.AllFilteredRecords.Count(a => a.Audit.Status == "PENDING"); var successRate = Model.TotalRecords > 0 ? successful * 100 / Model.TotalRecords : 0; }
+    <section class="history-metrics" aria-label="Filtered delivery summary">
+        <div><span>Total attempts</span><strong>@Model.TotalRecords</strong><small>Matching current filters</small></div>
+        <div class="is-success"><span>Provider accepted</span><strong>@successful</strong><small>@successRate% acceptance rate</small></div>
+        <div class="is-failed"><span>Failed</span><strong>@failed</strong><small>Requires investigation</small></div>
+        <div class="is-pending"><span>Pending</span><strong>@pending</strong><small>Awaiting an outcome</small></div>
+    </section>
 
     <!-- Audit Records Table -->
-    <div class="card shadow mb-4">
+    <div class="card history-table-panel mb-4">
         <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
             <h6 class="m-0 font-weight-bold text-primary">
-                <i class="fas fa-table me-2"></i>SMS Audit Records 
-                <span class="badge bg-info">@Model.TotalRecords Total</span>
+                Delivery attempts
+                <span class="badge bg-light text-dark border">@Model.TotalRecords records</span>
                 @if (Model.TotalPages > 1)
                 {
                     <span class="text-muted">| Page @Model.PageNumber of @Model.TotalPages</span>
@@ -267,7 +189,7 @@
         </div>
         <div class="card-body">
             <div class="table-responsive">
-                <table class="table table-bordered table-hover" id="auditTable" width="100%" cellspacing="0">
+                <table class="table table-hover history-table" id="auditTable" width="100%" cellspacing="0">
                     <thead class="table-light">
                         <tr>
                             <!-- ? Sortable Column Headers -->
@@ -291,13 +213,13 @@
                             </th>
                             <th class="sortable-header" onclick="location.href='@Model.GetSortUrl("User")'">
                                 <div class="d-flex justify-content-between align-items-center">
-                                    <span>User</span>
+                                    <span>Recipient</span>
                                     <i class="@Model.GetSortIcon("User")"></i>
                                 </div>
                             </th>
                             <th class="sortable-header" onclick="location.href='@Model.GetSortUrl("Group")'">
                                 <div class="d-flex justify-content-between align-items-center">
-                                    <span>Group</span>
+                                    <span>Team</span>
                                     <i class="@Model.GetSortIcon("Group")"></i>
                                 </div>
                             </th>
@@ -324,7 +246,7 @@
                     <tbody>
                         @foreach (var record in Model.AuditRecords)
                         {
-                            <tr class="@(record.Audit.Status == "FAILED" ? "table-danger" : record.Audit.Status == "SUCCESS" ? "table-success" : "")">
+                            <tr class="delivery-row status-@record.Audit.Status.ToLowerInvariant()">
                                 <td>
                                     <div class="small">
                                         <strong>@record.Audit.CreatedAt.ToString("dd/MM/yyyy")</strong>
@@ -333,10 +255,10 @@
                                     </div>
                                 </td>
                                 <td>
-                                    <span class="badge badge-info">@record.Audit.AlarmId</span>
+                                    <code class="alarm-id">@record.Audit.AlarmId</code>
                                 </td>
                                 <td>
-                                    <div class="text-truncate" style="max-width: 250px;" title="@record.Audit.AlarmDescription">
+                                    <div class="delivery-description" dir="auto" title="@record.Audit.AlarmDescription">
                                         @record.Audit.AlarmDescription
                                     </div>
                                 </td>
@@ -348,7 +270,7 @@
                                 <td>
                                     @if (!string.IsNullOrEmpty(record.GroupName) && record.GroupName != "No Group")
                                     {
-                                        <span class="badge badge-primary">@record.GroupName</span>
+                                        <span class="team-label" dir="auto">@record.GroupName</span>
                                     }
                                     else
                                     {
@@ -361,11 +283,11 @@
                                     </a>
                                 </td>
                                 <td>
-                                    <span class="badge @(record.Audit.Status switch {
-                                        "SUCCESS" => "badge-success",
-                                        "FAILED" => "badge-danger", 
-                                        "PENDING" => "badge-warning",
-                                        _ => "badge-secondary"
+                                    <span class="delivery-state @(record.Audit.Status switch {
+                                        "SUCCESS" => "state-good",
+                                        "FAILED" => "state-danger",
+                                        "PENDING" => "state-warning",
+                                        _ => ""
                                     })">
                                         <i class="fas @(record.Audit.Status switch {
                                             "SUCCESS" => "fa-check",
@@ -379,7 +301,7 @@
                                 <td>
                                     @if (!string.IsNullOrEmpty(record.Audit.MessageStatus))
                                     {
-                                        <div class="text-truncate" style="max-width: 200px;" title="@record.Audit.MessageStatus">
+                                        <div class="provider-response-cell" dir="auto" title="@record.Audit.MessageStatus">
                                             @record.Audit.MessageStatus
                                         </div>
                                     }
@@ -399,15 +321,15 @@
                         <div class="mb-3">
                             <i class="fas fa-history fa-3x text-gray-300"></i>
                         </div>
-                        <h5 class="text-gray-500">No Audit Records Found</h5>
+                        <h5 class="text-gray-500">No delivery records found</h5>
                         <p class="text-gray-400">
                             @if (!string.IsNullOrWhiteSpace(Model.SearchTerm) || Model.StartDate.HasValue || !string.IsNullOrWhiteSpace(Model.StatusFilter))
                             {
-                                <text>No SMS records match your current filters. Try adjusting your search criteria or date range.</text>
+                                <text>No delivery attempts match the current filters. Try broadening the search or date range.</text>
                             }
                             else
                             {
-                                <text>No SMS messages have been sent yet. SMS audit records will appear here after messages are sent.</text>
+                                <text>Delivery attempts will appear here after the first SCADA alarm is processed.</text>
                             }
                         </p>
                         <a href="/Users" class="btn btn-primary me-2">

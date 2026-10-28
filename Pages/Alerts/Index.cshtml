@@ -10,7 +10,7 @@
     <div class="container-fluid px-4">
         <nav aria-label="breadcrumb">
             <ol class="breadcrumb">
-                <li class="breadcrumb-item"><a asp-page="/Index"><i class="fas fa-home me-1"></i>Dashboard</a></li>
+                <li class="breadcrumb-item"><a asp-page="/Index"><i class="fas fa-gauge-high me-1"></i>Overview</a></li>
                 <li class="breadcrumb-item active">Delivery Alerts</li>
             </ol>
         </nav>
@@ -18,127 +18,130 @@
 </div>
 }
 
-<div class="container-fluid">
-    <div class="d-sm-flex align-items-center justify-content-between mb-4">
-        <h1 class="h3 mb-0 text-gray-800"><i class="fas fa-bell me-2"></i>Delivery Alerts</h1>
-    </div>
+@{
+    var failedCount = Model.Summary.Alarms.Count(a => a.State != AlarmRetryState.Retrying);
+    var retryingCount = Model.Summary.Alarms.Count - failedCount;
+    var configurationCount = Model.Summary.ProfileErrors.Count + (Model.Summary.ScadaLink?.IsProblem == true ? 1 : 0);
+    var readinessCount = Model.Summary.InvalidPhones.Count + Model.Summary.EmptyGroups.Count;
+}
 
-    @if (TempData["SuccessMessage"] != null)
-    {
-        <span class="d-none" data-toast-success="@TempData["SuccessMessage"]"></span>
-    }
+<div class="alerts-workspace">
+    <header class="overview-heading alerts-heading">
+        <div>
+            <p class="overview-kicker">Operations</p>
+            <h1>Delivery alerts</h1>
+            <p>Exceptions that can prevent a critical SCADA alarm from reaching its intended recipients.</p>
+        </div>
+        <a class="btn btn-outline-primary" asp-page="/Audit/Index"><i class="fas fa-clock-rotate-left me-1"></i>Delivery history</a>
+    </header>
 
     @if (!Model.Summary.NeedsAttention)
     {
-        <div class="alert alert-success"><i class="fas fa-check-circle me-2"></i>Every critical alarm reached all its recipients, and every group has someone to receive alarms.</div>
+        <section class="all-clear" role="status"><span><i class="fas fa-check"></i></span><div><h2>Delivery pipeline is clear</h2><p>Every critical alarm reached its recipients and all notification teams currently have eligible members.</p></div></section>
     }
+
+    <section class="alert-metrics" aria-label="Alert summary">
+        <div class="alert-metric alert-metric-danger"><span>Failed alarms</span><strong>@failedCount</strong><small>Retries stopped or unavailable</small></div>
+        <div class="alert-metric alert-metric-warning"><span>Retrying</span><strong>@retryingCount</strong><small>Automatic delivery still active</small></div>
+        <div class="alert-metric"><span>Integration issues</span><strong>@configurationCount</strong><small>SCADA link or provider setup</small></div>
+        <div class="alert-metric"><span>Routing readiness</span><strong>@readinessCount</strong><small>Recipients or teams needing attention</small></div>
+    </section>
 
     @if (Model.Summary.Alarms.Count > 0)
     {
-        <h2 class="h5 mt-4">Critical alarms not delivered to everyone</h2>
-        <p class="text-muted small">
-            <strong>Retrying</strong>: the service re-sends failed recipients from the spool.
-            <strong>Failed</strong>: retries stopped; someone must contact the recipients directly.
-            Acknowledging hides the alarm from the banner. It does not stop retries.
-        </p>
+        <section class="alert-section">
+        <div class="section-heading"><div><p class="panel-eyebrow">Immediate action</p><h2>Critical alarms not delivered to everyone</h2></div><p>Acknowledging removes an alarm from the banner; it never stops automatic retries.</p></div>
         @foreach (var alarm in Model.Summary.Alarms)
         {
-            var (badge, label) = alarm.State switch
+            var (stateClass, icon, label, guidance) = alarm.State switch
             {
-                AlarmRetryState.Retrying => ("bg-warning text-dark", "Retrying"),
-                AlarmRetryState.GaveUp => ("bg-danger", "Failed"),
-                _ => ("bg-danger", "Failed (not spooled)")
+                AlarmRetryState.Retrying => ("is-retrying", "fa-arrows-rotate", "Retrying", "Automatic retries are still active."),
+                AlarmRetryState.GaveUp => ("is-failed", "fa-circle-xmark", "Failed", "Retries have stopped. Contact recipients directly."),
+                _ => ("is-failed", "fa-triangle-exclamation", "Not queued", "No automatic retry is available for this alarm.")
             };
-            <div class="card mb-3 border-danger">
-                <div class="card-header d-flex flex-wrap align-items-center gap-2">
-                    <span class="badge @badge">@label</span>
-                    <code>@alarm.AlarmId</code>
-                    <span>Group @(alarm.GroupName ?? "?") (#@alarm.GroupId)</span>
-                    <span class="text-muted small ms-auto">@alarm.FirstSeen.ToString("yyyy-MM-dd HH:mm:ss")</span>
+            <article class="alarm-case @stateClass">
+                <div class="alarm-case-header">
+                    <div class="alarm-state"><i class="fas @icon"></i><span><strong>@label</strong><small>@guidance</small></span></div>
+                    <div class="alarm-identity"><code>@alarm.AlarmId</code><span>@(alarm.GroupName ?? "Unknown team") · Team #@alarm.GroupId</span></div>
+                    <time datetime="@alarm.FirstSeen.ToString("O")">First seen<br><strong>@alarm.FirstSeen.ToString("dd MMM yyyy, HH:mm:ss")</strong></time>
                 </div>
-                <div class="card-body">
+                <div class="alarm-case-body">
                     @if (!string.IsNullOrEmpty(alarm.Message))
                     {
-                        <p class="mb-2"><strong>Message:</strong> @alarm.Message</p>
+                        <div class="alarm-message"><span>SCADA message</span><p dir="auto">@alarm.Message</p></div>
                     }
                     @if (alarm.Recipients.Count == 0)
                     {
-                        <p class="text-danger mb-2">No delivery attempts recorded: the group had no eligible recipients, or the database was unreachable.</p>
+                        <div class="inline-exception"><i class="fas fa-user-slash"></i><div><strong>No delivery attempts were recorded</strong><p>The team had no eligible recipients, or delivery state could not be stored.</p></div></div>
                     }
                     else
                     {
-                        <p class="mb-2">@alarm.Accepted of @alarm.Recipients.Count recipients accepted.</p>
-                        <table class="table table-sm mb-2">
+                        <div class="recipient-progress"><span><strong>@alarm.Accepted</strong> of @alarm.Recipients.Count recipients accepted by the provider</span><div><i style="width:@(alarm.Recipients.Count == 0 ? 0 : alarm.Accepted * 100 / alarm.Recipients.Count)%"></i></div></div>
+                        <div class="table-responsive"><table class="table recipient-table mb-0">
                             <thead><tr><th>Phone</th><th>Status</th><th>HTTP</th><th>Attempts</th><th>Provider response</th></tr></thead>
                             <tbody>
                             @foreach (var r in alarm.Recipients)
                             {
-                                <tr class="@(r.Status == "SUCCESS" ? "" : "table-danger")">
+                                <tr class="@(r.Status == "SUCCESS" ? "" : "has-failed")">
                                     <td><code>@r.MaskedPhone</code></td>
-                                    <td>@r.Status</td>
+                                    <td><span class="delivery-state @(r.Status == "SUCCESS" ? "state-good" : "state-danger")"><i class="fas @(r.Status == "SUCCESS" ? "fa-check" : "fa-xmark")"></i>@r.Status</span></td>
                                     <td>@(r.ProviderStatusCode == 0 ? "-" : r.ProviderStatusCode.ToString())</td>
                                     <td>@r.Attempts</td>
-                                    <td class="small">@r.ProviderMessage</td>
+                                    <td class="provider-response" dir="auto">@(string.IsNullOrWhiteSpace(r.ProviderMessage) ? "No response" : r.ProviderMessage)</td>
                                 </tr>
                             }
                             </tbody>
-                        </table>
+                        </table></div>
                     }
-                    <form method="post" asp-page-handler="Acknowledge" class="d-flex gap-2">
+                    <form method="post" asp-page-handler="Acknowledge" class="acknowledge-form">
                         <input type="hidden" name="alarmId" value="@alarm.AlarmId" />
-                        <input type="text" name="note" class="form-control form-control-sm" maxlength="500" placeholder="Note, e.g. 'called on-call engineer'" />
-                        <button type="submit" class="btn btn-sm btn-outline-danger text-nowrap">Acknowledge</button>
+                        <div><label>Operator note <span>Optional</span></label><input type="text" name="note" class="form-control" maxlength="500" placeholder="Example: called the on-call engineer" /></div>
+                        <button type="submit" class="btn btn-outline-danger text-nowrap"><i class="fas fa-check me-1"></i>Acknowledge alert</button>
                     </form>
                 </div>
-            </div>
+            </article>
         }
+        </section>
     }
 
-    @if (Model.Summary.BadSpoolFiles.Count > 0)
+    @if (Model.Summary.ScadaLink?.IsProblem == true || Model.Summary.ProfileErrors.Count > 0 || Model.Summary.BadSpoolFiles.Count > 0)
     {
-        <h2 class="h5 mt-4">Unreadable spool files</h2>
-        <p class="text-muted small">These alarms reached the server but could not be read, so they were never sent. Files are in the <code>spool\bad</code> folder.</p>
-        <ul>
-            @foreach (var f in Model.Summary.BadSpoolFiles)
-            {
-                <li><code>@f</code></li>
-            }
-        </ul>
+        <section class="alert-section"><div class="section-heading"><div><p class="panel-eyebrow">Integration</p><h2>Pipeline configuration</h2></div><a class="btn btn-sm btn-outline-primary" href="/Settings">Open settings</a></div><div class="issue-grid">
+        @if (Model.Summary.ScadaLink?.IsProblem == true) { <div class="issue-card is-critical"><i class="fas fa-link-slash"></i><div><strong>SCADA ingress link</strong><p>@Model.Summary.ScadaLink.Detail</p></div></div> }
+        @foreach (var e in Model.Summary.ProfileErrors)
+        {
+            <div class="issue-card is-critical"><i class="fas fa-plug-circle-xmark"></i><div><strong>Provider configuration</strong><p>@e</p></div></div>
+        }
+        @foreach (var f in Model.Summary.BadSpoolFiles)
+        {
+            <div class="issue-card is-critical"><i class="fas fa-file-circle-xmark"></i><div><strong>Unreadable alarm file</strong><p><code>@f</code> could not be processed and is stored in <code>spool\bad</code>.</p></div></div>
+        }
+        </div></section>
     }
 
-    @if (Model.Summary.ProfileErrors.Count > 0)
+    @if (Model.Summary.InvalidPhones.Count > 0 || Model.Summary.EmptyGroups.Count > 0)
     {
-        <h2 class="h5 mt-4 text-danger">SMS provider configuration errors</h2>
-        <p class="text-muted small">No alarm can be sent until these are fixed in Settings.</p>
-        <ul>
-            @foreach (var e in Model.Summary.ProfileErrors)
-            {
-                <li>@e</li>
-            }
-        </ul>
+        <section class="alert-section"><div class="section-heading"><div><p class="panel-eyebrow">Routing readiness</p><h2>Recipients and notification teams</h2></div><p>Correct these issues before the next alarm uses the affected route.</p></div><div class="issue-grid">
+        @foreach (var u in Model.Summary.InvalidPhones)
+        {
+            <a class="issue-card" asp-page="/Users/Edit" asp-route-id="@u.UserId"><i class="fas fa-phone-slash"></i><div><strong dir="auto">@u.UserName</strong><p><code>@u.PhoneNumber</code> is not a deliverable 7–15 digit number.</p></div><i class="fas fa-chevron-right"></i></a>
+        }
+        @foreach (var g in Model.Summary.EmptyGroups)
+        {
+            <a class="issue-card" asp-page="/Groups/Edit" asp-route-id="@g.GroupId"><i class="fas fa-users-slash"></i><div><strong dir="auto">@g.GroupName</strong><p>Team #@g.GroupId has no eligible recipients right now.</p></div><i class="fas fa-chevron-right"></i></a>
+        }
+        </div></section>
     }
 
-    @if (Model.Summary.InvalidPhones.Count > 0)
+    @if (TempData["SuccessMessage"] != null)
     {
-        <h2 class="h5 mt-4">Users with an invalid phone number</h2>
-        <p class="text-muted small">These users have SMS enabled, but their number does not have 7-15 digits, so the provider cannot deliver to them.</p>
-        <ul>
-            @foreach (var u in Model.Summary.InvalidPhones)
-            {
-                <li><a asp-page="/Users/Edit" asp-route-id="@u.UserId">@u.UserName</a> &mdash; <code>@u.PhoneNumber</code></li>
-            }
-        </ul>
-    }
-
-    @if (Model.Summary.EmptyGroups.Count > 0)
-    {
-        <h2 class="h5 mt-4">Groups with no eligible recipients right now</h2>
-        <p class="text-muted small">Members may be missing, have SMS turned off, or be excluded by today's holiday rule.</p>
-        <ul>
-            @foreach (var g in Model.Summary.EmptyGroups)
-            {
-                <li><a asp-page="/Groups/Edit" asp-route-id="@g.GroupId">@g.GroupName (#@g.GroupId)</a></li>
-            }
-        </ul>
+        <div class="toast-trigger" data-toast-success="@TempData["SuccessMessage"]"></div>
     }
 </div>
+
+@section Scripts {
+    <script>
+        document.querySelectorAll('[data-toast-success]').forEach(el =>
+            SCADAUtils.showToast('<i class="fas fa-check-circle me-2"></i>' + el.dataset.toastSuccess, 'success'));
+    </script>
+}
