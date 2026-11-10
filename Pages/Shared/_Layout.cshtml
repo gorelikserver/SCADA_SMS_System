@@ -27,7 +27,7 @@
     string _navCls(string prefix) => _isActive(prefix) ? "nav-link active" : "nav-link";
     var _signedIn = User.Identity?.IsAuthenticated == true;
     var _isAdmin = User.IsInRole(SCADASMSSystem.Web.Models.AccountRoles.Admin);
-    var _returnUrl = Context.Request.Path + Context.Request.QueryString;
+    var _returnUrl = Context.Request.PathBase + Context.Request.Path + Context.Request.QueryString;
 }
 <body>
     <header>

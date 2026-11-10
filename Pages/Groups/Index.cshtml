@@ -102,7 +102,7 @@
                                             <span class="team-avatar"><i class="fas fa-people-group"></i></span>
                                         </div>
                                         <div>
-                                            <div class="fw-semibold" dir="auto">@groupItem.Group.GroupName</div>
+                                            <div class="fw-semibold" dir="auto" data-no-translate>@groupItem.Group.GroupName</div>
                                             <small class="text-muted">Team #@groupItem.Group.GroupId</small>
                                         </div>
                                     </div>
@@ -207,9 +207,9 @@
         async function confirmDeleteGroup(btn) {
             const groupName = btn.dataset.groupName;
             const confirmed = await SCADAUtils.confirmModal(
-                'Delete Group',
-                `Delete "${groupName}"? All members will be removed from the group (users themselves won't be deleted).`,
-                'Delete Group'
+                @(Html.Raw(System.Text.Json.JsonSerializer.Serialize(T["Delete Group"]))),
+                @(Html.Raw(System.Text.Json.JsonSerializer.Serialize(T["Delete \"{0}\"? All members will be removed from the group (users themselves won't be deleted)."]))).replace('{0}', () => groupName),
+                @(Html.Raw(System.Text.Json.JsonSerializer.Serialize(T["Delete Group"])))
             );
             if (confirmed) {
                 btn.closest('form').submit();
@@ -219,7 +219,7 @@
         async function sendTestSmsToGroup(groupId, groupName) {
             const confirmed = await SCADAUtils.confirmModal(
                 'Send Test SMS',
-                `Send a test SMS to all members of "${groupName}"?`,
+                @(Html.Raw(System.Text.Json.JsonSerializer.Serialize(T["Send a test SMS to all members of \"{0}\"?"]))).replace('{0}', () => groupName),
                 'Send SMS',
                 'btn-primary'
             );

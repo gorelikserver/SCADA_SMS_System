@@ -131,7 +131,7 @@
                                                 <div class="d-flex align-items-center">
                                                     <i class="fas fa-user-circle fa-2x text-gray-500 me-3"></i>
                                                     <div>
-                                                        <div class="font-weight-bold">@member.UserName</div>
+                                                        <div class="font-weight-bold" data-no-translate>@member.UserName</div>
                                                         <small class="text-muted">@(member.Email ?? "No email")</small>
                                                     </div>
                                                 </div>
@@ -213,7 +213,7 @@
                                             <div class="d-flex align-items-center mb-2">
                                                 <i class="fas fa-user-circle fa-2x text-primary me-3"></i>
                                                 <div>
-                                                    <div class="font-weight-bold">@user.UserName</div>
+                                                    <div class="font-weight-bold" data-no-translate>@user.UserName</div>
                                                 </div>
                                             </div>
                                             <div class="mb-2">
@@ -284,14 +284,14 @@
             const form = btn.closest('.js-remove-member-form');
             if (!form) return;
             ev.preventDefault();
-            const username = form.dataset.username || 'this member';
+            const username = form.dataset.username || @(Html.Raw(System.Text.Json.JsonSerializer.Serialize(T["this member"])));
             if (window.SCADAUtils && SCADAUtils.confirmModal) {
                 const ok = await SCADAUtils.confirmModal(
                     'Remove Group Member',
-                    `Remove ${username} from this group?`,
+                    @(Html.Raw(System.Text.Json.JsonSerializer.Serialize(T["Remove {0} from this group?"]))).replace('{0}', () => username),
                     'Remove', 'btn-danger');
                 if (ok) form.submit();
-            } else if (window.confirm(`Remove ${username} from this group?`)) {
+            } else if (window.confirm(@(Html.Raw(System.Text.Json.JsonSerializer.Serialize(T["Remove {0} from this group?"]))).replace('{0}', () => username))) {
                 form.submit();
             }
         });
@@ -389,7 +389,7 @@
             button.addEventListener('click', function(e) {
                 const form = this.closest('form');
                 const userIdInput = form.querySelector('input[name="userId"]');
-                if (!confirm(`Remove this user from the group?`)) {
+                if (!confirm(@(Html.Raw(System.Text.Json.JsonSerializer.Serialize(T["Remove this user from the group?"]))))) {
                     e.preventDefault();
                 }
             });

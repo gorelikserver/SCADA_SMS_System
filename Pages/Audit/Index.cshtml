@@ -66,7 +66,7 @@
                         <option value="">All recipients</option>
                         @foreach (var user in Model.AvailableUsers)
                         {
-                            <option value="@user.UserId" selected="@(Model.UserIdFilter == user.UserId)">@user.UserName</option>
+                            <option value="@user.UserId" selected="@(Model.UserIdFilter == user.UserId)" data-no-translate>@user.UserName</option>
                         }
                     </select>
                 </div>
@@ -76,7 +76,7 @@
                         <option value="">All teams</option>
                         @foreach (var group in Model.AvailableGroups)
                         {
-                            <option value="@group.GroupId" selected="@(Model.GroupIdFilter == group.GroupId)">@group.GroupName</option>
+                            <option value="@group.GroupId" selected="@(Model.GroupIdFilter == group.GroupId)" data-no-translate>@group.GroupName</option>
                         }
                     </select>
                 </div>
@@ -258,19 +258,19 @@
                                     <code class="alarm-id">@record.Audit.AlarmId</code>
                                 </td>
                                 <td>
-                                    <div class="delivery-description" dir="auto" title="@record.Audit.AlarmDescription">
+                                    <div class="delivery-description" dir="auto" title="@record.Audit.AlarmDescription" data-no-translate>
                                         @record.Audit.AlarmDescription
                                     </div>
                                 </td>
                                 <td>
                                     <div>
-                                        <strong>@record.UserName</strong>
+                                        <strong data-no-translate>@record.UserName</strong>
                                     </div>
                                 </td>
                                 <td>
                                     @if (!string.IsNullOrEmpty(record.GroupName) && record.GroupName != "No Group")
                                     {
-                                        <span class="team-label" dir="auto">@record.GroupName</span>
+                                        <span class="team-label" dir="auto" data-no-translate>@record.GroupName</span>
                                     }
                                     else
                                     {
@@ -301,7 +301,7 @@
                                 <td>
                                     @if (!string.IsNullOrEmpty(record.Audit.MessageStatus))
                                     {
-                                        <div class="provider-response-cell" dir="auto" title="@record.Audit.MessageStatus">
+                                        <div class="provider-response-cell" dir="auto" title="@record.Audit.MessageStatus" data-no-translate>
                                             @record.Audit.MessageStatus
                                         </div>
                                     }
@@ -407,7 +407,7 @@
                     <div class="text-center mt-2">
                         <small class="text-muted">
                             Page @Model.PageNumber of @Model.TotalPages 
-                            (Showing @((Model.PageNumber - 1) * Model.PageSize + 1)-@Math.Min(Model.PageNumber * Model.PageSize, Model.TotalRecords) of @Model.TotalRecords records)
+                            (@string.Format(T["Showing {0}-{1} of {2} records"], (Model.PageNumber - 1) * Model.PageSize + 1, Math.Min(Model.PageNumber * Model.PageSize, Model.TotalRecords), Model.TotalRecords))
                         </small>
                     </div>
                 </div>

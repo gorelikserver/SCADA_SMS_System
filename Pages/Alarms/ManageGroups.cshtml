@@ -96,7 +96,7 @@
                             Alarm routes
                         </h5>
                         <span class="badge bg-primary">
-                            Showing @visibleAlarms.Count of @Model.TotalItems
+                            @string.Format(T["Showing {0} of {1}"], visibleAlarms.Count, Model.TotalItems)
                             @if (!string.IsNullOrWhiteSpace(Model.SearchTerm))
                             {
                                 <text>(filtered)</text>
@@ -142,7 +142,7 @@
                                             </td>
                                             <td>
                                                 <small class="text-muted" dir="auto">
-                                                    @(alarm.AlarmDescription ?? "No description")
+                                                    <span data-no-translate>@(alarm.AlarmDescription ?? "No description")</span>
                                                 </small>
                                             </td>
                                             <td>
@@ -152,7 +152,7 @@
                                                     {
                                                         <span class="route-team-chip" dir="auto">
                                                             <i class="fas fa-users me-1"></i>
-                                                            @group.GroupName
+                                                            <span data-no-translate>@group.GroupName</span>
                                                         </span>
                                                     }
                                                 }
@@ -261,7 +261,7 @@
                                 <div class="text-center mt-2">
                                     <small class="text-muted">
                                         Page @Model.CurrentPage of @Model.TotalPages 
-                                        (Showing @((Model.CurrentPage - 1) * Model.PageSize + 1)-@Math.Min(Model.CurrentPage * Model.PageSize, Model.TotalItems) of @Model.TotalItems alarms)
+                                        (@string.Format(T["Showing {0}-{1} of {2} alarms"], (Model.CurrentPage - 1) * Model.PageSize + 1, Math.Min(Model.CurrentPage * Model.PageSize, Model.TotalItems), Model.TotalItems))
                                     </small>
                                 </div>
                             </div>
@@ -289,7 +289,7 @@
                     
                     <div class="alert alert-info routing-rule-summary">
                         <i class="fas fa-bell me-2"></i>
-                        <strong>SCADA alarm:</strong> <span id="modalBlockName" dir="auto"></span>
+                        <strong>SCADA alarm:</strong> <span id="modalBlockName" dir="auto" data-no-translate></span>
                         <br />
                         <small>Select the notification teams that should receive SMS alerts when this alarm is triggered.</small>
                     </div>
@@ -306,7 +306,7 @@
                                            name="selectedGroupCheckbox" 
                                            value="@group.GroupId" />
                                     <div class="flex-grow-1">
-                                        <strong dir="auto">@group.GroupName</strong>
+                                        <strong dir="auto" data-no-translate>@group.GroupName</strong>
                                         <br />
                                         <small class="text-muted">
                                             <i class="fas fa-users me-1"></i>
@@ -382,12 +382,13 @@
             alertDiv.innerHTML = '<i class="fas fa-exclamation-triangle me-2"></i><strong>SMS delivery will be disabled for this alarm.</strong><br /><small>No notification teams are selected. Other alarm actions remain unchanged.</small>';
             
             // Reset after 3 seconds
+            // The alarm description is SCADA data: restore it as text, never as HTML.
+            var blockName = document.getElementById('modalBlockName').textContent;
             setTimeout(function() {
                 alertDiv.classList.remove('alert-warning');
                 alertDiv.classList.add('alert-info');
-                alertDiv.innerHTML = '<i class="fas fa-bell me-2"></i><strong>SCADA alarm:</strong> <span id="modalBlockName" dir="auto">' +
-                    document.getElementById('modalBlockName').textContent +
-                    '</span><br /><small>Select the notification teams that should receive SMS alerts when this alarm is triggered.</small>';
+                alertDiv.innerHTML = '<i class="fas fa-bell me-2"></i><strong>SCADA alarm:</strong> <span id="modalBlockName" dir="auto" data-no-translate></span><br /><small>Select the notification teams that should receive SMS alerts when this alarm is triggered.</small>';
+                document.getElementById('modalBlockName').textContent = blockName;
             }, 3000);
         }
 

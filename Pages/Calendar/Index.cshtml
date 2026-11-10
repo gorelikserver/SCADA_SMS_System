@@ -375,7 +375,7 @@
     <script>
         async function confirmRefreshCalendar() {
             if (!window.SCADAUtils || !SCADAUtils.confirmModal) {
-                if (window.confirm('This will refresh the holiday calendar data for the next 10 years. Continue?'))
+                if (window.confirm(@(Html.Raw(System.Text.Json.JsonSerializer.Serialize(T["This will refresh the holiday calendar data for the next 10 years. Continue?"])))))
                     document.getElementById('refreshCalendarForm').submit();
                 return;
             }
@@ -412,7 +412,7 @@
 
         // Refresh calendar functionality
         function refreshCalendar() {
-            if (confirm('This will refresh the holiday calendar data for the next 10 years. Continue?')) {
+            if (confirm(@(Html.Raw(System.Text.Json.JsonSerializer.Serialize(T["This will refresh the holiday calendar data for the next 10 years. Continue?"]))))) {
                 document.querySelector('form[asp-page-handler="RefreshCalendar"]').submit();
             }
         }

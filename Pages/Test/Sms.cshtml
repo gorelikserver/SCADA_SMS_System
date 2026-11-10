@@ -42,9 +42,9 @@
                     <form method="post" asp-page-handler="Send">
                         <div class="mb-3">
                             <label asp-for="TestMessage.GroupId" class="form-label"></label>
-                            <select asp-for="TestMessage.GroupId" class="form-select" id="groupSelect"
+                            <select asp-for="TestMessage.GroupId" class="form-select" id="groupSelect" data-no-translate
                                     asp-items="@(new SelectList(Model.AvailableGroups, "GroupId", "GroupName"))">
-                                <option value="">Select a notification team</option>
+                                <option value="">@T["Select a notification team"]</option>
                             </select>
                             <span asp-validation-for="TestMessage.GroupId" class="text-danger small"></span>
                             <ul class="list-unstyled small mt-2 mb-0" id="groupMembers"></ul>
@@ -86,7 +86,7 @@
                                         <td>@(d.Accepted ? "Accepted" : "Failed")</td>
                                         <td>@(d.StatusCode <= 0 ? "-" : d.StatusCode.ToString())</td>
                                         <td>@d.Attempts</td>
-                                        <td class="small">@d.Message</td>
+                                        <td class="small" data-no-translate>@d.Message</td>
                                     </tr>
                                 }
                                 </tbody>
@@ -112,7 +112,12 @@
             if (!members.length) { list.innerHTML = '<li class="text-danger">No members</li>'; return; }
             for (const m of members) {
                 const li = document.createElement('li');
-                li.textContent = m.name + ' ' + m.maskedPhone + (m.smsEnabled ? '' : ' (SMS off)');
+                const name = document.createElement('span');
+                name.dataset.noTranslate = '';
+                name.dir = 'auto';
+                name.textContent = m.name + ' ' + m.maskedPhone;
+                li.appendChild(name);
+                if (!m.smsEnabled) li.append(' ', Object.assign(document.createElement('span'), { textContent: '(SMS off)' }));
                 if (!m.smsEnabled) li.className = 'text-muted';
                 list.appendChild(li);
             }

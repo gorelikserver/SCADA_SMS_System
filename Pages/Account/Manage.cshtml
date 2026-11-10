@@ -30,7 +30,7 @@
         @foreach (var a in Model.Accounts)
         {
             <tr>
-                <td>@a.UserName @(a.LockedUntil > DateTime.Now ? "(locked)" : "")</td>
+                <td><span data-no-translate>@a.UserName</span> @(a.LockedUntil > DateTime.Now ? "(locked)" : "")</td>
                 <td>
                     <form method="post" asp-page-handler="Role" class="d-flex gap-1">
                         <input type="hidden" name="accountId" value="@a.AccountId" />
@@ -51,7 +51,7 @@
                     </form>
                 </td>
                 <td>
-                    <form method="post" asp-page-handler="Delete" onsubmit="return confirm('Delete account @a.UserName?');">
+                    <form method="post" asp-page-handler="Delete" onsubmit="return confirm(@(System.Text.Json.JsonSerializer.Serialize(string.Format(T["Delete account {0}?"], a.UserName))));">
                         <input type="hidden" name="accountId" value="@a.AccountId" />
                         <button class="btn btn-sm btn-outline-danger">Delete</button>
                     </form>
@@ -74,8 +74,8 @@
         <div class="col-sm-2">
             <label class="form-label small">Role</label>
             <select name="role" class="form-select form-select-sm">
-                <option>@AccountRoles.Viewer</option>
-                <option>@AccountRoles.Admin</option>
+                <option value="@AccountRoles.Viewer">@AccountRoles.Viewer</option>
+                <option value="@AccountRoles.Admin">@AccountRoles.Admin</option>
             </select>
         </div>
         <div class="col-sm-2">

@@ -106,7 +106,7 @@
                                     <div class="d-flex align-items-center">
                                         <div class="recipient-avatar" aria-hidden="true">@(string.IsNullOrWhiteSpace(user.UserName) ? "?" : user.UserName.Trim()[0].ToString().ToUpperInvariant())</div>
                                         <div>
-                                            <div class="fw-semibold" dir="auto">@user.UserName</div><small class="text-muted">Recipient #@user.UserId</small>
+                                            <div class="fw-semibold" dir="auto" data-no-translate>@user.UserName</div><small class="text-muted">Recipient #@user.UserId</small>
                                         </div>
                                     </div>
                                 </td>
@@ -238,9 +238,9 @@
 
         async function confirmDelete(userId, userName) {
             const confirmed = await SCADAUtils.confirmModal(
-                'Delete User',
-                `Delete "${userName}"? This removes them from all groups and cannot be undone.`,
-                'Delete User'
+                @(Html.Raw(System.Text.Json.JsonSerializer.Serialize(T["Delete User"]))),
+                @(Html.Raw(System.Text.Json.JsonSerializer.Serialize(T["Delete \"{0}\"? This removes them from all groups and cannot be undone."]))).replace('{0}', () => userName),
+                @(Html.Raw(System.Text.Json.JsonSerializer.Serialize(T["Delete User"])))
             );
             if (confirmed) {
                 const form = document.createElement('form');
