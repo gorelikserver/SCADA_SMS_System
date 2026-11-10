@@ -26,6 +26,7 @@ public sealed class UiLocalizer : IUiLocalizer
         ["Schedules & holidays"] = "לוחות זמנים וחגים",
         ["Integration guide"] = "מדריך אינטגרציה",
         ["About"] = "אודות",
+        ["About AlarmBridge"] = "אודות AlarmBridge",
         ["Admin"] = "מנהל",
         ["Viewer"] = "צופה",
         ["Change password"] = "שינוי סיסמה",
@@ -53,7 +54,22 @@ public sealed class UiLocalizer : IUiLocalizer
         ["Confirm new password"] = "אימות סיסמה חדשה",
         ["Password changed."] = "הסיסמה שונתה.",
         ["Access denied"] = "הגישה נדחתה",
-        ["Back to overview"] = "חזרה לסקירה הכללית"
+        ["Back to overview"] = "חזרה לסקירה הכללית",
+        ["Operations overview"] = "סקירת תפעול",
+        ["Test SMS"] = "בדיקת SMS",
+        ["Integration Guide"] = "מדריך אינטגרציה",
+        ["SMS Provider"] = "ספק SMS",
+        ["Settings History"] = "היסטוריית הגדרות",
+        ["Coverage Calendar"] = "לוח כיסוי",
+        ["System Settings"] = "הגדרות מערכת",
+        ["Edit Recipient"] = "עריכת נמען",
+        ["Add Recipient"] = "הוספת נמען",
+        ["Edit Notification Team"] = "עריכת צוות התראות",
+        ["Create Notification Team"] = "יצירת צוות התראות",
+        ["Error"] = "שגיאה",
+        ["Primary navigation"] = "ניווט ראשי",
+        ["Toggle navigation"] = "פתיחה או סגירה של הניווט",
+        ["Language"] = "שפה"
     };
 
     public bool IsHebrew => CultureInfo.CurrentUICulture.Name.StartsWith("he", StringComparison.OrdinalIgnoreCase);

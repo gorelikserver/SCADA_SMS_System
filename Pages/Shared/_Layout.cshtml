@@ -31,14 +31,14 @@
 }
 <body>
     <header>
-        <nav class="navbar navbar-expand-xl app-navbar mb-0" aria-label="Primary navigation">
+        <nav class="navbar navbar-expand-xl app-navbar mb-0" aria-label="@T["Primary navigation"]">
             <div class="container-fluid px-4">
                 <a class="navbar-brand" asp-area="" asp-page="/Index">
                     <span class="brand-mark" aria-hidden="true"><i class="fas fa-tower-broadcast"></i></span>
                     <span class="brand-copy"><strong>AlarmBridge</strong><small>@T["SCADA notification gateway"]</small></span>
                 </a>
                 <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNavbar"
-                        aria-controls="mainNavbar" aria-expanded="false" aria-label="Toggle navigation">
+                        aria-controls="mainNavbar" aria-expanded="false" aria-label="@T["Toggle navigation"]">
                     <span class="navbar-toggler-icon"></span>
                 </button>
                 <div class="collapse navbar-collapse" id="mainNavbar">
@@ -203,7 +203,7 @@
         </div>
     </div>
 
-    <nav class="language-switcher" aria-label="Language">
+    <nav class="language-switcher" aria-label="@T["Language"]">
         <a asp-page="/Language" asp-route-culture="en" asp-route-returnUrl="@_returnUrl" class="@(!T.IsHebrew ? "active" : null)" lang="en">English</a>
         <span aria-hidden="true">/</span>
         <a asp-page="/Language" asp-route-culture="he-IL" asp-route-returnUrl="@_returnUrl" class="@(T.IsHebrew ? "active" : null)" lang="he">עברית</a>
