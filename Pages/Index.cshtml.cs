@@ -116,8 +116,8 @@ public class IndexModel : PageModel
             var activities = recentAudits.Select(audit => new
             {
                 time = audit.CreatedAt.ToString("HH:mm:ss"),
-                action = $"SMS to {audit.PhoneNumber}",
-                user = audit.User?.UserName ?? "Unknown User",
+                action = UiLocalizer.Format("SMS to {0}", audit.PhoneNumber),
+                user = audit.User?.UserName ?? UiLocalizer.Localize("Unknown User"),
                 status = audit.Status,
                 statusClass = audit.Status.ToUpper() switch
                 {

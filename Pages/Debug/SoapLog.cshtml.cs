@@ -29,7 +29,7 @@ namespace SCADASMSSystem.Web.Pages.Debug
         public IActionResult OnPostClear()
         {
             _log.Clear();
-            TempData["SuccessMessage"] = "SOAP XML log cleared.";
+            TempData["SuccessMessage"] = UiLocalizer.Localize("SOAP XML log cleared.");
             return RedirectToPage();
         }
     }

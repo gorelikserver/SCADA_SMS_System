@@ -144,7 +144,7 @@ namespace SCADASMSSystem.Web.Pages.Settings
             {
                 // Test database connectivity
                 var users = await _userService.GetAllUsersAsync();
-                TempData["SuccessMessage"] = $"Database connection successful! Found {users.Count()} users.";
+                TempData["SuccessMessage"] = UiLocalizer.Format("Database connection successful! Found {0} users.", users.Count());
             }
             catch (Exception ex)
             {
@@ -162,17 +162,17 @@ namespace SCADASMSSystem.Web.Pages.Settings
                 var success = await _auditService.CleanupOldAuditsAsync(90);
                 if (success)
                 {
-                    TempData["SuccessMessage"] = "Old audit records cleaned up successfully!";
+                    TempData["SuccessMessage"] = UiLocalizer.Localize("Old audit records cleaned up successfully!");
                 }
                 else
                 {
-                    TempData["ErrorMessage"] = "Failed to cleanup old audit records.";
+                    TempData["ErrorMessage"] = UiLocalizer.Localize("Failed to cleanup old audit records.");
                 }
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error during data cleanup");
-                TempData["ErrorMessage"] = "An error occurred during data cleanup.";
+                TempData["ErrorMessage"] = UiLocalizer.Localize("An error occurred during data cleanup.");
             }
 
             return RedirectToPage();

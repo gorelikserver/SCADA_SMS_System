@@ -64,14 +64,14 @@ namespace SCADASMSSystem.Web.Pages.Users
                                      !string.IsNullOrWhiteSpace(u.Email) &&
                                      u.Email.Equals(UserInput.Email, StringComparison.OrdinalIgnoreCase)))
                 {
-                    ModelState.AddModelError("UserInput.Email", "A user with this email address already exists.");
+                    ModelState.AddModelError("UserInput.Email", UiLocalizer.Localize("A user with this email address already exists."));
                     return Page();
                 }
 
                 if (!PhoneNumberRules.SamePhone(UserInput.PhoneNumber, UserInput.OriginalPhoneNumber) && 
                     existingUsers.Any(u => u.UserId != UserInput.UserId && PhoneNumberRules.SamePhone(u.PhoneNumber, UserInput.PhoneNumber)))
                 {
-                    ModelState.AddModelError("UserInput.PhoneNumber", "A user with this phone number already exists.");
+                    ModelState.AddModelError("UserInput.PhoneNumber", UiLocalizer.Localize("A user with this phone number already exists."));
                     return Page();
                 }
 
@@ -97,19 +97,19 @@ namespace SCADASMSSystem.Web.Pages.Users
                 if (success)
                 {
                     _logger.LogInformation("Successfully updated user {UserId} - {UserName}", existingUser.UserId, existingUser.UserName);
-                    TempData["SuccessMessage"] = $"User '{existingUser.UserName}' has been updated successfully!";
+                    TempData["SuccessMessage"] = UiLocalizer.Format("User '{0}' has been updated successfully!", existingUser.UserName);
                     return RedirectToPage("./Index");
                 }
                 else
                 {
-                    ModelState.AddModelError("", "Failed to update user. Please check the information and try again.");
+                    ModelState.AddModelError("", UiLocalizer.Localize("Failed to update user. Please check the information and try again."));
                     return Page();
                 }
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error updating user {UserId}", UserInput.UserId);
-                ModelState.AddModelError("", "An unexpected error occurred while updating the user.");
+                ModelState.AddModelError("", UiLocalizer.Localize("An unexpected error occurred while updating the user."));
                 return Page();
             }
         }
@@ -129,17 +129,17 @@ namespace SCADASMSSystem.Web.Pages.Users
                 if (success)
                 {
                     _logger.LogInformation("Successfully deleted user {UserId} - {UserName}", id, user.UserName);
-                    TempData["SuccessMessage"] = $"User '{user.UserName}' has been deleted successfully!";
+                    TempData["SuccessMessage"] = UiLocalizer.Format("User '{0}' has been deleted successfully!", user.UserName);
                 }
                 else
                 {
-                    TempData["ErrorMessage"] = "Failed to delete user. Please try again.";
+                    TempData["ErrorMessage"] = UiLocalizer.Localize("Failed to delete user. Please try again.");
                 }
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error deleting user {UserId}", id);
-                TempData["ErrorMessage"] = "An unexpected error occurred while deleting the user.";
+                TempData["ErrorMessage"] = UiLocalizer.Localize("An unexpected error occurred while deleting the user.");
             }
 
             return RedirectToPage("./Index");
@@ -150,19 +150,19 @@ namespace SCADASMSSystem.Web.Pages.Users
     {
         public int UserId { get; set; }
 
-        [Required]
-        [StringLength(255, MinimumLength = 2)]
+        [LocalizedRequired]
+        [LocalizedStringLength(255, MinimumLength = 2)]
         [Display(Name = "Full Name")]
         public string UserName { get; set; } = string.Empty;
 
-        [EmailAddress]
-        [StringLength(255)]
+        [EmailAddress(ErrorMessageResourceType = typeof(LocalizedValidationMessages), ErrorMessageResourceName = nameof(LocalizedValidationMessages.Email))]
+        [LocalizedStringLength(255)]
         [Display(Name = "Email Address (Optional)")]
         public string? Email { get; set; }
 
-        [Required]
-        [Phone]
-        [StringLength(20)]
+        [LocalizedRequired]
+        [Phone(ErrorMessageResourceType = typeof(LocalizedValidationMessages), ErrorMessageResourceName = nameof(LocalizedValidationMessages.Phone))]
+        [LocalizedStringLength(20)]
         [Display(Name = "Phone Number")]
         [SmsPhoneNumber]
         public string PhoneNumber { get; set; } = string.Empty;
@@ -173,15 +173,15 @@ namespace SCADASMSSystem.Web.Pages.Users
         [Display(Name = "Available on Special Days/Holidays")]
         public bool SpecialDaysEnabled { get; set; }
 
-        [StringLength(20)]
+        [LocalizedStringLength(20)]
         [Display(Name = "ID Number (TZ)")]
         public string? TZ { get; set; }
 
-        [StringLength(100)]
+        [LocalizedStringLength(100)]
         [Display(Name = "First Name")]
         public string? FirstName { get; set; }
 
-        [StringLength(100)]
+        [LocalizedStringLength(100)]
         [Display(Name = "Last Name")]
         public string? LastName { get; set; }
 

@@ -79,7 +79,7 @@ namespace SCADASMSSystem.Web.Pages.Groups
             {
                 _logger.LogError(ex, "Error loading groups");
                 Groups = new List<GroupWithMemberCount>();
-                TempData["ErrorMessage"] = "Error loading groups. Please try again.";
+                TempData["ErrorMessage"] = UiLocalizer.Localize("Error loading groups. Please try again.");
             }
         }
 
@@ -103,13 +103,14 @@ namespace SCADASMSSystem.Web.Pages.Groups
                 catch (Exception ex)
                 {
                     _logger.LogError(ex, "Could not check SCADA alarms before deleting group {GroupId}", groupId);
-                    TempData["ErrorMessage"] = "Group not deleted: could not check which SCADA alarms use it.";
+                    TempData["ErrorMessage"] = UiLocalizer.Localize("Group not deleted: could not check which SCADA alarms use it.");
                     return RedirectToPage();
                 }
                 if (usedBy.Count > 0)
                 {
-                    TempData["ErrorMessage"] = $"Group '{group.GroupName}' not deleted: {usedBy.Count} SCADA alarm(s) still send to it " +
-                        $"({string.Join(", ", usedBy.Take(5))}{(usedBy.Count > 5 ? ", ..." : "")}). Remove it from those alarms first (Alarms page).";
+                    TempData["ErrorMessage"] = UiLocalizer.Format(
+                        "Group '{0}' not deleted: {1} SCADA alarm(s) still send to it ({2}). Remove it from those alarms first (Alarms page).",
+                        group.GroupName, usedBy.Count, string.Join(", ", usedBy.Take(5)) + (usedBy.Count > 5 ? ", ..." : ""));
                     return RedirectToPage();
                 }
 
@@ -118,17 +119,17 @@ namespace SCADASMSSystem.Web.Pages.Groups
                 if (success)
                 {
                     _logger.LogInformation("Successfully deleted group {GroupId} - {GroupName}", groupId, group.GroupName);
-                    TempData["SuccessMessage"] = $"Group '{group.GroupName}' has been deleted successfully!";
+                    TempData["SuccessMessage"] = UiLocalizer.Format("Group '{0}' has been deleted successfully!", group.GroupName);
                 }
                 else
                 {
-                    TempData["ErrorMessage"] = "Failed to delete group. Please try again.";
+                    TempData["ErrorMessage"] = UiLocalizer.Localize("Failed to delete group. Please try again.");
                 }
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error deleting group {GroupId}", groupId);
-                TempData["ErrorMessage"] = "An unexpected error occurred while deleting the group.";
+                TempData["ErrorMessage"] = UiLocalizer.Localize("An unexpected error occurred while deleting the group.");
             }
 
             return RedirectToPage();

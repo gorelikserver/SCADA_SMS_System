@@ -6,12 +6,12 @@ namespace SCADASMSSystem.Web.Pages;
 
 public sealed class LanguageModel : PageModel
 {
-    public IActionResult OnGet(string culture, string? returnUrl = null)
+    public IActionResult OnGet(string? culture, string? returnUrl = null)
     {
-        var selectedCulture = culture.Equals("he-IL", StringComparison.OrdinalIgnoreCase) ? "he-IL" : "en";
+        var selectedCulture = NormalizeCulture(culture);
         Response.Cookies.Append(
             CookieRequestCultureProvider.DefaultCookieName,
-            CookieRequestCultureProvider.MakeCookieValue(new RequestCulture(selectedCulture)),
+            CookieRequestCultureProvider.MakeCookieValue(new RequestCulture("en", selectedCulture)),
             new CookieOptions
             {
                 Expires = DateTimeOffset.UtcNow.AddYears(1),
@@ -22,4 +22,7 @@ public sealed class LanguageModel : PageModel
 
         return LocalRedirect(Url.IsLocalUrl(returnUrl) ? returnUrl! : "/");
     }
+
+    internal static string NormalizeCulture(string? culture) =>
+        string.Equals(culture, "he-IL", StringComparison.OrdinalIgnoreCase) ? "he-IL" : "en";
 }

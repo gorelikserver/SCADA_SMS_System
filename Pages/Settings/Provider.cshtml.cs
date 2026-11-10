@@ -40,19 +40,19 @@ namespace SCADASMSSystem.Web.Pages.Settings
             EditingDraft = State.Draft != null;
             var editing = State.Draft ?? State.Active ?? ProfileTemplates.All[0].Create();
             EditorJson = JsonSerializer.Serialize(ProfileManagement.MaskSecrets(editing));
-            DraftErrors = State.Draft == null ? [] : ProfileValidator.Validate(State.Draft);
-            ActiveErrors = ProfileValidator.Validate(State.Active);
+            DraftErrors = State.Draft == null ? [] : LocalizeErrors(ProfileValidator.Validate(State.Draft));
+            ActiveErrors = LocalizeErrors(ProfileValidator.Validate(State.Active));
         }
 
         public async Task<IActionResult> OnPostSaveDraftAsync([FromBody] ProviderProfile profile)
         {
-            var errors = await _profiles.SaveDraftAsync(profile);
+            var errors = LocalizeErrors(await _profiles.SaveDraftAsync(profile));
             return new JsonResult(new { saved = true, errors });
         }
 
         public async Task<IActionResult> OnPostPreviewAsync([FromBody] ProviderProfile profile)
         {
-            var errors = await _profiles.SaveDraftAsync(profile);
+            var errors = LocalizeErrors(await _profiles.SaveDraftAsync(profile));
             if (errors.Count > 0)
                 return new JsonResult(new { saved = true, errors });
 
@@ -105,7 +105,7 @@ namespace SCADASMSSystem.Web.Pages.Settings
         public async Task<IActionResult> OnPostDiscardAsync()
         {
             await _profiles.DiscardDraftAsync(User.Identity?.Name);
-            TempData["SuccessMessage"] = "Draft discarded. The active profile is unchanged.";
+            TempData["SuccessMessage"] = UiLocalizer.Localize("Draft discarded. The active profile is unchanged.");
             return RedirectToPage();
         }
 
@@ -117,7 +117,7 @@ namespace SCADASMSSystem.Web.Pages.Settings
             await _profiles.SaveDraftAsync(starter.Create());
             await _history.RecordChangeAsync(SettingsAreas.Provider, SettingsActions.DraftStartedFromTemplate,
                 $"Started a draft from template '{starter.Title}'.", User.Identity?.Name);
-            TempData["SuccessMessage"] = $"Draft started from '{starter.Title}'. Fill in the URL and secrets, then verify.";
+            TempData["SuccessMessage"] = UiLocalizer.Format("Draft started from '{0}'. Fill in the URL and secrets, then verify.", starter.Title);
             return RedirectToPage();
         }
 
@@ -136,7 +136,7 @@ namespace SCADASMSSystem.Web.Pages.Settings
         {
             if (file == null || file.Length == 0 || file.Length > MaxImportBytes)
             {
-                TempData["ErrorMessage"] = "Choose a profile file (JSON, up to 256 KB).";
+                TempData["ErrorMessage"] = UiLocalizer.Localize("Choose a profile file (JSON, up to 256 KB).");
                 return RedirectToPage();
             }
             try
@@ -148,8 +148,8 @@ namespace SCADASMSSystem.Web.Pages.Settings
                 await _history.RecordChangeAsync(SettingsAreas.Provider, SettingsActions.DraftImported,
                     $"Imported {SettingsChangeSummary.Describe(profile)} from file '{Path.GetFileName(file.FileName)}' as the draft.", User.Identity?.Name);
                 TempData["SuccessMessage"] = errors.Count == 0
-                    ? $"Imported '{profile.Name}' as the draft. Verify it before activating."
-                    : $"Imported '{profile.Name}' as the draft. Fill in the missing values ({errors.Count} issue(s)), then verify.";
+                    ? UiLocalizer.Format("Imported '{0}' as the draft. Verify it before activating.", profile.Name)
+                    : UiLocalizer.Format("Imported '{0}' as the draft. Fill in the missing values ({1} issue(s)), then verify.", profile.Name, errors.Count);
             }
             catch (InvalidOperationException ex)
             {
@@ -157,5 +157,8 @@ namespace SCADASMSSystem.Web.Pages.Settings
             }
             return RedirectToPage();
         }
+
+        private static IReadOnlyList<string> LocalizeErrors(IEnumerable<string> errors) =>
+            errors.Select(UiLocalizer.LocalizeProviderError).ToList();
     }
 }

@@ -43,7 +43,7 @@ namespace SCADASMSSystem.Web.Pages.Groups
                 var existingGroups = await _groupService.GetAllGroupsAsync();
                 if (existingGroups.Any(g => g.GroupName.Equals(GroupInput.GroupName, StringComparison.OrdinalIgnoreCase)))
                 {
-                    ModelState.AddModelError("GroupInput.GroupName", "A group with this name already exists.");
+                    ModelState.AddModelError("GroupInput.GroupName", UiLocalizer.Localize("A group with this name already exists."));
                     await LoadAvailableUsersAsync();
                     return Page();
                 }
@@ -71,12 +71,12 @@ namespace SCADASMSSystem.Web.Pages.Groups
                         _logger.LogInformation("Added {Count} initial members to group {GroupId}", GroupInput.InitialMemberIds.Count(), group.GroupId);
                     }
 
-                    TempData["SuccessMessage"] = $"Group '{group.GroupName}' has been created successfully!";
+                    TempData["SuccessMessage"] = UiLocalizer.Format("Group '{0}' has been created successfully!", group.GroupName);
                     return RedirectToPage("./Index");
                 }
                 else
                 {
-                    ModelState.AddModelError("", "Failed to create group. Please try again.");
+                    ModelState.AddModelError("", UiLocalizer.Localize("Failed to create group. Please try again."));
                     await LoadAvailableUsersAsync();
                     return Page();
                 }
@@ -84,7 +84,7 @@ namespace SCADASMSSystem.Web.Pages.Groups
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error creating group {GroupName}", GroupInput.GroupName);
-                ModelState.AddModelError("", "An unexpected error occurred while creating the group.");
+                ModelState.AddModelError("", UiLocalizer.Localize("An unexpected error occurred while creating the group."));
                 await LoadAvailableUsersAsync();
                 return Page();
             }
@@ -106,8 +106,8 @@ namespace SCADASMSSystem.Web.Pages.Groups
 
     public class GroupCreateModel
     {
-        [Required]
-        [StringLength(255, MinimumLength = 2)]
+        [LocalizedRequired]
+        [LocalizedStringLength(255, MinimumLength = 2)]
         [Display(Name = "Group Name")]
         public string GroupName { get; set; } = string.Empty;
 

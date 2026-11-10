@@ -22,13 +22,13 @@ namespace SCADASMSSystem.Web.Pages.Account
         public async Task OnGetAsync() => Accounts = await _accounts.ListAsync();
 
         public async Task<IActionResult> OnPostCreateAsync(string userName, string password, string role) =>
-            await Report(_accounts.CreateAsync(userName, password, role), $"Account '{userName}' created.", "created account {0}", userName);
+            await Report(_accounts.CreateAsync(userName, password, role), UiLocalizer.Format("Account '{0}' created.", userName), "created account {0}", userName);
 
         public async Task<IActionResult> OnPostRoleAsync(int accountId, string role) =>
-            await Report(_accounts.SetRoleAsync(accountId, role), "Role updated.", "set role of account {0} to " + role, accountId);
+            await Report(_accounts.SetRoleAsync(accountId, role), UiLocalizer.Localize("Role updated."), "set role of account {0} to " + role, accountId);
 
         public async Task<IActionResult> OnPostResetAsync(int accountId, string password) =>
-            await Report(_accounts.ChangePasswordAsync(accountId, password), "Password reset.", "reset password of account {0}", accountId);
+            await Report(_accounts.ChangePasswordAsync(accountId, password), UiLocalizer.Localize("Password reset."), "reset password of account {0}", accountId);
 
         public async Task<IActionResult> OnPostDeleteAsync(int accountId)
         {
@@ -37,7 +37,7 @@ namespace SCADASMSSystem.Web.Pages.Account
                 TempData["ErrorMessage"] = "You cannot delete your own account.";
                 return RedirectToPage();
             }
-            return await Report(_accounts.DeleteAsync(accountId), "Account deleted.", "deleted account {0}", accountId);
+            return await Report(_accounts.DeleteAsync(accountId), UiLocalizer.Localize("Account deleted."), "deleted account {0}", accountId);
         }
 
         private async Task<IActionResult> Report(Task<(bool Ok, string? Error)> action, string success, string auditFormat, object target)
@@ -50,7 +50,7 @@ namespace SCADASMSSystem.Web.Pages.Account
             }
             else
             {
-                TempData["ErrorMessage"] = error;
+                TempData["ErrorMessage"] = UiLocalizer.LocalizeAccountMessage(error);
             }
             return RedirectToPage();
         }

@@ -29,7 +29,7 @@ namespace SCADASMSSystem.Web.Pages.Alerts
 
             await _alerts.AcknowledgeAsync(alarmId, string.IsNullOrWhiteSpace(note) ? null : note.Trim(), User.Identity?.Name);
             _logger.LogWarning("Undelivered critical alarm {AlarmId} acknowledged by {User}: {Note}", alarmId, User.Identity?.Name, note);
-            TempData["SuccessMessage"] = $"Alarm {alarmId} acknowledged.";
+            TempData["SuccessMessage"] = UiLocalizer.Format("Alarm {0} acknowledged.", alarmId);
             return RedirectToPage();
         }
     }

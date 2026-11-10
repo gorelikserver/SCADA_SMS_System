@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.Globalization;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
@@ -47,7 +48,7 @@ namespace SCADASMSSystem.Web.Pages.Account
                     return LocalRedirect(SignInHelper.SafeReturnUrl(ReturnUrl));
                 case SignInOutcome.LockedOut:
                     _logger.LogWarning("Sign-in refused for locked account {UserName}", UserName);
-                    Error = $"Too many failed attempts. Try again after {result.LockedUntil:HH:mm}.";
+                    Error = UiLocalizer.Format("Too many failed attempts. Try again after {0}.", result.LockedUntil?.ToString("HH:mm", CultureInfo.InvariantCulture));
                     return Page();
                 default:
                     _logger.LogWarning("Failed sign-in for {UserName}", UserName);

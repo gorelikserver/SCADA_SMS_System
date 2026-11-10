@@ -78,12 +78,12 @@ namespace SCADASMSSystem.Web.Pages.Test
 
     public class SmsTestModel
     {
-        [Required]
-        [StringLength(500, MinimumLength = 5)]
+        [LocalizedRequired]
+        [LocalizedStringLength(500, MinimumLength = 5)]
         [Display(Name = "Test Message")]
         public string Message { get; set; } = "Test SMS from SCADA System";
 
-        [Required]
+        [LocalizedRequired]
         [Display(Name = "Target Group")]
         public int GroupId { get; set; }
     }

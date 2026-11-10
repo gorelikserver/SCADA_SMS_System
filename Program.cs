@@ -7,8 +7,6 @@ using SCADASMSSystem.Web.Models;
 using Serilog;
 using Serilog.Events;
 using System.IO;
-using System.Globalization;
-using Microsoft.AspNetCore.Localization;
 
 // Set content root to application directory when running as Windows Service
 var pathToExe = Environment.ProcessPath;
@@ -132,17 +130,8 @@ try
         options.Conventions.AllowAnonymousToPage("/Language");
     });
     builder.Services.AddSingleton<IUiLocalizer, UiLocalizer>();
-    builder.Services.Configure<RequestLocalizationOptions>(options =>
-    {
-        var cultures = new[] { new CultureInfo("en"), new CultureInfo("he-IL") };
-        options.DefaultRequestCulture = new RequestCulture("en");
-        options.SupportedCultures = cultures;
-        options.SupportedUICultures = cultures;
-        options.RequestCultureProviders = new IRequestCultureProvider[]
-        {
-            new CookieRequestCultureProvider()
-        };
-    });
+    builder.Services.Configure<RequestLocalizationOptions>(UiLocalizer.ConfigureRequestLocalization);
+    builder.Services.Configure<Microsoft.AspNetCore.Mvc.MvcOptions>(UiLocalizer.ConfigureModelBindingMessages);
 
     // Local accounts (air-gapped sites have no identity provider). Every page needs a sign-in;
     // the SCADA API, mock provider, health check and static files stay anonymous.
