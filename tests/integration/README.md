@@ -12,9 +12,10 @@ start if its profile URL is not the loopback mock.
 
 ## Run it
 
-Windows, .NET 9 SDK, local SQL Server (default: the `DefaultConnection` server from `appsettings.json`;
-the database name is always forced to `scada_mock_it`, which the suite drops and recreates with the app's
-EF migrations).
+Windows, .NET 9 SDK, local SQL Server (default: the `DefaultConnection` server from `appsettings.json`).
+Each test process creates its own database `scada_mock_it_<yyyyMMdd_HHmmss>_<pid>` with the app's EF
+migrations and drops it when it exits; leftovers older than a day are swept. A SQL Server that is not on
+this machine is refused unless `MOCK_IT_ALLOW_REMOTE_SQL=1`.
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File tests\integration\run-mock-suite.ps1
@@ -40,14 +41,22 @@ When the worktree was created from WSL, Windows git cannot resolve it; set `MOCK
 `MOCK_IT_GIT_BRANCH` so the report shows the commit.
 
 Each site's temp folder (bat copy, `Scada_sms.ini`, spool, `settings.json`, app logs) is under
-`%TEMP%\scada_mock_it\<run>\`; it is kept for debugging.
+`%TEMP%\scada_mock_it\<run>\`. It is deleted after a passing test and kept (with the database) when a test
+fails or `MOCK_IT_KEEP=1` is set. Each bat call is bounded by `MAXTIME` + 60 s; a call that does not exit
+is killed with its whole process tree (cmd, PowerShell, curl) and fails the test.
+
+Load results: **zero-loss** (every alarm x recipient accepted, spool empty, DB all SUCCESS) decides
+pass/fail; a zero-loss run with duplicate SMS is reported as **DEGRADED**. Latency percentiles are
+nearest-rank. Scenarios that document a product finding (S09, S11, S15, S16) pass by asserting current
+behavior and are shown as **FINDING** in the report. The go/no-go verdict requires every mandatory case
+for both REST and SOAP; a missing kind is NOT RUN and blocks GO.
 
 ## Test categories
 
 | Category | What | Needs |
 |---|---|---|
 | `MockSelfTest` | The mock enforces the Sheba contract (spec samples verbatim) and every fault kind works; app-rendered profiles satisfy the contract | nothing (always runs) |
-| `Scenario` | 14 end-to-end scenarios x REST and SOAP, plus the SOAP crash-recovery scenario | `SCADA_MOCK_IT=1`, Windows, SQL Server |
+| `Scenario` | 14 end-to-end scenarios x REST and SOAP, plus SOAP-only crash recovery (S15) and missing TZ/names (S16) | `SCADA_MOCK_IT=1`, Windows, SQL Server |
 | `Load` | Alarm storms of 10/50/200 concurrent bat calls, with latency/5xx/timeouts, plus the shipped default limits | `SCADA_MOCK_IT=1`, Windows, SQL Server |
 
 Without `SCADA_MOCK_IT=1` the `Scenario` and `Load` tests are skipped, so a normal `dotnet test` of the
@@ -64,7 +73,9 @@ dotnet test tests\SCADASMSSystem.IntegrationTests --filter "Category=Scenario"
   The mock checks POST, `Content-Type: text/xml;charset=UTF-8`, the exact `SOAPAction`, the WS-Security
   UsernameToken (PasswordText), Phone digits only, Message up to 1000 characters (Hebrew counted as
   characters), MessageType (the value Sheba assigned) and SendingSystem. It answers with the spec's success
-  envelope, or `<Success>false</Success>` + `ErrorMessage` (HTTP 200), or a SOAP Fault on HTTP 500 for bad
+  envelope, or `<Success>false</Success>` + `ErrorMessage` (HTTP 200). Strict Sheba mode (default on)
+  also refuses an empty or missing TZ, FirstName or LastName (`SoapContract.StrictPersonFields`); scenario users
+  are seeded with them, as on a correctly configured site, or a SOAP Fault on HTTP 500 for bad
   credentials. The spec samples are the fixtures in `tests/SCADASMSSystem.IntegrationTests/Fixtures`.
 - **REST**: no site spec exists; a generic JSON gateway (`POST /api/v1/messages`, Bearer token,
   `X-Request-Source: scada-sms`, body `{to (E.164), text, reference = AlarmId, sender, priority, value}`,

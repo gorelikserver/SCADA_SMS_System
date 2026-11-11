@@ -23,7 +23,8 @@
     Extra dotnet test filter appended to the scenario and load filters (e.g. "FullyQualifiedName~Soap").
 .PARAMETER SqlConnection
     Connection string for the test SQL Server. Default: appsettings.json DefaultConnection; the
-    database name is always forced to scada_mock_it.
+    database is always a per-run scada_mock_it_<run>, dropped at the end. Only a local SQL Server is
+    accepted unless MOCK_IT_ALLOW_REMOTE_SQL=1.
 
 .EXAMPLE
     powershell -ExecutionPolicy Bypass -File tests\integration\run-mock-suite.ps1
@@ -120,7 +121,7 @@ $envInfo = [ordered]@{
     gitBranch       = $gitBranch
     sqlServer       = $sqlServer
     sqlVersion      = $sqlVersion
-    testDatabase    = 'scada_mock_it'
+    testDatabase    = 'scada_mock_it_<run> (one per test process, dropped at the end)'
     curl            = ((& curl.exe --version 2>$null) | Select-Object -First 1)
     powershell      = $PSVersionTable.PSVersion.ToString()
     batFile         = 'Scada_sms.bat (byte-identical copy per site, Scada_sms.ini with URL/SPOOL_ROOT/MAXTIME)'

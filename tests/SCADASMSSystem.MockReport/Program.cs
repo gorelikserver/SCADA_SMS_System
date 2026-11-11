@@ -169,18 +169,25 @@ static class Analysis
 
     public static IEnumerable<CheckItem> Checklist(ReportData d)
     {
+        // A mandatory case counts only when BOTH provider kinds ran it: a missing kind is NOT RUN, never PASS.
         string Both(string prefix)
         {
             var r = d.Scenario("REST", prefix);
             var s = d.Scenario("SOAP", prefix);
-            if (r == null && s == null) return "NOT RUN";
-            return (r == null || ReportData.Passed(r)) && (s == null || ReportData.Passed(s)) ? "PASS" : "FAIL";
+            if (r == null || s == null) return "NOT RUN";
+            return ReportData.Passed(r) && ReportData.Passed(s) ? "PASS" : "FAIL";
         }
-        string Load(string prefix)
+        string Load(params string[] prefixes)
         {
-            var runs = d.Loads.Where(l => ReportData.S(l, "Id").StartsWith(prefix, StringComparison.Ordinal)).ToList();
-            if (runs.Count == 0) return "NOT RUN";
-            return runs.All(ReportData.Passed) ? "PASS" : "FAIL";
+            var status = "PASS";
+            foreach (var prefix in prefixes)
+                foreach (var kind in new[] { "REST", "SOAP" })
+                {
+                    var run = d.LoadRun(kind, prefix);
+                    if (run == null) return "NOT RUN";
+                    if (!ReportData.Passed(run)) status = "FAIL";
+                }
+            return status;
         }
 
         yield return new("Contract", "Exact SOAP envelope, SOAPAction, WS-Security and REST JSON match the profile/spec", Both("S01"), "S01 payload checks");
@@ -190,9 +197,10 @@ static class Analysis
         yield return new("Contract", "Service down: alarm spooled, delivered when the service starts", Both("S04"), "S04");
         yield return new("Contract", "Timeout = INDETERMINATE, re-sent from spool", Both("S06"), "S06");
         yield return new("Contract", "Idempotency: same AlarmId never re-sent to an accepted recipient", Both("S12"), "S12");
+        yield return new("Contract", "DESCRIPTION (Hebrew, cmd.exe special characters) reaches the provider unchanged", Both("S13"), "S13");
         yield return new("Resilience", "Service crash mid-flight recovered without loss", d.Scenario("SOAP", "S15") is { } c ? (ReportData.Passed(c) ? "PASS" : "FAIL") : "NOT RUN", "S15");
-        yield return new("Load", "Zero loss, healthy provider, bursts of 10/50/200", d.Loads.Any() ? (new[] { "L1", "L2", "L3" }.All(p => Load(p) == "PASS") ? "PASS" : "FAIL") : "NOT RUN", "L1-L3");
-        yield return new("Load", "Zero loss with latency, 5xx and timeouts", d.Loads.Any() ? (new[] { "L4", "L5", "L6" }.All(p => Load(p) == "PASS") ? "PASS" : "FAIL") : "NOT RUN", "L4-L6");
+        yield return new("Load", "Zero loss, healthy provider, bursts of 10/50/200 (REST and SOAP)", Load("L1", "L2", "L3"), "L1-L3");
+        yield return new("Load", "Zero loss with latency, 5xx and timeouts (REST and SOAP)", Load("L4", "L5", "L6"), "L4-L6");
         yield return new("Site", "RateLimit/RateWindow sized for the worst alarm storm and the provider limit", "OPEN", "F-RATE-LIMIT, L7");
         yield return new("Site", "HTTPS to Ensemble TEST endpoint works from the site server (Sheba certificate installed, firewall 443 open)", "OPEN", "F-TLS");
         yield return new("Site", "Real Username/Password, MessageType and SendingSystem from Sheba set in the profile", "OPEN", "F-MESSAGETYPE");
@@ -202,6 +210,17 @@ static class Analysis
         yield return new("Site", "One real Akara alarm fired; Scada_sms.log line and delivered text checked", "OPEN", "F-AKARA-QUOTING");
         yield return new("Site", "PCIMUTIL copy of Scada_sms.bat current (no red banner) and SPOOL_ROOT = ScadaSpool:Root", "OPEN", "CONTEXT.md packaging");
     }
+
+    /// <summary>Every automated (non-site) checklist item must be PASS; FAIL or NOT RUN blocks GO.</summary>
+    public static bool AutomatedComplete(ReportData d) => d.Checklist.Where(c => c.Area != "Site").All(c => c.Status == "PASS");
+
+    public static string Verdict(ReportData d) =>
+        d.Checklist.Any(c => c.Status == "FAIL") ? "NO-GO (automated checks failed)"
+        : !AutomatedComplete(d) ? "NO-GO (mandatory cases not run for both REST and SOAP)"
+        : "GO for site integration (open site items and findings remain)";
+
+    public static string LoadStatus(JsonNode? l) =>
+        l == null ? "n/a" : !ReportData.Passed(l) ? "FAIL" : ReportData.D(l, "DuplicateAcceptedSms") > 0 ? "DEGRADED" : "PASS";
 
     public static string ExitCodes(JsonNode? l) =>
         string.Join(", ", (l?["ExitCodes"]?.AsObject() ?? new JsonObject()).Select(kv => $"{kv.Key}: {kv.Value}"));
@@ -219,8 +238,8 @@ static class HtmlReport
         var sb = new StringBuilder();
         var scenariosPassed = d.Scenarios.Count(ReportData.Passed);
         var loadsPassed = d.Loads.Count(ReportData.Passed);
-        var automatedFail = d.Checklist.Any(c => c.Status == "FAIL");
-        var verdict = automatedFail ? "NO-GO" : "GO for site integration (open site items remain)";
+        var automatedFail = !Analysis.AutomatedComplete(d);
+        var verdict = Analysis.Verdict(d);
         var verdictClass = automatedFail ? "bad" : "good";
 
         sb.Append("<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">");
@@ -294,8 +313,9 @@ static class HtmlReport
         // Load
         sb.Append("<section id=\"load\"><h2>Load tests (alarm storm)</h2>");
         sb.Append("<p>Every run fires N <code>Scada_sms.bat</code> processes at the same moment (Akara's 3 arguments, groups of 3 recipients round-robin over 5 groups), " +
-                  "then reconciles mock records, DB delivery rows and the spool until every alarm × recipient was accepted. Latency = bat process start to exit.</p>");
-        sb.Append("<div class=\"scroll\"><table><tr><th>Run</th><th>N</th><th>Faults</th><th>Exit codes</th><th>p50</th><th>p95</th><th>p99</th><th>max</th><th>Alarms/s</th><th>SMS/s</th><th>Full delivery</th><th>Provider req.</th><th>Dup.</th><th>Missing</th><th>Zero-loss</th></tr>");
+                  "then reconciles mock records, DB delivery rows and the spool until every alarm × recipient was accepted. Latency = bat process start to exit; percentiles are nearest-rank (p95 = the value at rank ceil(0.95·N)). " +
+                  "Zero-loss = every pair accepted, spool empty, DB all SUCCESS. No-dup = no pair accepted twice. A zero-loss run with duplicates is DEGRADED, not FAIL.</p>");
+        sb.Append("<div class=\"scroll\"><table><tr><th>Run</th><th>N</th><th>Faults</th><th>Exit codes</th><th>p50</th><th>p95</th><th>p99</th><th>max</th><th>Alarms/s</th><th>SMS/s</th><th>Full delivery</th><th>Provider req.</th><th>Missing</th><th>Zero-loss</th><th>Dup.</th><th>No-dup</th><th>Status</th></tr>");
         foreach (var l in d.Loads.OrderBy(x => ReportData.S(x, "Kind")).ThenBy(x => ReportData.S(x, "Id"), StringComparer.Ordinal))
         {
             var lat = l["BatLatencyMs"];
@@ -304,14 +324,14 @@ static class HtmlReport
             sb.Append($"<tr><td><b>{E(ReportData.S(l, "Kind"))} {E(ReportData.S(l, "Id"))}</b></td><td>{ReportData.D(l, "Burst")}</td><td>{E(faults)}</td><td>{E(Analysis.ExitCodes(l))}</td>" +
                       $"<td>{Analysis.Ms(lat, "P50")}</td><td>{Analysis.Ms(lat, "P95")}</td><td>{Analysis.Ms(lat, "P99")}</td><td>{Analysis.Ms(lat, "Max")}</td>" +
                       $"<td>{ReportData.D(l, "AlarmsPerSecond"):0.0}</td><td>{ReportData.D(l, "SmsPerSecondDuringBurst"):0.0}</td><td>{Secs(ReportData.D(l, "SecondsToFullDelivery"))}</td>" +
-                      $"<td>{ReportData.D(l, "ProviderRequests")} ({ReportData.D(l, "ProviderAccepted")} ok)</td><td>{ReportData.D(l, "DuplicateAcceptedSms")}</td><td>{ReportData.D(l, "MissingPairs")}</td><td>{Status(l)}</td></tr>");
+                      $"<td>{ReportData.D(l, "ProviderRequests")} ({ReportData.D(l, "ProviderAccepted")} ok)</td><td>{ReportData.D(l, "MissingPairs")}</td><td>{(ReportData.Passed(l) ? "yes" : "<span class=\"bad\">no</span>")}</td><td>{ReportData.D(l, "DuplicateAcceptedSms")}</td><td>{(ReportData.D(l, "DuplicateAcceptedSms") > 0 ? "<span class=\"warn\">no</span>" : "yes")}</td><td>{LoadPill(l)}</td></tr>");
         }
         sb.Append("</table></div>");
         foreach (var kind in new[] { "REST", "SOAP" })
         {
             var runs = d.Loads.Where(l => ReportData.S(l, "Kind") == kind).OrderBy(x => ReportData.S(x, "Id"), StringComparer.Ordinal).ToList();
             if (runs.Count == 0) continue;
-            sb.Append($"<h3>{kind}: bat latency percentiles</h3>").Append(Charts.PercentileBars(runs));
+            sb.Append($"<h3>{kind}: bat latency percentiles (nearest-rank)</h3>").Append(Charts.PercentileBars(runs));
             sb.Append($"<h3>{kind}: per-alarm latency vs start offset</h3><div class=\"grid\">");
             foreach (var l in runs) sb.Append(Charts.Scatter(l));
             sb.Append("</div>");
@@ -336,7 +356,18 @@ static class HtmlReport
     private static string Secs(double s) => double.IsNaN(s) ? "-" : s < 0 ? "<span class=\"bad\">not reached</span>" : $"{s:0.0} s";
 
     private static string Status(JsonNode? o) => o == null ? "<span class=\"pill not-run\">n/a</span>"
-        : ReportData.Passed(o) ? "<span class=\"pill pass\">PASS</span>" : "<span class=\"pill fail\">FAIL</span>";
+        : !ReportData.Passed(o) ? "<span class=\"pill fail\">FAIL</span>"
+        : (o["Findings"]?.AsArray().Count ?? 0) > 0
+            ? $"<span class=\"pill open\" title=\"Passed by documenting current product behavior\">FINDING {E(string.Join(", ", o["Findings"]!.AsArray().Select(f => ReportData.S(f, "Id"))))}</span>"
+            : "<span class=\"pill pass\">PASS</span>";
+
+    private static string LoadPill(JsonNode? l) => Analysis.LoadStatus(l) switch
+    {
+        "PASS" => "<span class=\"pill pass\">PASS</span>",
+        "DEGRADED" => "<span class=\"pill open\" title=\"Zero loss, but duplicate SMS were accepted\">DEGRADED</span>",
+        "FAIL" => "<span class=\"pill fail\">FAIL</span>",
+        _ => "<span class=\"pill not-run\">n/a</span>",
+    };
 
     private static void Tile(StringBuilder sb, string label, string value, string sub) =>
         sb.Append($"<div class=\"tile\"><div class=\"tl\">{E(label)}</div><div class=\"tv\">{E(value)}</div><div class=\"ts\">{E(sub)}</div></div>");
@@ -521,9 +552,9 @@ static class MarkdownReport
     public static string Render(ReportData d)
     {
         var sb = new StringBuilder();
-        var fail = d.Checklist.Any(c => c.Status == "FAIL");
+
         sb.AppendLine("# SCADA SMS — mock integration suite summary").AppendLine();
-        sb.AppendLine($"Generated {ReportData.S(d.Env, "generatedAt")} · commit `{ReportData.S(d.Env, "gitSha")}` · verdict: **{(fail ? "NO-GO" : "GO for site integration (open site items remain)")}**").AppendLine();
+        sb.AppendLine($"Generated {ReportData.S(d.Env, "generatedAt")} · commit `{ReportData.S(d.Env, "gitSha")}` · verdict: **{Analysis.Verdict(d)}**").AppendLine();
         if (d.Counts.Count > 0)
         {
             sb.AppendLine("| Test run | Total | Passed | Failed | Skipped |").AppendLine("|---|---|---|---|---|");
@@ -533,18 +564,19 @@ static class MarkdownReport
         sb.AppendLine("## Scenarios").AppendLine().AppendLine("| Scenario | REST | SOAP |").AppendLine("|---|---|---|");
         foreach (var id in d.Scenarios.Select(s => ReportData.S(s, "Id")).Distinct().OrderBy(x => x, StringComparer.Ordinal))
         {
-            string St(string kind) => d.Scenarios.FirstOrDefault(s => ReportData.S(s, "Id") == id && ReportData.S(s, "Kind") == kind) is { } s ? (ReportData.Passed(s) ? "PASS" : "FAIL") : "n/a";
+            string St(string kind) => d.Scenarios.FirstOrDefault(s => ReportData.S(s, "Id") == id && ReportData.S(s, "Kind") == kind) is { } s ? (!ReportData.Passed(s) ? "FAIL" : (s["Findings"]?.AsArray().Count ?? 0) > 0 ? "FINDING " + string.Join(", ", s["Findings"]!.AsArray().Select(f => ReportData.S(f, "Id"))) : "PASS") : "n/a";
             var title = ReportData.S(d.Scenarios.First(s => ReportData.S(s, "Id") == id), "Title");
             sb.AppendLine($"| {id} {title} | {St("REST")} | {St("SOAP")} |");
         }
         sb.AppendLine().AppendLine("## Load (alarm storm)").AppendLine();
-        sb.AppendLine("| Run | N | Exit codes | p50 | p95 | p99 | max | Alarms/s | SMS/s | Full delivery | Dup | Missing | Zero-loss |").AppendLine("|---|---|---|---|---|---|---|---|---|---|---|---|---|");
+        sb.AppendLine("Latency percentiles are nearest-rank. A zero-loss run with duplicate SMS is DEGRADED (not FAIL).").AppendLine();
+        sb.AppendLine("| Run | N | Exit codes | p50 | p95 | p99 | max | Alarms/s | SMS/s | Full delivery | Missing | Zero-loss | Dup | No-dup | Status |").AppendLine("|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|");
         foreach (var l in d.Loads.OrderBy(x => ReportData.S(x, "Kind")).ThenBy(x => ReportData.S(x, "Id"), StringComparer.Ordinal))
         {
             var lat = l["BatLatencyMs"];
             var full = ReportData.D(l, "SecondsToFullDelivery");
             sb.AppendLine($"| {ReportData.S(l, "Kind")} {ReportData.S(l, "Id")} | {ReportData.D(l, "Burst")} | {Analysis.ExitCodes(l)} | {Analysis.Ms(lat, "P50")} | {Analysis.Ms(lat, "P95")} | {Analysis.Ms(lat, "P99")} | {Analysis.Ms(lat, "Max")} | " +
-                          $"{ReportData.D(l, "AlarmsPerSecond"):0.0} | {ReportData.D(l, "SmsPerSecondDuringBurst"):0.0} | {(full < 0 ? "not reached" : $"{full:0.0} s")} | {ReportData.D(l, "DuplicateAcceptedSms")} | {ReportData.D(l, "MissingPairs")} | {(ReportData.Passed(l) ? "PASS" : "FAIL")} |");
+                          $"{ReportData.D(l, "AlarmsPerSecond"):0.0} | {ReportData.D(l, "SmsPerSecondDuringBurst"):0.0} | {(full < 0 ? "not reached" : $"{full:0.0} s")} | {ReportData.D(l, "MissingPairs")} | {(ReportData.Passed(l) ? "yes" : "NO")} | {ReportData.D(l, "DuplicateAcceptedSms")} | {(ReportData.D(l, "DuplicateAcceptedSms") > 0 ? "no" : "yes")} | {Analysis.LoadStatus(l)} |");
         }
         sb.AppendLine().AppendLine("## Findings").AppendLine();
         foreach (var f in d.Findings) sb.AppendLine($"- **{f.Severity} · {f.Id} · {f.Title}.** {f.Detail}");
