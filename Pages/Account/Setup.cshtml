@@ -1,36 +1,36 @@
 @page
 @model SCADASMSSystem.Web.Pages.Account.SetupModel
 @{
-    ViewData["Title"] = "First-time setup";
+    ViewData["Title"] = T["First-time setup"];
 }
 
 <div class="row justify-content-center mt-5 auth-workspace">
     <div class="col-12 col-sm-8 col-md-6 col-lg-5">
         <div class="card shadow-sm">
             <div class="card-body p-4">
-                <h1 class="h4 mb-2"><i class="fas fa-user-shield me-2"></i>Create the first admin</h1>
-                <p class="text-muted small mb-4">No accounts exist yet. This account can manage recipients, notification teams, routing rules, provider configuration, and additional accounts.</p>
+                <h1 class="h4 mb-2"><i class="fas fa-user-shield me-2"></i>@T["Create the first admin"]</h1>
+                <p class="text-muted small mb-4">@T["No accounts exist yet. This account can manage recipients, notification teams, routing rules, provider configuration, and additional accounts."]</p>
                 @if (Model.Error != null)
                 {
                     <div class="alert alert-danger py-2">@Model.Error</div>
                 }
                 <form method="post">
                     <div class="mb-3">
-                        <label asp-for="UserName" class="form-label">User name</label>
+                        <label asp-for="UserName" class="form-label">@T["User name"]</label>
                         <input asp-for="UserName" class="form-control" autocomplete="username" />
                         <span asp-validation-for="UserName" class="text-danger small"></span>
                     </div>
                     <div class="mb-3">
-                        <label asp-for="Password" class="form-label">Password (at least @SCADASMSSystem.Web.Services.AccountService.MinPasswordLength characters)</label>
+                        <label asp-for="Password" class="form-label">@string.Format(T["Password (at least {0} characters)"], SCADASMSSystem.Web.Services.AccountService.MinPasswordLength)</label>
                         <input asp-for="Password" class="form-control" autocomplete="new-password" />
                         <span asp-validation-for="Password" class="text-danger small"></span>
                     </div>
                     <div class="mb-3">
-                        <label asp-for="ConfirmPassword" class="form-label">Confirm password</label>
+                        <label asp-for="ConfirmPassword" class="form-label">@T["Confirm password"]</label>
                         <input asp-for="ConfirmPassword" class="form-control" autocomplete="new-password" />
                         <span asp-validation-for="ConfirmPassword" class="text-danger small"></span>
                     </div>
-                    <button type="submit" class="btn btn-primary w-100">Create admin and sign in</button>
+                    <button type="submit" class="btn btn-primary w-100">@T["Create admin and sign in"]</button>
                 </form>
             </div>
         </div>

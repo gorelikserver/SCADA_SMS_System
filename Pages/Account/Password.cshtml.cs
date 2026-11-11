@@ -37,7 +37,7 @@ namespace SCADASMSSystem.Web.Pages.Account
             }
 
             var (ok, error) = await _accounts.ChangePasswordAsync(check.Account!.AccountId, NewPassword);
-            Error = error;
+            Error = UiLocalizer.LocalizeAccountMessage(error);
             Done = ok;
             return Page();
         }

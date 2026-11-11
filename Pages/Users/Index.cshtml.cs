@@ -53,7 +53,7 @@ namespace SCADASMSSystem.Web.Pages.Users
             {
                 _logger.LogError(ex, "Error loading users");
                 Users = new List<User>();
-                TempData["ErrorMessage"] = "Error loading users. Please try again.";
+                TempData["ErrorMessage"] = UiLocalizer.Localize("Error loading users. Please try again.");
             }
         }
 
@@ -72,17 +72,17 @@ namespace SCADASMSSystem.Web.Pages.Users
 
                 if (success)
                 {
-                    TempData["SuccessMessage"] = $"SMS notifications {(newValue ? "enabled" : "disabled")} for {user.UserName}";
+                    TempData["SuccessMessage"] = UiLocalizer.Format(newValue ? "SMS notifications enabled for {0}" : "SMS notifications disabled for {0}", user.UserName);
                 }
                 else
                 {
-                    TempData["ErrorMessage"] = "Failed to update SMS setting";
+                    TempData["ErrorMessage"] = UiLocalizer.Localize("Failed to update SMS setting");
                 }
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error toggling SMS for user {UserId}", userId);
-                TempData["ErrorMessage"] = "Error updating SMS setting";
+                TempData["ErrorMessage"] = UiLocalizer.Localize("Error updating SMS setting");
             }
 
             return RedirectToPage();
@@ -103,17 +103,17 @@ namespace SCADASMSSystem.Web.Pages.Users
 
                 if (success)
                 {
-                    TempData["SuccessMessage"] = $"Holiday work setting {(newValue ? "enabled" : "disabled")} for {user.UserName}";
+                    TempData["SuccessMessage"] = UiLocalizer.Format(newValue ? "Holiday work setting enabled for {0}" : "Holiday work setting disabled for {0}", user.UserName);
                 }
                 else
                 {
-                    TempData["ErrorMessage"] = "Failed to update holiday setting";
+                    TempData["ErrorMessage"] = UiLocalizer.Localize("Failed to update holiday setting");
                 }
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error toggling holiday setting for user {UserId}", userId);
-                TempData["ErrorMessage"] = "Error updating holiday setting";
+                TempData["ErrorMessage"] = UiLocalizer.Localize("Error updating holiday setting");
             }
 
             return RedirectToPage();

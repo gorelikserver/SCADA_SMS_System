@@ -385,7 +385,7 @@
                     }
                     else
                     {
-                        <div class="fw-semibold">@active.Name <span class="badge bg-secondary">@active.Kind</span> <span class="badge bg-light text-dark border">@active.Method</span></div>
+                        <div class="fw-semibold"><span data-no-translate>@active.Name</span> <span class="badge bg-secondary">@active.Kind</span> <span class="badge bg-light text-dark border">@active.Method</span></div>
                         <div class="font-monospace small text-muted">@active.Url.Split('?')[0]</div>
                         @if (Model.ProviderState.Activation != null)
                         {
@@ -491,7 +491,7 @@
 <script>
     async function confirmCleanupData() {
         if (!window.SCADAUtils || !SCADAUtils.confirmModal) {
-            if (window.confirm('Delete audit records older than 90 days?'))
+            if (window.confirm(@(Html.Raw(System.Text.Json.JsonSerializer.Serialize(T["Delete audit records older than 90 days?"])))))
                 document.getElementById('cleanupDataForm').submit();
             return;
         }

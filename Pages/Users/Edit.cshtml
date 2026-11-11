@@ -301,9 +301,9 @@
         async function confirmDeleteUser(btn) {
             const userName = btn.dataset.userName;
             const confirmed = await SCADAUtils.confirmModal(
-                'Delete User',
-                `Delete "${userName}"? This removes them from all groups and cannot be undone.`,
-                'Delete User'
+                @(Html.Raw(System.Text.Json.JsonSerializer.Serialize(T["Delete User"]))),
+                @(Html.Raw(System.Text.Json.JsonSerializer.Serialize(T["Delete \"{0}\"? This removes them from all groups and cannot be undone."]))).replace('{0}', () => userName),
+                @(Html.Raw(System.Text.Json.JsonSerializer.Serialize(T["Delete User"])))
             );
             if (confirmed) {
                 document.getElementById('deleteUserForm').submit();
@@ -315,7 +315,7 @@
             const userName = '@Html.Raw(Model.UserInput.UserName?.Replace("'", "\\'"))';
             const confirmed = await SCADAUtils.confirmModal(
                 'Send Test SMS',
-                `Send a test SMS to "${userName}"?`,
+                @(Html.Raw(System.Text.Json.JsonSerializer.Serialize(T["Send a test SMS to \"{0}\"?"]))).replace('{0}', () => userName),
                 'Send SMS',
                 'btn-primary'
             );

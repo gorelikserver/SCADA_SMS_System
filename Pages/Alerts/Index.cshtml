@@ -62,13 +62,13 @@
             <article class="alarm-case @stateClass">
                 <div class="alarm-case-header">
                     <div class="alarm-state"><i class="fas @icon"></i><span><strong>@label</strong><small>@guidance</small></span></div>
-                    <div class="alarm-identity"><code>@alarm.AlarmId</code><span>@(alarm.GroupName ?? "Unknown team") · Team #@alarm.GroupId</span></div>
+                    <div class="alarm-identity"><code>@alarm.AlarmId</code>@if (alarm.GroupName is null) { <span>Unknown team</span> } else { <span dir="auto" data-no-translate>@alarm.GroupName</span> } · <span>Team #@alarm.GroupId</span></div>
                     <time datetime="@alarm.FirstSeen.ToString("O")">First seen<br><strong>@alarm.FirstSeen.ToString("dd MMM yyyy, HH:mm:ss")</strong></time>
                 </div>
                 <div class="alarm-case-body">
                     @if (!string.IsNullOrEmpty(alarm.Message))
                     {
-                        <div class="alarm-message"><span>SCADA message</span><p dir="auto">@alarm.Message</p></div>
+                        <div class="alarm-message"><span>SCADA message</span><p dir="auto" data-no-translate>@alarm.Message</p></div>
                     }
                     @if (alarm.Recipients.Count == 0)
                     {
@@ -87,7 +87,7 @@
                                     <td><span class="delivery-state @(r.Status == "SUCCESS" ? "state-good" : "state-danger")"><i class="fas @(r.Status == "SUCCESS" ? "fa-check" : "fa-xmark")"></i>@r.Status</span></td>
                                     <td>@(r.ProviderStatusCode == 0 ? "-" : r.ProviderStatusCode.ToString())</td>
                                     <td>@r.Attempts</td>
-                                    <td class="provider-response" dir="auto">@(string.IsNullOrWhiteSpace(r.ProviderMessage) ? "No response" : r.ProviderMessage)</td>
+                                    <td class="provider-response" dir="auto" data-no-translate="@(!string.IsNullOrWhiteSpace(r.ProviderMessage) ? "true" : null)">@(string.IsNullOrWhiteSpace(r.ProviderMessage) ? "No response" : r.ProviderMessage)</td>
                                 </tr>
                             }
                             </tbody>
@@ -110,7 +110,7 @@
         @if (Model.Summary.ScadaLink?.IsProblem == true) { <div class="issue-card is-critical"><i class="fas fa-link-slash"></i><div><strong>SCADA ingress link</strong><p>@Model.Summary.ScadaLink.Detail</p></div></div> }
         @foreach (var e in Model.Summary.ProfileErrors)
         {
-            <div class="issue-card is-critical"><i class="fas fa-plug-circle-xmark"></i><div><strong>Provider configuration</strong><p>@e</p></div></div>
+            <div class="issue-card is-critical"><i class="fas fa-plug-circle-xmark"></i><div><strong>Provider configuration</strong><p>@SCADASMSSystem.Web.Services.UiLocalizer.LocalizeProviderError(e)</p></div></div>
         }
         @foreach (var f in Model.Summary.BadSpoolFiles)
         {
@@ -124,11 +124,11 @@
         <section class="alert-section"><div class="section-heading"><div><p class="panel-eyebrow">Routing readiness</p><h2>Recipients and notification teams</h2></div><p>Correct these issues before the next alarm uses the affected route.</p></div><div class="issue-grid">
         @foreach (var u in Model.Summary.InvalidPhones)
         {
-            <a class="issue-card" asp-page="/Users/Edit" asp-route-id="@u.UserId"><i class="fas fa-phone-slash"></i><div><strong dir="auto">@u.UserName</strong><p><code>@u.PhoneNumber</code> is not a deliverable 7–15 digit number.</p></div><i class="fas fa-chevron-right"></i></a>
+            <a class="issue-card" asp-page="/Users/Edit" asp-route-id="@u.UserId"><i class="fas fa-phone-slash"></i><div><strong dir="auto" data-no-translate>@u.UserName</strong><p><code>@u.PhoneNumber</code> is not a deliverable 7–15 digit number.</p></div><i class="fas fa-chevron-right"></i></a>
         }
         @foreach (var g in Model.Summary.EmptyGroups)
         {
-            <a class="issue-card" asp-page="/Groups/Edit" asp-route-id="@g.GroupId"><i class="fas fa-users-slash"></i><div><strong dir="auto">@g.GroupName</strong><p>Team #@g.GroupId has no eligible recipients right now.</p></div><i class="fas fa-chevron-right"></i></a>
+            <a class="issue-card" asp-page="/Groups/Edit" asp-route-id="@g.GroupId"><i class="fas fa-users-slash"></i><div><strong dir="auto" data-no-translate>@g.GroupName</strong><p>Team #@g.GroupId has no eligible recipients right now.</p></div><i class="fas fa-chevron-right"></i></a>
         }
         </div></section>
     }

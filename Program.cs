@@ -127,7 +127,11 @@ try
             options.Conventions.AuthorizeFolder(folder, AdminPolicy);
         options.Conventions.AuthorizePage("/Account/Manage", AdminPolicy);
         options.Conventions.AllowAnonymousToPage("/Error");
+        options.Conventions.AllowAnonymousToPage("/Language");
     });
+    builder.Services.AddSingleton<IUiLocalizer, UiLocalizer>();
+    builder.Services.Configure<RequestLocalizationOptions>(UiLocalizer.ConfigureRequestLocalization);
+    builder.Services.Configure<Microsoft.AspNetCore.Mvc.MvcOptions>(UiLocalizer.ConfigureModelBindingMessages);
 
     // Local accounts (air-gapped sites have no identity provider). Every page needs a sign-in;
     // the SCADA API, mock provider, health check and static files stay anonymous.
@@ -351,6 +355,7 @@ try
         });
     }
 
+    app.UseRequestLocalization();
     app.UseRouting();
 
     app.UseAuthentication();

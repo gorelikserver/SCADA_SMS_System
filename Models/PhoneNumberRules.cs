@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using SCADASMSSystem.Web.Services;
 
 namespace SCADASMSSystem.Web.Models
 {
@@ -38,10 +39,11 @@ namespace SCADASMSSystem.Web.Models
     [AttributeUsage(AttributeTargets.Property)]
     public sealed class SmsPhoneNumberAttribute : ValidationAttribute
     {
-        public SmsPhoneNumberAttribute()
-            : base($"Phone number must contain {PhoneNumberRules.MinDigits}-{PhoneNumberRules.MaxDigits} digits, optionally starting with +, separated only by spaces, dashes, dots or parentheses.") { }
-
         public override bool IsValid(object? value) =>
             value is null || (value is string s && (s.Length == 0 || PhoneNumberRules.IsValid(s)));
+
+        public override string FormatErrorMessage(string name) => UiLocalizer.Format(
+            "Phone number must contain {0}-{1} digits, optionally starting with +, separated only by spaces, dashes, dots or parentheses.",
+            PhoneNumberRules.MinDigits, PhoneNumberRules.MaxDigits);
     }
 }

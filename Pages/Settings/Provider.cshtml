@@ -58,7 +58,7 @@
                     }
                     else
                     {
-                        <h2 class="h5 mb-1">@active.Name <span class="badge bg-secondary">@active.Kind</span></h2>
+                        <h2 class="h5 mb-1"><span data-no-translate>@active.Name</span> <span class="badge bg-secondary">@active.Kind</span></h2>
                         <div class="pv-mono text-muted mb-2">@active.Method @(Uri.TryCreate(active.Url.Split('?')[0], UriKind.Absolute, out var u) ? u.GetLeftPart(UriPartial.Path) : active.Url.Split('?')[0])</div>
                         @if (Model.State.Activation != null)
                         {
@@ -103,16 +103,16 @@
                     @if (Model.State.Verification != null && Model.State.DraftVerified)
                     {
                         <div class="small text-success mb-2" x-show="!dirty">
-                            <i class="fas fa-check-circle me-1"></i>Verified @Model.State.Verification.VerifiedAt.ToString("yyyy-MM-dd HH:mm") to @Model.State.Verification.MaskedPhone by @(Model.State.Verification.VerifiedBy ?? "?"): @Model.State.Verification.Result
+                            <i class="fas fa-check-circle me-1"></i>Verified @Model.State.Verification.VerifiedAt.ToString("yyyy-MM-dd HH:mm") to @Model.State.Verification.MaskedPhone by @(Model.State.Verification.VerifiedBy ?? "?"): <span data-no-translate>@Model.State.Verification.Result</span>
                         </div>
                     }
                     <div class="d-flex flex-wrap gap-2">
-                        <form method="post" asp-page-handler="Activate" onsubmit="return confirm('Activate this draft? Every alarm will use it from now on.');">
+                        <form method="post" asp-page-handler="Activate" onsubmit="return confirm(@(System.Text.Json.JsonSerializer.Serialize(T["Activate this draft? Every alarm will use it from now on."])));">
                             <button class="btn btn-sm btn-success" :disabled="!verified || dirty"><i class="fas fa-bolt me-1"></i>Activate</button>
                         </form>
                         @if (draft != null)
                         {
-                            <form method="post" asp-page-handler="Discard" onsubmit="return confirm('Discard the draft? The active profile is not affected.');">
+                            <form method="post" asp-page-handler="Discard" onsubmit="return confirm(@(System.Text.Json.JsonSerializer.Serialize(T["Discard the draft? The active profile is not affected."])));">
                                 <button class="btn btn-sm btn-outline-danger"><i class="fas fa-trash me-1"></i>Discard draft</button>
                             </form>
                             <a class="btn btn-sm btn-outline-secondary" asp-page-handler="Export" asp-route-which="draft"><i class="fas fa-download me-1"></i>Export draft</a>
@@ -128,7 +128,7 @@
                             @foreach (var t in ProfileTemplates.All)
                             {
                                 <form method="post" asp-page-handler="StartFromTemplate" class="list-group-item d-flex align-items-center gap-2"
-                                      onsubmit="return confirm('Replace the draft with this template?');">
+                                      onsubmit="return confirm(@(System.Text.Json.JsonSerializer.Serialize(T["Replace the draft with this template?"])));">
                                     <input type="hidden" name="id" value="@t.Id" />
                                     <div class="flex-grow-1"><strong>@t.Title</strong><div class="small text-muted">@t.Description</div></div>
                                     <button class="btn btn-sm btn-outline-primary">Use</button>
@@ -150,11 +150,11 @@
                         <div class="col-md-6"><label class="form-label small">Name</label><input class="form-control form-control-sm" x-model="p.Name" /></div>
                         <div class="col-md-3">
                             <label class="form-label small">Kind</label>
-                            <select class="form-select form-select-sm" x-model="p.Kind"><option>REST</option><option>SOAP</option></select>
+                            <select class="form-select form-select-sm" x-model="p.Kind"><option value="REST">REST</option><option value="SOAP">SOAP</option></select>
                         </div>
                         <div class="col-md-3">
                             <label class="form-label small">Method</label>
-                            <select class="form-select form-select-sm" x-model="p.Method"><option>POST</option><option>GET</option><option>PUT</option><option>PATCH</option></select>
+                            <select class="form-select form-select-sm" x-model="p.Method"><option value="POST">POST</option><option value="GET">GET</option><option value="PUT">PUT</option><option value="PATCH">PATCH</option></select>
                         </div>
                         <div class="col-12"><label class="form-label small">URL</label><input class="form-control form-control-sm pv-mono" x-model="p.Url" placeholder="https://gateway/send?to={Phone}" /></div>
                         <div class="col-md-8">
@@ -200,7 +200,7 @@
                     <div class="row g-2">
                         <div class="col-md-4">
                             <select class="form-select form-select-sm" x-model="p.Auth.Type">
-                                @foreach (var a in AuthTypes.All) { <option>@a</option> }
+                                @foreach (var a in AuthTypes.All) { <option value="@a">@a</option> }
                             </select>
                         </div>
                         <div class="col-md-4" x-show="p.Auth.Type === 'Basic' || p.Auth.Type === 'WsSecurity'"><input class="form-control form-control-sm pv-mono" x-model="p.Auth.User" placeholder="User, e.g. {Username}" /></div>
@@ -211,21 +211,21 @@
                     <div class="row g-2">
                         <div class="col-md-4">
                             <select class="form-select form-select-sm" x-model="p.PhoneFormat">
-                                @foreach (var f in PhoneFormats.All) { <option>@f</option> }
+                                @foreach (var f in PhoneFormats.All) { <option value="@f">@f</option> }
                             </select>
                         </div>
                         <div class="col-md-3"><input class="form-control form-control-sm" x-model="p.CountryCode" placeholder="Country code, e.g. 972" /></div>
                         <div class="col-md-5 small text-muted align-self-center">050-1234567 &rarr; <code x-text="phoneExample()"></code></div>
                     </div>
 
-                    <template x-for="rule in [{ label: 'Failure rule (checked first)', r: p.Failure }, { label: 'Success rule', r: p.Success }]" :key="rule.label">
+                    <template x-for="rule in [{ label: @(Html.Raw(System.Text.Json.JsonSerializer.Serialize(T["Failure rule (checked first)"]))), r: p.Failure }, { label: @(Html.Raw(System.Text.Json.JsonSerializer.Serialize(T["Success rule"]))), r: p.Success }]" :key="rule.label">
                         <div>
                             <div class="pv-section" x-text="rule.label"></div>
                             <div class="row g-2">
                                 <div class="col-md-2"><input class="form-control form-control-sm pv-mono" x-model="rule.r.StatusCodes" placeholder="2xx or 200,202" title="Status codes; empty = any" /></div>
                                 <div class="col-md-3">
                                     <select class="form-select form-select-sm" x-model="rule.r.Match">
-                                        @foreach (var m in MatchTypes.All) { <option>@m</option> }
+                                        @foreach (var m in MatchTypes.All) { <option value="@m">@m</option> }
                                     </select>
                                 </div>
                                 <div class="col-md-4" x-show="rule.r.Match !== 'None'"><input class="form-control form-control-sm pv-mono" x-model="rule.r.Expression" :placeholder="rule.r.Match === 'JsonPath' ? '$.status' : rule.r.Match === 'XmlElement' ? 'Success or Result/Status' : 'text or pattern'" /></div>
@@ -262,8 +262,8 @@
                     <template x-if="verifyResult">
                         <div class="mt-3">
                             <div class="alert py-2 mb-2" :class="verifyResult.accepted ? 'alert-success' : 'alert-danger'">
-                                <strong x-text="verifyResult.accepted ? 'Accepted by the provider. You can activate now.' : 'Not accepted.'"></strong>
-                                <span x-text="(verifyResult.statusCode ? 'HTTP ' + verifyResult.statusCode + ' - ' : '') + verifyResult.reason"></span>
+                                <strong x-text="verifyResult.accepted ? @(Html.Raw(System.Text.Json.JsonSerializer.Serialize(T["Accepted by the provider. You can activate now."]))) : @(Html.Raw(System.Text.Json.JsonSerializer.Serialize(T["Not accepted."])))"></strong>
+                                <span data-no-translate x-text="(verifyResult.statusCode ? 'HTTP ' + verifyResult.statusCode + ' - ' : '') + verifyResult.reason"></span>
                             </div>
                             <template x-if="verifyResult.displayUrl"><div class="pv-mono small mb-1" x-text="verifyResult.displayUrl"></div></template>
                             <template x-if="verifyResult.responseBody"><pre class="pv-pre" x-text="verifyResult.responseBody"></pre></template>
@@ -333,7 +333,7 @@
                     if (!res.ok) throw new Error('HTTP ' + res.status);
                     return await res.json();
                 } catch (e) {
-                    alert('Request failed: ' + e.message);
+                    alert(@(Html.Raw(System.Text.Json.JsonSerializer.Serialize(T["Request failed: {0}"]))).replace('{0}', () => e.message));
                     return null;
                 } finally {
                     this.busy = false;

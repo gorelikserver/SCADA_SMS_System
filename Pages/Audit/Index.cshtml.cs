@@ -90,7 +90,7 @@ namespace SCADASMSSystem.Web.Pages.Audit
             {
                 _logger.LogError(ex, "Error loading audit records");
                 AuditRecords = new List<SmsAuditWithUserInfo>();
-                TempData["ErrorMessage"] = "Error loading audit records. Please try again.";
+                TempData["ErrorMessage"] = UiLocalizer.Localize("Error loading audit records. Please try again.");
             }
         }
 
@@ -104,7 +104,7 @@ namespace SCADASMSSystem.Web.Pages.Audit
             var auditRecordsWithUserInfo = allAuditRecords.Select(audit => new SmsAuditWithUserInfo
             {
                 Audit = audit,
-                UserName = audit.User?.UserName ?? "Unknown User",
+                UserName = audit.User?.UserName ?? UiLocalizer.Localize("Unknown User"),
                 UserPhone = audit.PhoneNumber,
                 GroupName = audit.Group?.GroupName ?? "No Group"
             }).ToList();
@@ -316,17 +316,17 @@ namespace SCADASMSSystem.Web.Pages.Audit
 
                 if (success)
                 {
-                    TempData["SuccessMessage"] = "Old audit records have been cleaned up successfully.";
+                    TempData["SuccessMessage"] = UiLocalizer.Localize("Old audit records have been cleaned up successfully.");
                 }
                 else
                 {
-                    TempData["ErrorMessage"] = "Failed to cleanup old audit records.";
+                    TempData["ErrorMessage"] = UiLocalizer.Localize("Failed to cleanup old audit records.");
                 }
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error cleaning up audit records");
-                TempData["ErrorMessage"] = "An error occurred while cleaning up audit records.";
+                TempData["ErrorMessage"] = UiLocalizer.Localize("An error occurred while cleaning up audit records.");
             }
 
             return RedirectToPage();

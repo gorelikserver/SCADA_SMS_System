@@ -70,7 +70,7 @@
                                         <div class="small text-muted font-monospace" title="SHA-256 of the profile">@v.ProfileHash[..Math.Min(12, v.ProfileHash.Length)]</div>
                                         @if (!string.IsNullOrEmpty(v.Note))
                                         {
-                                            <div class="small text-muted fst-italic">@v.Note</div>
+                                            <div class="small text-muted fst-italic" data-no-translate>@v.Note</div>
                                         }
                                     </td>
                                     <td class="small">@v.ActivatedAt.ToString("yyyy-MM-dd HH:mm") <div class="text-muted">@(v.ActivatedBy ?? "?")</div></td>
@@ -86,7 +86,7 @@
                                     </td>
                                     <td class="text-end text-nowrap">
                                         <form method="post" asp-page-handler="Restore" class="d-inline"
-                                              onsubmit="return confirm('@(Model.HasDraft ? "This replaces the current draft. " : "")Restore version #@v.Id as the draft? It will not be active until you verify and activate it.');">
+                                              onsubmit="return confirm(@(System.Text.Json.JsonSerializer.Serialize(string.Format(T[Model.HasDraft ? "This replaces the current draft. Restore version #{0} as the draft? It will not be active until you verify and activate it." : "Restore version #{0} as the draft? It will not be active until you verify and activate it."], v.Id))));">
                                             <input type="hidden" name="id" value="@v.Id" />
                                             <button class="btn btn-sm btn-outline-primary"><i class="fas fa-undo me-1"></i>Restore as draft</button>
                                         </form>
@@ -120,10 +120,10 @@
                             {
                                 <tr>
                                     <td class="small text-nowrap">@c.ChangedAt.ToString("yyyy-MM-dd HH:mm:ss")</td>
-                                    <td class="small">@(c.ChangedBy ?? "?")</td>
+                                    <td class="small" data-no-translate>@(c.ChangedBy ?? "?")</td>
                                     <td><span class="badge @(c.Area == SettingsAreas.Provider ? "bg-primary" : "bg-secondary")">@c.Area</span></td>
                                     <td class="small text-nowrap">@c.Action</td>
-                                    <td class="small">@c.Summary</td>
+                                    <td class="small" data-no-translate>@c.Summary</td>
                                 </tr>
                             }
                         </tbody>

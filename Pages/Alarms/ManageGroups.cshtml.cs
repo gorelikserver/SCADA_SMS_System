@@ -99,7 +99,7 @@ namespace SCADASMSSystem.Web.Pages.Alarms
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error loading alarm group management page");
-                TempData["ErrorMessage"] = "An error occurred while loading alarm data.";
+                TempData["ErrorMessage"] = UiLocalizer.Localize("An error occurred while loading alarm data.");
                 return Page();
             }
         }
@@ -116,17 +116,17 @@ namespace SCADASMSSystem.Web.Pages.Alarms
                 if (success)
                 {
                     var group = await _groupService.GetGroupByIdAsync(groupId);
-                    TempData["SuccessMessage"] = $"Successfully added group '{group?.GroupName}' to the alarm.";
+                    TempData["SuccessMessage"] = UiLocalizer.Format("Successfully added group '{0}' to the alarm.", group?.GroupName);
                 }
                 else
                 {
-                    TempData["ErrorMessage"] = "Failed to add group to alarm. It may already be assigned.";
+                    TempData["ErrorMessage"] = UiLocalizer.Localize("Failed to add group to alarm. It may already be assigned.");
                 }
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error adding group {GroupId} to alarm {BlockId}", groupId, blockId);
-                TempData["ErrorMessage"] = "An error occurred while adding the group.";
+                TempData["ErrorMessage"] = UiLocalizer.Localize("An error occurred while adding the group.");
             }
 
             return RedirectToPage();
@@ -144,17 +144,17 @@ namespace SCADASMSSystem.Web.Pages.Alarms
 
                 if (success)
                 {
-                    TempData["SuccessMessage"] = $"Successfully removed group '{group?.GroupName}' from the alarm.";
+                    TempData["SuccessMessage"] = UiLocalizer.Format("Successfully removed group '{0}' from the alarm.", group?.GroupName);
                 }
                 else
                 {
-                    TempData["ErrorMessage"] = "Failed to remove group from alarm.";
+                    TempData["ErrorMessage"] = UiLocalizer.Localize("Failed to remove group from alarm.");
                 }
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error removing group {GroupId} from alarm {BlockId}", groupId, blockId);
-                TempData["ErrorMessage"] = "An error occurred while removing the group.";
+                TempData["ErrorMessage"] = UiLocalizer.Localize("An error occurred while removing the group.");
             }
 
             return RedirectToPage();
@@ -187,12 +187,12 @@ namespace SCADASMSSystem.Web.Pages.Alarms
                     
                     if (removeSuccess)
                     {
-                        TempData["SuccessMessage"] = "Successfully removed all SMS group assignments. The alarm will not send SMS notifications.";
+                        TempData["SuccessMessage"] = UiLocalizer.Localize("Successfully removed all SMS group assignments. The alarm will not send SMS notifications.");
                         _logger.LogInformation("Successfully removed all groups from block {BlockId}", blockId);
                     }
                     else
                     {
-                        TempData["ErrorMessage"] = "Failed to remove SMS group assignments.";
+                        TempData["ErrorMessage"] = UiLocalizer.Localize("Failed to remove SMS group assignments.");
                         _logger.LogError("Failed to remove all groups from block {BlockId}", blockId);
                     }
                     
@@ -211,19 +211,19 @@ namespace SCADASMSSystem.Web.Pages.Alarms
                         .ToList();
                     
                     var groupsText = string.Join(", ", selectedGroupNames);
-                    TempData["SuccessMessage"] = $"Successfully assigned {groupIds.Count} group(s) to the alarm: {groupsText}";
+                    TempData["SuccessMessage"] = UiLocalizer.Format("Successfully assigned {0} group(s) to the alarm: {1}", groupIds.Count, groupsText);
                     _logger.LogInformation("Successfully updated block {BlockId} with {Count} groups", blockId, groupIds.Count);
                 }
                 else
                 {
-                    TempData["ErrorMessage"] = "Failed to update alarm group assignments.";
+                    TempData["ErrorMessage"] = UiLocalizer.Localize("Failed to update alarm group assignments.");
                     _logger.LogError("Failed to update block {BlockId}", blockId);
                 }
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error updating groups for alarm {BlockId}", blockId);
-                TempData["ErrorMessage"] = "An error occurred while updating the group assignments.";
+                TempData["ErrorMessage"] = UiLocalizer.Localize("An error occurred while updating the group assignments.");
             }
 
             // Redirect back with search term and pagination to avoid reloading

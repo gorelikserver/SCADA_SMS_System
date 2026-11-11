@@ -69,7 +69,7 @@
         <aside class="overview-panel pipeline-panel">
             <div class="panel-heading"><div><p class="panel-eyebrow">Pipeline</p><h2>Runtime details</h2></div></div>
             <dl class="runtime-list">
-                <div><dt>Rate limit</dt><dd id="rateLimit">@Model.Dashboard.SmsServiceStatus.RateLimit/min</dd></div>
+                <div><dt>Rate limit</dt><dd id="rateLimit">@string.Format(T["{0}/min"], Model.Dashboard.SmsServiceStatus.RateLimit)</dd></div>
                 <div><dt>Deduplication</dt><dd id="deduplication">@(Model.Dashboard.SmsServiceStatus.DeduplicationEnabled ? "Enabled" : "Disabled")</dd></div>
                 <div><dt>Last message</dt><dd id="lastMessage">@(Model.Dashboard.SmsServiceStatus.LastMessageTime?.ToString("HH:mm:ss") ?? "Never")</dd></div>
                 <div><dt>Server time</dt><dd id="serverTime">@DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")</dd></div>
@@ -150,8 +150,8 @@
             tbody.innerHTML = activities.map(activity => `
                 <tr>
                     <td class="text-nowrap">${activity.time}</td>
-                    <td>${activity.action}</td>
-                    <td>${activity.user}</td>
+                    <td data-no-translate>${activity.action}</td>
+                    <td data-no-translate>${activity.user}</td>
                     <td><span class="${activity.statusClass}">${activity.status}</span></td>
                 </tr>
             `).join('');
@@ -188,7 +188,7 @@
             document.getElementById('smsQueueSize').textContent = smsService.queueSize;
             document.getElementById('smsUptime').textContent = smsService.uptime;
             document.getElementById('detailedQueueSize').textContent = smsService.queueSize;
-            document.getElementById('rateLimit').textContent = smsService.rateLimit + '/min';
+            document.getElementById('rateLimit').textContent = @(Html.Raw(System.Text.Json.JsonSerializer.Serialize(T["{0}/min"]))).replace('{0}', () => smsService.rateLimit);
             document.getElementById('deduplication').innerHTML = 
                 smsService.deduplicationEnabled ? 
                 '<span class="text-success">Enabled</span>' : 

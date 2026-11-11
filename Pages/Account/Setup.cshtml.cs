@@ -49,7 +49,7 @@ namespace SCADASMSSystem.Web.Pages.Account
                 var (ok, error) = await _accounts.CreateAsync(UserName, Password, AccountRoles.Admin);
                 if (!ok)
                 {
-                    Error = error;
+                    Error = UiLocalizer.LocalizeAccountMessage(error);
                     return Page();
                 }
             }

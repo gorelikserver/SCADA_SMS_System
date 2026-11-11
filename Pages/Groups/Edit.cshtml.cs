@@ -68,7 +68,7 @@ namespace SCADASMSSystem.Web.Pages.Groups
                     if (existingGroups.Any(g => g.GroupId != GroupInput.GroupId && 
                                          g.GroupName.Equals(GroupInput.GroupName, StringComparison.OrdinalIgnoreCase)))
                     {
-                        ModelState.AddModelError("GroupInput.GroupName", "A group with this name already exists.");
+                        ModelState.AddModelError("GroupInput.GroupName", UiLocalizer.Localize("A group with this name already exists."));
                         await LoadGroupDataAsync(GroupInput.GroupId);
                         return Page();
                     }
@@ -87,12 +87,12 @@ namespace SCADASMSSystem.Web.Pages.Groups
                 if (success)
                 {
                     _logger.LogInformation("Successfully updated group {GroupId} - {GroupName}", group.GroupId, group.GroupName);
-                    TempData["SuccessMessage"] = $"Group '{group.GroupName}' has been updated successfully!";
+                    TempData["SuccessMessage"] = UiLocalizer.Format("Group '{0}' has been updated successfully!", group.GroupName);
                     return RedirectToPage("./Index");
                 }
                 else
                 {
-                    ModelState.AddModelError("", "Failed to update group. Please try again.");
+                    ModelState.AddModelError("", UiLocalizer.Localize("Failed to update group. Please try again."));
                     await LoadGroupDataAsync(GroupInput.GroupId);
                     return Page();
                 }
@@ -100,7 +100,7 @@ namespace SCADASMSSystem.Web.Pages.Groups
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error updating group {GroupId}", GroupInput.GroupId);
-                ModelState.AddModelError("", "An unexpected error occurred while updating the group.");
+                ModelState.AddModelError("", UiLocalizer.Localize("An unexpected error occurred while updating the group."));
                 await LoadGroupDataAsync(GroupInput.GroupId);
                 return Page();
             }
@@ -114,17 +114,17 @@ namespace SCADASMSSystem.Web.Pages.Groups
                 if (success)
                 {
                     var user = await _userService.GetUserByIdAsync(userId);
-                    TempData["SuccessMessage"] = $"Added {user?.UserName} to the group successfully!";
+                    TempData["SuccessMessage"] = UiLocalizer.Format("Added {0} to the group successfully!", user?.UserName);
                 }
                 else
                 {
-                    TempData["ErrorMessage"] = "Failed to add user to group.";
+                    TempData["ErrorMessage"] = UiLocalizer.Localize("Failed to add user to group.");
                 }
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error adding user {UserId} to group {GroupId}", userId, groupId);
-                TempData["ErrorMessage"] = "An error occurred while adding the user to the group.";
+                TempData["ErrorMessage"] = UiLocalizer.Localize("An error occurred while adding the user to the group.");
             }
 
             return RedirectToPage(new { id = groupId });
@@ -139,17 +139,17 @@ namespace SCADASMSSystem.Web.Pages.Groups
                 
                 if (success)
                 {
-                    TempData["SuccessMessage"] = $"Removed {user?.UserName} from the group successfully!";
+                    TempData["SuccessMessage"] = UiLocalizer.Format("Removed {0} from the group successfully!", user?.UserName);
                 }
                 else
                 {
-                    TempData["ErrorMessage"] = "Failed to remove user from group.";
+                    TempData["ErrorMessage"] = UiLocalizer.Localize("Failed to remove user from group.");
                 }
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error removing user {UserId} from group {GroupId}", userId, groupId);
-                TempData["ErrorMessage"] = "An error occurred while removing the user from the group.";
+                TempData["ErrorMessage"] = UiLocalizer.Localize("An error occurred while removing the user from the group.");
             }
 
             return RedirectToPage(new { id = groupId });
@@ -205,8 +205,8 @@ namespace SCADASMSSystem.Web.Pages.Groups
     {
         public int GroupId { get; set; }
 
-        [Required]
-        [StringLength(255, MinimumLength = 2)]
+        [LocalizedRequired]
+        [LocalizedStringLength(255, MinimumLength = 2)]
         [Display(Name = "Group Name")]
         public string GroupName { get; set; } = string.Empty;
 
