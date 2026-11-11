@@ -9,6 +9,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{0AB3BF05
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SCADASMSSystem.Tests", "tests\SCADASMSSystem.Tests\SCADASMSSystem.Tests.csproj", "{2D537FA8-3A19-4BD4-85A7-034A70692A10}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SCADASMSSystem.IntegrationTests", "tests\SCADASMSSystem.IntegrationTests\SCADASMSSystem.IntegrationTests.csproj", "{E9039105-5599-4580-AC63-ACB4360DCDD0}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -43,12 +45,25 @@ Global
 		{2D537FA8-3A19-4BD4-85A7-034A70692A10}.Release|x64.Build.0 = Release|Any CPU
 		{2D537FA8-3A19-4BD4-85A7-034A70692A10}.Release|x86.ActiveCfg = Release|Any CPU
 		{2D537FA8-3A19-4BD4-85A7-034A70692A10}.Release|x86.Build.0 = Release|Any CPU
+		{E9039105-5599-4580-AC63-ACB4360DCDD0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E9039105-5599-4580-AC63-ACB4360DCDD0}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E9039105-5599-4580-AC63-ACB4360DCDD0}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{E9039105-5599-4580-AC63-ACB4360DCDD0}.Debug|x64.Build.0 = Debug|Any CPU
+		{E9039105-5599-4580-AC63-ACB4360DCDD0}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{E9039105-5599-4580-AC63-ACB4360DCDD0}.Debug|x86.Build.0 = Debug|Any CPU
+		{E9039105-5599-4580-AC63-ACB4360DCDD0}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E9039105-5599-4580-AC63-ACB4360DCDD0}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E9039105-5599-4580-AC63-ACB4360DCDD0}.Release|x64.ActiveCfg = Release|Any CPU
+		{E9039105-5599-4580-AC63-ACB4360DCDD0}.Release|x64.Build.0 = Release|Any CPU
+		{E9039105-5599-4580-AC63-ACB4360DCDD0}.Release|x86.ActiveCfg = Release|Any CPU
+		{E9039105-5599-4580-AC63-ACB4360DCDD0}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{2D537FA8-3A19-4BD4-85A7-034A70692A10} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
+		{E9039105-5599-4580-AC63-ACB4360DCDD0} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {439E7842-32CB-4AA1-B25D-EC4B4A6CC8E9}
