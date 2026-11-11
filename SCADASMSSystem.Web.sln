@@ -11,6 +11,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SCADASMSSystem.Tests", "tes
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SCADASMSSystem.IntegrationTests", "tests\SCADASMSSystem.IntegrationTests\SCADASMSSystem.IntegrationTests.csproj", "{E9039105-5599-4580-AC63-ACB4360DCDD0}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SCADASMSSystem.MockReport", "tests\SCADASMSSystem.MockReport\SCADASMSSystem.MockReport.csproj", "{D332B9B1-167B-45CB-9EDF-ED30D5BFBD12}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -57,6 +59,18 @@ Global
 		{E9039105-5599-4580-AC63-ACB4360DCDD0}.Release|x64.Build.0 = Release|Any CPU
 		{E9039105-5599-4580-AC63-ACB4360DCDD0}.Release|x86.ActiveCfg = Release|Any CPU
 		{E9039105-5599-4580-AC63-ACB4360DCDD0}.Release|x86.Build.0 = Release|Any CPU
+		{D332B9B1-167B-45CB-9EDF-ED30D5BFBD12}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D332B9B1-167B-45CB-9EDF-ED30D5BFBD12}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D332B9B1-167B-45CB-9EDF-ED30D5BFBD12}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{D332B9B1-167B-45CB-9EDF-ED30D5BFBD12}.Debug|x64.Build.0 = Debug|Any CPU
+		{D332B9B1-167B-45CB-9EDF-ED30D5BFBD12}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{D332B9B1-167B-45CB-9EDF-ED30D5BFBD12}.Debug|x86.Build.0 = Debug|Any CPU
+		{D332B9B1-167B-45CB-9EDF-ED30D5BFBD12}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D332B9B1-167B-45CB-9EDF-ED30D5BFBD12}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D332B9B1-167B-45CB-9EDF-ED30D5BFBD12}.Release|x64.ActiveCfg = Release|Any CPU
+		{D332B9B1-167B-45CB-9EDF-ED30D5BFBD12}.Release|x64.Build.0 = Release|Any CPU
+		{D332B9B1-167B-45CB-9EDF-ED30D5BFBD12}.Release|x86.ActiveCfg = Release|Any CPU
+		{D332B9B1-167B-45CB-9EDF-ED30D5BFBD12}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -64,6 +78,7 @@ Global
 	GlobalSection(NestedProjects) = preSolution
 		{2D537FA8-3A19-4BD4-85A7-034A70692A10} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 		{E9039105-5599-4580-AC63-ACB4360DCDD0} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
+		{D332B9B1-167B-45CB-9EDF-ED30D5BFBD12} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {439E7842-32CB-4AA1-B25D-EC4B4A6CC8E9}
