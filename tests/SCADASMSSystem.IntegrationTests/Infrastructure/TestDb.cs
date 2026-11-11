@@ -9,8 +9,9 @@ public sealed record SeededUser(int UserId, string Phone, string? FirstName, str
 public sealed record SeededGroup(int GroupId, string Name, IReadOnlyList<SeededUser> Members);
 
 /// <summary>
-/// The dedicated test database (scada_mock_it on the local SQL Server). Recreated once per test
-/// process with the app's own EF migrations; never touches any other database.
+/// The dedicated per-run test database (scada_mock_it_&lt;run&gt; on the local SQL Server), created once per
+/// test process with the app's own EF migrations and dropped when the process exits (kept with
+/// MOCK_IT_KEEP=1 or when a test failed). Never touches any other database.
 /// </summary>
 public static class TestDb
 {
@@ -38,15 +39,20 @@ public static class TestDb
             {
                 await conn.OpenAsync();
                 await using var cmd = conn.CreateCommand();
+                // Leftovers of aborted runs (older than a day) are swept; a running parallel suite is younger.
                 cmd.CommandText =
-                    $"IF DB_ID('{MockIt.DatabaseName}') IS NOT NULL BEGIN " +
-                    $"ALTER DATABASE [{MockIt.DatabaseName}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE [{MockIt.DatabaseName}]; END";
+                    $"DECLARE @n sysname; DECLARE c CURSOR LOCAL FAST_FORWARD FOR SELECT name FROM sys.databases " +
+                    $"WHERE name LIKE '{MockIt.DatabasePrefix}%' AND create_date < DATEADD(day, -1, GETDATE()); " +
+                    "OPEN c; FETCH NEXT FROM c INTO @n; WHILE @@FETCH_STATUS = 0 BEGIN " +
+                    "EXEC('ALTER DATABASE [' + @n + '] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE [' + @n + ']'); " +
+                    "FETCH NEXT FROM c INTO @n; END";
                 cmd.CommandTimeout = 120;
                 await cmd.ExecuteNonQueryAsync();
             }
             SqlConnection.ClearAllPools();
             await using (var ctx = NewContext())
                 await ctx.Database.MigrateAsync();
+            AppDomain.CurrentDomain.ProcessExit += (_, _) => DropDatabase(builder.ConnectionString);
             _ready = true;
         }
         finally
@@ -55,12 +61,33 @@ public static class TestDb
         }
     }
 
+    /// <summary>Set when any test failed, so the database stays for inspection.</summary>
+    public static volatile bool KeepDatabase;
+
+    private static void DropDatabase(string masterConnection)
+    {
+        if (MockIt.KeepArtifacts || KeepDatabase) return;
+        try
+        {
+            SqlConnection.ClearAllPools();
+            using var conn = new SqlConnection(masterConnection);
+            conn.Open();
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = $"IF DB_ID('{MockIt.DatabaseName}') IS NOT NULL BEGIN " +
+                              $"ALTER DATABASE [{MockIt.DatabaseName}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE [{MockIt.DatabaseName}]; END";
+            cmd.CommandTimeout = 60;
+            cmd.ExecuteNonQuery();
+        }
+        catch { /* best effort; swept by the next run after a day */ }
+    }
+
     /// <summary>Unique, valid Israeli mobile number (stored as 05XXXXXXXX, 10 digits).</summary>
     public static string NextPhone() => "05" + (PhoneBase + Interlocked.Increment(ref _phoneCounter)).ToString("D8");
 
     /// <summary>
     /// A group with SMS-enabled members who also work on special days, so the holiday filter never
-    /// changes the recipient list. Names alternate Hebrew/English; every third member has no TZ.
+    /// changes the recipient list. Names alternate Hebrew/English. withPersonFields=false seeds users with
+    /// no TZ/FirstName/LastName (a misconfigured site for the Sheba contract).
     /// </summary>
     public static async Task<SeededGroup> CreateGroupAsync(string name, int members, bool withPersonFields = true)
     {
@@ -80,7 +107,7 @@ public static class TestDb
                 SpecialDaysEnabled = true,
                 FirstName = withPersonFields ? (hebrew ? "דנה" : "Avi") : null,
                 LastName = withPersonFields ? (hebrew ? "כהן" : "Levi") : null,
-                TZ = withPersonFields && i % 3 != 2 ? (300000000 + i).ToString() : null,
+                TZ = withPersonFields ? (300000000 + i).ToString() : null,
             });
         }
         ctx.Users.AddRange(users);

@@ -60,6 +60,9 @@ public class MockProviderSelfTests : IAsyncLifetime
     [InlineData("missing-messagetype")]
     [InlineData("missing-sendingsystem")]
     [InlineData("wrong-content-type")]
+    [InlineData("empty-tz")]
+    [InlineData("missing-firstname")]
+    [InlineData("empty-lastname")]
     public async Task Contract_violations_get_success_false(string violation)
     {
         _mock.Soap.Username = "User";
@@ -75,6 +78,9 @@ public class MockProviderSelfTests : IAsyncLifetime
             case "missing-messagetype": body = body.Replace("<tem:MessageType>SmsType1</tem:MessageType>", ""); break;
             case "missing-sendingsystem": body = body.Replace("<tem:SendingSystem>AppName</tem:SendingSystem>", ""); break;
             case "wrong-content-type": contentType = "application/soap+xml; charset=utf-8"; break;
+            case "empty-tz": body = body.Replace("<tem:TZ>P</tem:TZ>", "<tem:TZ/>"); break;
+            case "missing-firstname": body = body.Replace("<tem:FirstName>shay</tem:FirstName>", ""); break;
+            case "empty-lastname": body = body.Replace("<tem:LastName>ma</tem:LastName>", "<tem:LastName></tem:LastName>"); break;
         }
 
         var response = await PostSoapAsync(body, action, contentType);
@@ -83,6 +89,19 @@ public class MockProviderSelfTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.OK, response.StatusCode); // HTTP 200 even on failure: body decides
         Assert.Contains("<Success>false</Success>", text);
         Assert.NotEmpty(Assert.Single(_mock.Requests).ContractErrors);
+    }
+
+    [Fact]
+    public async Task Lenient_mode_accepts_empty_person_fields_with_a_warning()
+    {
+        _mock.Soap.Username = "User";
+        _mock.Soap.Password = "XXXXXX";
+        _mock.Soap.StrictPersonFields = false;
+        var response = await PostSoapAsync(SampleRequest.Replace("<tem:TZ>P</tem:TZ>", "<tem:TZ/>"));
+        Assert.Contains("<Success>true</Success>", await response.Content.ReadAsStringAsync());
+        var r = Assert.Single(_mock.Requests);
+        Assert.Empty(r.ContractErrors);
+        Assert.Contains(r.ContractWarnings, w => w.StartsWith("TZ"));
     }
 
     [Fact]

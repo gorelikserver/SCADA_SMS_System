@@ -25,6 +25,13 @@ public sealed class SoapContract
     public string Password { get; set; } = "Mock&P<ss>\"1";
     public string ExpectedMessageType { get; set; } = "SmsType1";
 
+    /// <summary>
+    /// Strict Sheba mode (default on): TZ, FirstName and LastName are mandatory for messages to a defined
+    /// person (spec footnote), so an empty or missing one is a contract error and the message is refused.
+    /// Off = only a warning (models a lenient gateway).
+    /// </summary>
+    public bool StrictPersonFields { get; set; } = true;
+
     public static string SuccessEnvelope { get; } = LoadFixture("sheba-sample-response-success.xml");
 
     public static string FailureEnvelope(string error) =>
@@ -98,9 +105,13 @@ public sealed class SoapContract
 
         if (string.IsNullOrEmpty(r.Fields["SendingSystem"])) errors.Add("SendingSystem is required");
 
-        foreach (var optional in new[] { "TZ", "FirstName", "LastName" })
-            if (string.IsNullOrEmpty(r.Fields[optional]))
-                r.ContractWarnings.Add($"{optional} is empty; the spec asks for the person's value or a fixed placeholder (sample uses 'P')");
+        foreach (var person in new[] { "TZ", "FirstName", "LastName" })
+            if (string.IsNullOrEmpty(r.Fields[person]))
+            {
+                var text = $"{person} is empty or missing; the spec requires the person's value (or a fixed placeholder, sample 'P')";
+                if (StrictPersonFields) errors.Add(text);
+                else r.ContractWarnings.Add(text);
+            }
     }
 
     public (int Status, string ContentType, string Body, bool Accepted) Respond(RecordedRequest r, FaultKind? fault)

@@ -93,6 +93,10 @@ public sealed class MockSmsProvider : IAsyncDisposable
     private readonly object _faultLock = new();
     private readonly Random _random;
     private long _seq;
+    private int _inFlight;
+
+    /// <summary>Requests received and not yet finished (answered, dropped or abandoned).</summary>
+    public int InFlight => Volatile.Read(ref _inFlight);
 
     public SoapContract Soap { get; } = new();
     public RestContract Rest { get; } = new();
@@ -167,6 +171,13 @@ public sealed class MockSmsProvider : IAsyncDisposable
     private async Task HandleAsync(HttpContext ctx, string kind)
     {
         var sw = Stopwatch.StartNew();
+        Interlocked.Increment(ref _inFlight);
+        try { await HandleCoreAsync(ctx, kind, sw); }
+        finally { Interlocked.Decrement(ref _inFlight); }
+    }
+
+    private async Task HandleCoreAsync(HttpContext ctx, string kind, Stopwatch sw)
+    {
         using var reader = new StreamReader(ctx.Request.Body, Encoding.UTF8);
         var body = await reader.ReadToEndAsync();
         var record = new RecordedRequest

@@ -63,6 +63,36 @@ public class SoapScenarios : ScenarioTests
                     $"Rows left in SENDING by the killed process are treated as 'in progress' until CriticalDeliveryPolicy.StaleBefore (5 min). " +
                     $"Measured {recoverySeconds:0} s from restart to full delivery. {duplicates} duplicate SMS were accepted by the provider (request reached the provider before the crash).");
         }, new SiteOptions { SpoolMaxAgeMinutes = 60 });
+
+    /// <summary>
+    /// Documents product finding F-SOAP-PLACEHOLDERS: passes when the product behaves as it does today
+    /// (empty person elements sent, refused by strict Sheba, alarm not delivered). Shown as FINDING in the report.
+    /// </summary>
+    [MockItFact]
+    public Task S16_user_without_tz_or_names_is_refused_by_strict_sheba() => Run(
+        "S16-missing-person-fields", "FINDING F-SOAP-PLACEHOLDERS: user without TZ/FirstName/LastName",
+        "A recipient with no TZ, FirstName or LastName in the database. The Sheba spec makes these mandatory for a defined person. " +
+        "Documents current product behavior: the profile renders empty <tem:TZ/>, <tem:FirstName/>, <tem:LastName/>, the strict Sheba mock refuses " +
+        "(Success=false), the bat exits 3 and the alarm stays undelivered in the spool (retried until MaxAgeMinutes).",
+        async (site, ev) =>
+        {
+            var group = await TestDb.CreateGroupAsync($"{Kind}-S16", 1, withPersonFields: false);
+            ev.True("mock runs in strict Sheba mode", site.Mock.Soap.StrictPersonFields);
+            var alarmId = await FireAndGetAlarmIdAsync(site, ev, group, "Missing person fields", "1", 3);
+            var r = site.Mock.Requests.First();
+            foreach (var field in new[] { "TZ", "FirstName", "LastName" })
+                ev.Equal($"<tem:{field}> sent empty", "", r.Fields[field]);
+            ev.True("refused with a contract error for TZ/FirstName/LastName", !r.Accepted && r.ContractErrors.Any(e => e.StartsWith("TZ")) &&
+                r.ResponseBody.Contains("<Success>false</Success>"), string.Join("; ", r.ContractErrors));
+            var row = (await TestDb.DeliveriesForGroupAsync(group.GroupId)).Single();
+            ev.Equal("delivery row FAILED", CriticalDeliveryStatus.Failed, row.Status);
+            ev.True("alarm left undelivered in the spool", site.SpoolFiles().Contains(alarmId + ".json"));
+            ev.Finding("F-SOAP-PLACEHOLDERS", "Medium", "Users without TZ/FirstName/LastName get no Sheba SMS",
+                "The profile sends <tem:TZ>{TZ}</tem:TZ> etc.; a user missing these renders empty elements. The Sheba spec makes them mandatory for a defined person " +
+                "(or a fixed placeholder such as 'P'). Against a strict gateway the SMS is refused on every retry and the alarm is never delivered to that user. " +
+                "The template language has no fallback syntax, so the only workaround today is a hard-coded placeholder for everyone. Require TZ/names for SMS users, " +
+                "add a template default (e.g. {TZ|P}), or agree with Sheba that placeholders are acceptable.");
+        });
 }
 
 /// <summary>
@@ -116,7 +146,7 @@ public abstract class ScenarioTests
 
     private static string AlarmFromSpoolName(string file) => file.EndsWith(".json") ? file[..^5] : file;
 
-    private async Task<string> FireAndGetAlarmIdAsync(Site site, ScenarioEvidence ev, SeededGroup group, string description, string value, int expectedExit)
+    protected async Task<string> FireAndGetAlarmIdAsync(Site site, ScenarioEvidence ev, SeededGroup group, string description, string value, int expectedExit)
     {
         var bat = await site.RunBatAsync(description, group.GroupId.ToString(), value);
         ev.BatRuns.Add(bat);
@@ -158,10 +188,7 @@ public abstract class ScenarioTests
 
             var warnings = requests.SelectMany(r => r.ContractWarnings).Distinct().ToList();
             ev.Observe("contractWarnings", warnings);
-            if (Kind == "SOAP" && warnings.Any(w => w.StartsWith("TZ is empty")))
-                ev.Finding("F-SOAP-PLACEHOLDERS", "Medium", "Empty TZ/FirstName/LastName sent to Sheba",
-                    "Users without TZ (or names) produce empty <tem:TZ/> elements. The Sheba spec requires the person's value or a fixed placeholder (sample: 'P'). " +
-                    "The profile template language has no default/fallback syntax, so a placeholder can only be hard-coded for everyone. Confirm with Sheba whether empty is accepted.");
+            ev.True("no contract warnings other than Content-Type spelling", warnings.All(w => w.StartsWith("Content-Type")), string.Join("; ", warnings));
         });
 
     [MockItFact]
@@ -426,11 +453,8 @@ public abstract class ScenarioTests
             var received = site.Mock.Requests.Single().Message?[14..];
             ev.Observe("sent", description);
             ev.Observe("received", received);
+            ev.Equal("provider received DESCRIPTION exactly as Akara passed it", description, received);
             ev.True("alarm delivered", site.Mock.Requests.Single().Accepted);
-            if (received != description)
-                ev.Finding("F-CMD-CHARS", "Low", "cmd.exe alters some characters in DESCRIPTION",
-                    $"Sent '{description}', provider received '{received}'. The text passes through cmd.exe argument parsing before the bat sees it; " +
-                    "verify with a real Akara alarm text on site.");
         });
 
     [MockItFact]

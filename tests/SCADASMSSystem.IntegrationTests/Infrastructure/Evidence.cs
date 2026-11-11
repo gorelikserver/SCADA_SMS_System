@@ -26,6 +26,8 @@ public sealed class ScenarioEvidence
     public string Title { get; init; } = "";
     public string Description { get; init; } = "";
     public string Status { get; set; } = "running";
+    /// <summary>True when the scenario passed by documenting a product finding (shown as FINDING, not as a plain pass).</summary>
+    public bool DocumentsFinding => Findings.Count > 0;
     public string? Failure { get; set; }
     public DateTime StartedUtc { get; init; } = DateTime.UtcNow;
     public DateTime? EndedUtc { get; set; }
@@ -92,12 +94,23 @@ public sealed class ScenarioEvidence
                 ev.Step($"Web app started at {site.ServiceUrl}; mock at {site.Mock.BaseUrl}");
             }
             await body(site, ev);
+            var killed = site.HarnessTimeouts;
+            if (killed.Count > 0)
+            {
+                ev.BatRuns.AddRange(killed.Where(k => !ev.BatRuns.Contains(k)));
+                throw new Xunit.Sdk.XunitException($"{killed.Count} bat call(s) did not exit within {site.BatHarnessTimeout.TotalSeconds:0} s and were killed (process tree).");
+            }
             ev.Status = "passed";
         }
         catch (Exception ex)
         {
             ev.Status = "failed";
             ev.Failure = ex.Message;
+            if (site != null)
+            {
+                site.KeepFiles = true;
+                ev.Observe("keptSiteFolder", site.Root);
+            }
             throw;
         }
         finally
