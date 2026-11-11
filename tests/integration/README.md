@@ -23,8 +23,8 @@ powershell -ExecutionPolicy Bypass -File tests\integration\run-mock-suite.ps1
 Options: `-SkipScenarios`, `-SkipLoad`, `-Configuration Release`, `-Filter "FullyQualifiedName~Soap"`,
 `-SqlConnection "<connection string>"`.
 
-The run takes about 30-40 minutes (scenarios ~15 min including the 5-minute crash-recovery case; load
-~20 min including the shipped-defaults run L7). Output goes to a timestamped folder (gitignored):
+The run takes about 20 minutes on a 16-thread laptop (scenarios ~11 min including the 5-minute
+crash-recovery case; load ~6.5 min including the shipped-defaults run L7, ~3.5 min of it). Output goes to a timestamped folder (gitignored):
 
 ```
 test-results\mock-integration\<yyyyMMdd-HHmmss>\
@@ -35,6 +35,9 @@ test-results\mock-integration\<yyyyMMdd-HHmmss>\
   trx\*.trx       test results per phase
   *.log           build and test console output
 ```
+
+When the worktree was created from WSL, Windows git cannot resolve it; set `MOCK_IT_GIT_SHA` and
+`MOCK_IT_GIT_BRANCH` so the report shows the commit.
 
 Each site's temp folder (bat copy, `Scada_sms.ini`, spool, `settings.json`, app logs) is under
 `%TEMP%\scada_mock_it\<run>\`; it is kept for debugging.

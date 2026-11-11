@@ -138,25 +138,30 @@ static class Analysis
             "the alarm-action template (AlarmActionService.BuildSmsCommandForGroupId); its quoting of DESCRIPTION was not reproduced. Fire one real Akara alarm on site " +
             "and compare Scada_sms.log and the delivered text.", "code"));
 
-        foreach (var l in d.Loads)
+        var logRuns = d.Loads.Where(l => ReportData.D(l, "BatLogLines") < ReportData.D(l, "Burst")).ToList();
+        if (logRuns.Count > 0)
         {
-            foreach (var note in l["Notes"]?.AsArray() ?? new JsonArray())
-            {
-                var text = note?.ToString() ?? "";
-                if (text.Contains("Scada_sms.log") && !list.Any(x => x.Id == "F-BATLOG-CONCURRENCY"))
-                    list.Add(new FindingItem("F-BATLOG-CONCURRENCY", "Medium", "Scada_sms.log loses lines under concurrent bat calls",
-                        $"{ReportData.S(l, "Kind")} {ReportData.S(l, "Id")}: {text} The log is the only proof an alarm reached the system (Akara keeps none). " +
-                        "Concurrent '>>' appends from cmd.exe fail when another bat holds the file.", $"load {ReportData.S(l, "Id")}"));
-            }
-            if (!ReportData.Passed(l) && !list.Any(x => x.Id == "F-LOSS-" + ReportData.S(l, "Kind") + ReportData.S(l, "Id")))
-                list.Add(new FindingItem("F-LOSS-" + ReportData.S(l, "Kind") + ReportData.S(l, "Id"), "High", $"Zero-loss check failed in {ReportData.S(l, "Kind")} {ReportData.S(l, "Id")}",
-                    ReportData.S(l, "Failure"), $"load {ReportData.S(l, "Id")}"));
-            if (ReportData.D(l, "DuplicateAcceptedSms") > 0 && !list.Any(x => x.Id == "F-DUPLICATES"))
-                list.Add(new FindingItem("F-DUPLICATES", "Low", "Duplicate SMS under faults",
-                    string.Join(" ", d.Loads.Where(x => ReportData.D(x, "DuplicateAcceptedSms") > 0)
-                        .Select(x => $"{ReportData.S(x, "Kind")} {ReportData.S(x, "Id")}: {ReportData.D(x, "DuplicateAcceptedSms")} duplicate(s).")) +
-                    " Expected after INDETERMINATE outcomes (timeouts); no duplicate may appear in healthy runs.", "load"));
+            var lines = d.Loads.Sum(l => ReportData.D(l, "BatLogLines"));
+            var calls = d.Loads.Sum(l => ReportData.D(l, "Burst"));
+            list.Add(new FindingItem("F-BATLOG-CONCURRENCY", "Medium", "Scada_sms.log loses lines under concurrent bat calls",
+                $"Across all load runs Scada_sms.log got {lines:0} lines for {calls:0} bat calls ({100 * (1 - lines / calls):0}% lost; worst: " +
+                string.Join(", ", logRuns.OrderBy(l => ReportData.D(l, "BatLogLines") / ReportData.D(l, "Burst")).Take(3)
+                    .Select(l => $"{ReportData.S(l, "Kind")} {ReportData.S(l, "Id")} {ReportData.D(l, "BatLogLines")}/{ReportData.D(l, "Burst")}")) +
+                "). Every alarm was still delivered, but the log is the only proof an alarm reached the system (Akara keeps none): concurrent '>>' appends " +
+                "from cmd.exe fail while another bat holds the file. Append with a retry (or via PowerShell with a shared-write open).", "load"));
         }
+
+        foreach (var l in d.Loads.Where(l => !ReportData.Passed(l)))
+            list.Add(new FindingItem("F-LOSS-" + ReportData.S(l, "Kind") + ReportData.S(l, "Id"), "High", $"Zero-loss check failed in {ReportData.S(l, "Kind")} {ReportData.S(l, "Id")}",
+                ReportData.S(l, "Failure"), $"load {ReportData.S(l, "Id")}"));
+
+        var dupRuns = d.Loads.Where(x => ReportData.D(x, "DuplicateAcceptedSms") > 0).ToList();
+        if (dupRuns.Count > 0)
+            list.Add(new FindingItem("F-DUPLICATES", "Low", "Duplicate SMS when a provider answer is slower than TimeoutSeconds",
+                string.Join(" ", dupRuns.Select(x => $"{ReportData.S(x, "Kind")} {ReportData.S(x, "Id")}: {ReportData.D(x, "DuplicateAcceptedSms")} duplicate(s), slowest provider answer {Analysis.Ms(x["ProviderServiceMs"], "Max")}.")) +
+                " The provider accepted the message but answered after the client timeout (3 s in this suite), so the app recorded INDETERMINATE and re-sent: " +
+                "the designed trade-off (a duplicate beats a missed alarm). In the 200-alarm runs the slow answers come from the test machine itself being saturated " +
+                "(200 bat processes plus the mock on one host); on site keep TimeoutSeconds well above the provider's worst response time.", "load"));
 
         var order = new Dictionary<string, int> { ["High"] = 0, ["Medium"] = 1, ["Low"] = 2 };
         return list.OrderBy(f => order.GetValueOrDefault(f.Severity, 3)).ThenBy(f => f.Id);

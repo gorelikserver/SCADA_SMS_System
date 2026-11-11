@@ -94,7 +94,7 @@ try {
     $cs = if ($SqlConnection) { $SqlConnection } else { (Get-Content (Join-Path $repo 'appsettings.json') -Raw | ConvertFrom-Json).ConnectionStrings.DefaultConnection }
     $builder = New-Object System.Data.SqlClient.SqlConnectionStringBuilder $cs
     $sqlServer = $builder.DataSource
-    $builder.InitialCatalog = 'master'
+    $builder['Initial Catalog'] = 'master'
     $conn = New-Object System.Data.SqlClient.SqlConnection $builder.ConnectionString
     $conn.Open()
     $cmd = $conn.CreateCommand(); $cmd.CommandText = "SELECT CAST(SERVERPROPERTY('ProductVersion') AS nvarchar(50)) + ' ' + CAST(SERVERPROPERTY('Edition') AS nvarchar(100))"
@@ -102,6 +102,10 @@ try {
     $conn.Close()
 } catch { $sqlVersion = "unknown ($($_.Exception.Message))" }
 
+# A worktree created from WSL has a .git file with a /mnt/... path that Windows git cannot read;
+# set MOCK_IT_GIT_SHA / MOCK_IT_GIT_BRANCH in that case.
+$gitSha = if ($env:MOCK_IT_GIT_SHA) { $env:MOCK_IT_GIT_SHA } else { try { (& git -C $repo rev-parse --short HEAD 2>$null) } catch { '' } }
+$gitBranch = if ($env:MOCK_IT_GIT_BRANCH) { $env:MOCK_IT_GIT_BRANCH } else { try { (& git -C $repo rev-parse --abbrev-ref HEAD 2>$null) } catch { '' } }
 $os = Get-CimInstance Win32_OperatingSystem
 $cpu = Get-CimInstance Win32_Processor | Select-Object -First 1
 $envInfo = [ordered]@{
@@ -112,8 +116,8 @@ $envInfo = [ordered]@{
     memoryGB        = [math]::Round($os.TotalVisibleMemorySize / 1MB, 1)
     dotnetSdk       = (& $dotnet --version)
     configuration   = $Configuration
-    gitSha          = (& git -C $repo rev-parse --short HEAD)
-    gitBranch       = (& git -C $repo rev-parse --abbrev-ref HEAD)
+    gitSha          = $gitSha
+    gitBranch       = $gitBranch
     sqlServer       = $sqlServer
     sqlVersion      = $sqlVersion
     testDatabase    = 'scada_mock_it'
