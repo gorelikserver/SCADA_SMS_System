@@ -92,19 +92,30 @@ namespace SCADASMSSystem.Web.Pages.Settings
             nameof(SmsSettings.TestMode), nameof(SmsSettings.LogSoapXml),
         };
 
+        /// <summary>
+        /// Validates the general settings and returns the localized "not saved" message, or null when valid.
+        /// </summary>
+        public static string? BuildGeneralSettingsError(SmsSettings s)
+        {
+            var errors = new List<string>();
+            if (s.RateLimit is < 1 or > 10000) errors.Add(UiLocalizer.Format("Rate limit must be {0}-{1}.", 1, 10000));
+            if (s.RateWindow is < 1 or > 86400) errors.Add(UiLocalizer.Format("Rate window must be {0}-{1} seconds.", 1, 86400));
+            if (s.DuplicateWindow is < 0 or > 1440) errors.Add(UiLocalizer.Format("Duplicate window must be {0}-{1} minutes.", 0, 1440));
+            if (s.TimeoutSeconds is < 3 or > 300) errors.Add(UiLocalizer.Format("Timeout must be {0}-{1} seconds.", 3, 300));
+            if (s.RetryAttempts is < 0 or > 10) errors.Add(UiLocalizer.Format("Retry attempts must be {0}-{1}.", 0, 10));
+            if (s.ScadaPcimObjectId <= 0) errors.Add(UiLocalizer.Localize("PCIM Object ID must be a positive number."));
+            return errors.Count > 0
+                ? UiLocalizer.Format("Settings not saved: {0}", string.Join(" ", errors))
+                : null;
+        }
+
         public async Task<IActionResult> OnPostSaveSettingsAsync()
         {
             var s = SmsSettingsInput;
-            var errors = new List<string>();
-            if (s.RateLimit is < 1 or > 10000) errors.Add("Rate limit must be 1-10000.");
-            if (s.RateWindow is < 1 or > 86400) errors.Add("Rate window must be 1-86400 seconds.");
-            if (s.DuplicateWindow is < 0 or > 1440) errors.Add("Duplicate window must be 0-1440 minutes.");
-            if (s.TimeoutSeconds is < 3 or > 300) errors.Add("Timeout must be 3-300 seconds.");
-            if (s.RetryAttempts is < 0 or > 10) errors.Add("Retry attempts must be 0-10.");
-            if (s.ScadaPcimObjectId <= 0) errors.Add("PCIM Object ID must be a positive number.");
-            if (errors.Count > 0)
+            var validationError = BuildGeneralSettingsError(s);
+            if (validationError != null)
             {
-                TempData["ErrorMessage"] = "Settings not saved: " + string.Join(" ", errors);
+                TempData["ErrorMessage"] = validationError;
                 return RedirectToPage();
             }
 

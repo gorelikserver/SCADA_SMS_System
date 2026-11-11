@@ -14,6 +14,8 @@ using SCADASMSSystem.Web.Pages;
 using SCADASMSSystem.Web.Pages.Groups;
 using SCADASMSSystem.Web.Pages.Users;
 using SCADASMSSystem.Web.Services;
+using SettingsIndexModel = SCADASMSSystem.Web.Pages.Settings.IndexModel;
+using SmsSettings = SCADASMSSystem.Web.Models.SmsSettings;
 using Xunit;
 
 namespace SCADASMSSystem.Tests;
@@ -218,6 +220,43 @@ public sealed class UiLocalizationTests
             WithUiCulture("en", () => UiLocalizer.Format("Group '{0}' has been deleted successfully!", "Ops")));
         Assert.Equal("הצוות 'Ops' נמחק בהצלחה!",
             WithUiCulture("he-IL", () => UiLocalizer.Format("Group '{0}' has been deleted successfully!", "Ops")));
+    }
+
+    [Fact]
+    public void Settings_validation_errors_stay_unchanged_in_english()
+    {
+        var invalid = new SmsSettings
+        {
+            RateLimit = 0, RateWindow = 0, DuplicateWindow = -1,
+            TimeoutSeconds = 1, RetryAttempts = 11, ScadaPcimObjectId = 0
+        };
+
+        Assert.Equal(
+            "Settings not saved: Rate limit must be 1-10000. Rate window must be 1-86400 seconds. " +
+            "Duplicate window must be 0-1440 minutes. Timeout must be 3-300 seconds. " +
+            "Retry attempts must be 0-10. PCIM Object ID must be a positive number.",
+            WithUiCulture("en", () => SettingsIndexModel.BuildGeneralSettingsError(invalid)));
+        Assert.Null(WithUiCulture("en", () => SettingsIndexModel.BuildGeneralSettingsError(new SmsSettings
+        {
+            RateLimit = 10, RateWindow = 60, DuplicateWindow = 5,
+            TimeoutSeconds = 30, RetryAttempts = 3, ScadaPcimObjectId = 1
+        })));
+    }
+
+    [Fact]
+    public void Settings_validation_errors_are_localized_in_hebrew()
+    {
+        var invalid = new SmsSettings
+        {
+            RateLimit = 0, RateWindow = 0, DuplicateWindow = -1,
+            TimeoutSeconds = 1, RetryAttempts = 11, ScadaPcimObjectId = 0
+        };
+
+        Assert.Equal(
+            "ההגדרות לא נשמרו: מגבלת הקצב חייבת להיות בין 1 ל־10000. חלון הקצב חייב להיות בין 1 ל־86400 שניות. " +
+            "חלון הכפילויות חייב להיות בין 0 ל־1440 דקות. זמן הקצוב חייב להיות בין 3 ל־300 שניות. " +
+            "מספר הניסיונות החוזרים חייב להיות בין 0 ל־10. מזהה אובייקט PCIM חייב להיות מספר חיובי.",
+            WithUiCulture("he-IL", () => SettingsIndexModel.BuildGeneralSettingsError(invalid)));
     }
 
     [Fact]
