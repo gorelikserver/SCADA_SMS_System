@@ -36,7 +36,6 @@ public sealed record BatResult(string[] Args, int ExitCode, DateTime StartedUtc,
 public sealed class Site : IAsyncDisposable
 {
     private Process? _app;
-    private StreamWriter? _appLog;
 
     public string Kind { get; }
     public string Name { get; }
@@ -64,6 +63,13 @@ public sealed class Site : IAsyncDisposable
         Root = Path.Combine(MockIt.WorkRoot, $"{kind}-{name}");
         Port = FreePort();
         Profile = Profiles.For(kind, mock);
+    }
+
+    static Site()
+    {
+        // Alarm storms run hundreds of concurrent process waits plus the mock's Kestrel in this process.
+        ThreadPool.GetMinThreads(out var worker, out var io);
+        ThreadPool.SetMinThreads(Math.Max(worker, 256), Math.Max(io, 256));
     }
 
     public static async Task<Site> CreateAsync(string kind, string name, SiteOptions? options = null)
@@ -143,15 +149,15 @@ public sealed class Site : IAsyncDisposable
         if (!File.Exists(exe))
             throw new FileNotFoundException("Web app not built; build the solution first.", exe);
 
-        var psi = new ProcessStartInfo(exe)
+        // Output goes to NUL, like the Windows service (no console). A redirected pipe that is not
+        // drained fast enough, or a hidden console window, makes Serilog's synchronous console sink
+        // throttle the whole app. Everything is still in the Serilog file under LogDir.
+        // cmd.exe only does the redirection; the app is its child, so ProcessPath (content root) is the exe.
+        var psi = new ProcessStartInfo("cmd.exe", $"/d /c \"\"{exe}\" >NUL 2>&1\"")
         {
             WorkingDirectory = Path.GetDirectoryName(exe)!,
             UseShellExecute = false,
             CreateNoWindow = true,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            StandardOutputEncoding = Encoding.UTF8,
-            StandardErrorEncoding = Encoding.UTF8,
         };
         psi.Environment["ASPNETCORE_ENVIRONMENT"] = "Production";
         psi.Environment["DOTNET_ENVIRONMENT"] = "Production";
@@ -165,14 +171,8 @@ public sealed class Site : IAsyncDisposable
         psi.Environment["Logging__File__Path"] = Path.Combine(LogDir, "scada-sms-.log");
         psi.Environment["Scada__PcimUtilDir"] = PcimUtil;
 
-        _appLog ??= new StreamWriter(Path.Combine(LogDir, "app-console.log"), append: true, new UTF8Encoding(false)) { AutoFlush = true };
-        var log = _appLog;
         _app = new Process { StartInfo = psi, EnableRaisingEvents = true };
-        _app.OutputDataReceived += (_, e) => { if (e.Data != null) lock (log) log.WriteLine(e.Data); };
-        _app.ErrorDataReceived += (_, e) => { if (e.Data != null) lock (log) log.WriteLine("ERR " + e.Data); };
         _app.Start();
-        _app.BeginOutputReadLine();
-        _app.BeginErrorReadLine();
 
         using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
         var deadline = DateTime.UtcNow + (timeout ?? TimeSpan.FromSeconds(120));
@@ -230,21 +230,20 @@ public sealed class Site : IAsyncDisposable
 
     private async Task<BatResult> RunCmdAsync(string arguments, string[] args)
     {
+        // Akara does not read the bat's output, and redirected pipes would cost a blocked thread-pool
+        // thread per stream (synchronous anonymous pipes): with 200 concurrent bats that starves the
+        // in-process mock. So no redirection, like Akara.
         var psi = new ProcessStartInfo("cmd.exe", arguments)
         {
             UseShellExecute = false,
             CreateNoWindow = true,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
             WorkingDirectory = PcimUtil,
         };
         var started = DateTime.UtcNow;
         using var p = Process.Start(psi)!;
-        var stdout = p.StandardOutput.ReadToEndAsync();
-        var stderr = p.StandardError.ReadToEndAsync();
         await p.WaitForExitAsync();
         var ended = DateTime.UtcNow;
-        return new BatResult(args, p.ExitCode, started, ended, (await stdout + await stderr).Trim());
+        return new BatResult(args, p.ExitCode, started, ended, "");
     }
 
     public string[] SpoolFiles() => Directory.Exists(SpoolDir)
@@ -296,7 +295,6 @@ public sealed class Site : IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         StopApp();
-        _appLog?.Dispose();
         await Mock.DisposeAsync();
     }
 }
