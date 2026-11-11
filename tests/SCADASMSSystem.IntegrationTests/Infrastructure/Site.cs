@@ -22,7 +22,7 @@ public sealed record SiteOptions
     public int SpoolMaxAgeMinutes { get; init; } = 60;
 }
 
-public sealed record BatResult(string[] Args, int ExitCode, DateTime StartedUtc, DateTime EndedUtc, string Output)
+public sealed record BatResult(string[] Args, int ExitCode, DateTime StartedUtc, DateTime EndedUtc, string Output, bool TimedOut = false)
 {
     public double DurationMs => (EndedUtc - StartedUtc).TotalMilliseconds;
 }
@@ -36,6 +36,21 @@ public sealed record BatResult(string[] Args, int ExitCode, DateTime StartedUtc,
 public sealed class Site : IAsyncDisposable
 {
     private Process? _app;
+    private readonly List<BatResult> _harnessTimeouts = new();
+
+    /// <summary>Bat calls the harness had to kill (no exit within MAXTIME + margin). Any entry fails the test.</summary>
+    public IReadOnlyList<BatResult> HarnessTimeouts { get { lock (_harnessTimeouts) return _harnessTimeouts.ToList(); } }
+
+    /// <summary>Set by the test when it failed: the site folder is then kept for debugging.</summary>
+    public bool KeepFiles
+    {
+        get => _keepFiles;
+        set { _keepFiles = value; if (value) TestDb.KeepDatabase = true; }
+    }
+    private bool _keepFiles = MockIt.KeepArtifacts;
+
+    /// <summary>Harness limit for one bat process: MAXTIME plus margin for cmd/PowerShell start under load.</summary>
+    public TimeSpan BatHarnessTimeout => TimeSpan.FromSeconds(Options.BatMaxTimeSeconds + 60);
 
     public string Kind { get; }
     public string Name { get; }
@@ -49,7 +64,7 @@ public sealed class Site : IAsyncDisposable
     public string BatPath => Path.Combine(PcimUtil, "Scada_sms.bat");
     public string SettingsFile => Path.Combine(Root, "config", "settings.json");
     public string LogDir => Path.Combine(Root, "logs");
-    public int Port { get; }
+    public int Port { get; private set; }
     public string ServiceUrl => $"http://localhost:{Port}";
     public ProviderProfile Profile { get; }
     public bool AppRunning => _app is { HasExited: false };
@@ -76,10 +91,19 @@ public sealed class Site : IAsyncDisposable
     {
         await TestDb.EnsureReadyAsync();
         var mock = await MockSmsProvider.StartAsync();
-        var site = new Site(kind, name, options ?? new SiteOptions(), mock);
-        site.Layout();
+        Site site;
+        try
+        {
+            site = new Site(kind, name, options ?? new SiteOptions(), mock);
+            site.Layout();
+        }
+        catch
+        {
+            await mock.DisposeAsync();
+            throw;
+        }
         mock.SpoolProbe = () => Directory.Exists(site.SpoolDir)
-            ? Directory.GetFiles(site.SpoolDir, "*.json").Select(Path.GetFileName).ToArray()!
+            ? Directory.GetFiles(site.SpoolDir, "*.json").Select(f => Path.GetFileName(f)).ToArray()
             : Array.Empty<string>();
         return site;
     }
@@ -94,9 +118,7 @@ public sealed class Site : IAsyncDisposable
 
         // Byte-for-byte copy, as the installer does for Akara's PCIMUTIL folder.
         File.Copy(MockIt.BatSource, BatPath);
-        File.WriteAllText(Path.Combine(PcimUtil, "Scada_sms.ini"),
-            $"URL={ServiceUrl}/api/sms/send\r\nSPOOL_ROOT={SpoolRoot}\r\nMAXTIME={Options.BatMaxTimeSeconds}\r\n",
-            new UTF8Encoding(false));
+        WriteIni();
 
         // Safety: alarms from this suite may only ever reach the loopback mock.
         var host = new Uri(Profile.Url).Host;
@@ -120,6 +142,11 @@ public sealed class Site : IAsyncDisposable
         File.WriteAllText(SettingsFile, JsonSerializer.Serialize(settings, new JsonSerializerOptions { WriteIndented = true }), new UTF8Encoding(false));
     }
 
+    private void WriteIni() =>
+        File.WriteAllText(Path.Combine(PcimUtil, "Scada_sms.ini"),
+            $"URL={ServiceUrl}/api/sms/send\r\nSPOOL_ROOT={SpoolRoot}\r\nMAXTIME={Options.BatMaxTimeSeconds}\r\n",
+            new UTF8Encoding(false));
+
     /// <summary>The effective settings this site runs with (secrets masked), for the report.</summary>
     public object DescribeConfig() => new
     {
@@ -142,7 +169,44 @@ public sealed class Site : IAsyncDisposable
         Options.SpoolMaxAgeMinutes,
     };
 
+    /// <summary>
+    /// Starts the app; if it dies because another process took the port between FreePort() and Kestrel's
+    /// bind, picks a new port, rewrites Scada_sms.ini and retries (up to 3 times).
+    /// </summary>
     public async Task StartAppAsync(TimeSpan? timeout = null)
+    {
+        for (var attempt = 1; ; attempt++)
+        {
+            try
+            {
+                await StartAppOnceAsync(timeout);
+                return;
+            }
+            catch (InvalidOperationException) when (attempt < 3 && PortCollisionLogged())
+            {
+                StopApp();
+                Port = FreePort();
+                WriteIni();
+            }
+        }
+    }
+
+    private bool PortCollisionLogged()
+    {
+        try
+        {
+            return Directory.GetFiles(LogDir, "scada-sms-*.log").Any(f =>
+            {
+                using var fs = new FileStream(f, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+                var text = new StreamReader(fs).ReadToEnd();
+                return text.Contains("address already in use", StringComparison.OrdinalIgnoreCase) ||
+                       text.Contains("Failed to bind", StringComparison.OrdinalIgnoreCase);
+            });
+        }
+        catch (IOException) { return false; }
+    }
+
+    private async Task StartAppOnceAsync(TimeSpan? timeout)
     {
         if (AppRunning) return;
         var exe = MockIt.AppExe;
@@ -241,7 +305,22 @@ public sealed class Site : IAsyncDisposable
         };
         var started = DateTime.UtcNow;
         using var p = Process.Start(psi)!;
-        await p.WaitForExitAsync();
+        using var cts = new CancellationTokenSource(BatHarnessTimeout);
+        try
+        {
+            await p.WaitForExitAsync(cts.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            // A bat must end within MAXTIME + margin (curl --max-time bounds it). Kill cmd.exe and every
+            // child (powershell.exe, curl.exe) and fail the test with the evidence.
+            try { p.Kill(entireProcessTree: true); } catch (InvalidOperationException) { }
+            try { await p.WaitForExitAsync(new CancellationTokenSource(TimeSpan.FromSeconds(15)).Token); } catch (OperationCanceledException) { }
+            var killed = new BatResult(args, -1, started, DateTime.UtcNow,
+                $"Harness timeout: no exit within {BatHarnessTimeout.TotalSeconds:0} s; process tree killed", TimedOut: true);
+            lock (_harnessTimeouts) _harnessTimeouts.Add(killed);
+            return killed;
+        }
         var ended = DateTime.UtcNow;
         return new BatResult(args, p.ExitCode, started, ended, "");
     }
@@ -294,7 +373,17 @@ public sealed class Site : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
-        StopApp();
-        await Mock.DisposeAsync();
+        try { StopApp(); } catch { /* best effort */ }
+        try { await Mock.DisposeAsync(); } catch { /* best effort */ }
+        if (!KeepFiles)
+        {
+            // The killed app may hold log files for a moment.
+            for (var i = 0; i < 5 && Directory.Exists(Root); i++)
+            {
+                try { Directory.Delete(Root, recursive: true); }
+                catch (IOException) { await Task.Delay(500); }
+                catch (UnauthorizedAccessException) { await Task.Delay(500); }
+            }
+        }
     }
 }

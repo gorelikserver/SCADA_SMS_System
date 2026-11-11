@@ -65,6 +65,11 @@ public sealed class LoadResult
     public int SpoolBad { get; set; }
     public int BatLogLines { get; set; }
     public bool ZeroLoss { get; set; }
+    public bool NoDuplicates { get; set; }
+    /// <summary>PASS (zero loss, no duplicates), DEGRADED (zero loss, duplicates), FAIL (loss or harness failure).</summary>
+    public string Verdict { get; set; } = "FAIL";
+    public int HarnessTimeouts { get; set; }
+    public double SettleSeconds { get; set; }
     public List<string> MissingSample { get; set; } = new();
     public List<string> Notes { get; set; } = new();
 }
@@ -150,8 +155,22 @@ public static class LoadRunner
             result.SecondsToFullDelivery = converged ? Math.Round((DateTime.UtcNow - t0).TotalSeconds, 1) : -1;
             if (!converged) result.Notes.Add("Did not converge to full delivery within the timeout.");
 
-            // Let in-flight retries settle before counting duplicates.
-            await Task.Delay(1000);
+            // Count only once nothing moves any more: no in-flight mock call, and request count plus DB
+            // delivery state unchanged for 3 consecutive polls (bounded at 60 s).
+            var settleStart = DateTime.UtcNow;
+            string? last = null;
+            var stableFor = 0;
+            while (DateTime.UtcNow - settleStart < TimeSpan.FromSeconds(60) && stableFor < 3)
+            {
+                await Task.Delay(500);
+                var dbState = (await TestDb.DeliveriesForGroupsAsync(groups.Select(g => g.GroupId)))
+                    .GroupBy(r => r.Status).OrderBy(g => g.Key).Select(g => $"{g.Key}:{g.Count()}");
+                var snapshot = $"{site.Mock.Requests.Count}|{site.Mock.InFlight}|{string.Join(",", dbState)}";
+                stableFor = site.Mock.InFlight == 0 && snapshot == last ? stableFor + 1 : 0;
+                last = snapshot;
+            }
+            result.SettleSeconds = Math.Round((DateTime.UtcNow - settleStart).TotalSeconds, 1);
+            if (stableFor < 3) result.Notes.Add("Provider/DB state did not settle within 60 s; duplicate count may be incomplete.");
             var requests = site.Mock.Requests;
             var pairs = AcceptedPairs();
             result.ProviderRequests = requests.Count;
@@ -177,19 +196,27 @@ public static class LoadRunner
             result.SpoolBad = site.SpoolSubfolderFiles("bad").Length;
             result.BatLogLines = site.BatLogLines().Length - warmLogLines;
 
-            result.ZeroLoss = result.MissingPairs == 0 && result.SpoolResidual == 0 && result.SpoolFailed == 0 && result.SpoolBad == 0 &&
+            result.HarnessTimeouts = site.HarnessTimeouts.Count;
+            result.ZeroLoss = result.HarnessTimeouts == 0 && result.MissingPairs == 0 && result.SpoolResidual == 0 && result.SpoolFailed == 0 && result.SpoolBad == 0 &&
                               result.DbRowsSuccess == result.ExpectedSms && result.DbDistinctAlarms == spec.Burst;
             if (result.BatLogLines != spec.Burst)
                 result.Notes.Add($"Scada_sms.log has {result.BatLogLines} lines for {spec.Burst} calls (concurrent appends).");
+            result.NoDuplicates = result.DuplicateAcceptedSms == 0;
+            result.Verdict = !result.ZeroLoss ? "FAIL" : result.NoDuplicates ? "PASS" : "DEGRADED";
             result.Status = result.ZeroLoss ? "passed" : "failed";
+            if (result.HarnessTimeouts > 0)
+                result.Notes.Add($"{result.HarnessTimeouts} bat call(s) did not exit within {site.BatHarnessTimeout.TotalSeconds:0} s and were killed.");
             if (!result.ZeroLoss)
-                result.Failure = $"Zero-loss check failed: missing {result.MissingPairs}, spool residual {result.SpoolResidual}, failed {result.SpoolFailed}, bad {result.SpoolBad}, DB success {result.DbRowsSuccess}/{result.ExpectedSms}, DB alarms {result.DbDistinctAlarms}/{spec.Burst}";
+                site.KeepFiles = true;
+            if (!result.ZeroLoss)
+                result.Failure = $"Zero-loss check failed: harness-killed bats {result.HarnessTimeouts}, missing {result.MissingPairs}, spool residual {result.SpoolResidual}, failed {result.SpoolFailed}, bad {result.SpoolBad}, DB success {result.DbRowsSuccess}/{result.ExpectedSms}, DB alarms {result.DbDistinctAlarms}/{spec.Burst}";
             return result;
         }
         catch (Exception ex)
         {
             result.Status = "failed";
             result.Failure = ex.Message;
+            site.KeepFiles = true;
             throw;
         }
         finally
