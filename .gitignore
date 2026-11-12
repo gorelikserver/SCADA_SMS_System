@@ -377,3 +377,6 @@ NEW_FILES_*.md
 commit_*.bat
 # Settings backups written by SettingsStore
 settings-backups/
+
+# Mock integration suite output (tests/integration/run-mock-suite.ps1)
+test-results/

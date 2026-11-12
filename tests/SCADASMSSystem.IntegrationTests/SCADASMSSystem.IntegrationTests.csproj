@@ -1,0 +1,42 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Pre-site-integration mock suite: end-to-end scenarios and alarm-storm load tests that drive
+    the real web app through Scada_sms.bat against an in-process mock SMS provider (REST + SOAP).
+    Windows only (cmd.exe, SQL Server). Every test is skipped unless SCADA_MOCK_IT=1, so the
+    normal solution-wide "dotnet test" stays fast. Entry point: tests/integration/run-mock-suite.ps1
+  -->
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
+    <PackageReference Include="xunit" Version="2.9.2" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Referenced for SCADADbContext, migrations and the ProviderProfile model; the app itself
+         runs as a separate process (bin\<Configuration>\net9.0\SCADASMSSystem.Web.exe). -->
+    <ProjectReference Include="..\..\SCADASMSSystem.Web.csproj" />
+    <!-- Verdict logic of the report generator is unit-tested here (Category=ReportLogic). -->
+    <ProjectReference Include="..\SCADASMSSystem.MockReport\SCADASMSSystem.MockReport.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="Fixtures\**\*" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>
