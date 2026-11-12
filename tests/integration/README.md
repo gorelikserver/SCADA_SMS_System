@@ -49,13 +49,17 @@ Load results: **zero-loss** (every alarm x recipient accepted, spool empty, DB a
 pass/fail; a zero-loss run with duplicate SMS is reported as **DEGRADED**. Latency percentiles are
 nearest-rank. Scenarios that document a product finding (S09, S11, S15, S16) pass by asserting current
 behavior and are shown as **FINDING** in the report. The go/no-go verdict requires every mandatory case
-for both REST and SOAP; a missing kind is NOT RUN and blocks GO.
+for both REST and SOAP; a missing kind is NOT RUN and blocks GO. NO-GO also results from any failed
+scenario (a FINDING scenario counts only when its assertions passed), any load run that is FAIL or
+INDETERMINATE (provider/DB state did not settle within 60 s), any failed test in a .trx, or any phase
+failure recorded by the run script. A DEGRADED load run caps the verdict at GO WITH RESERVATIONS.
 
 ## Test categories
 
 | Category | What | Needs |
 |---|---|---|
 | `MockSelfTest` | The mock enforces the Sheba contract (spec samples verbatim) and every fault kind works; app-rendered profiles satisfy the contract | nothing (always runs) |
+| `ReportLogic` | Go/no-go verdict of the report generator on synthetic evidence (DEGRADED, INDETERMINATE, failed scenario, failed .trx, phase failure) | nothing (always runs) |
 | `Scenario` | 14 end-to-end scenarios x REST and SOAP, plus SOAP-only crash recovery (S15) and missing TZ/names (S16) | `SCADA_MOCK_IT=1`, Windows, SQL Server |
 | `Load` | Alarm storms of 10/50/200 concurrent bat calls, with latency/5xx/timeouts, plus the shipped default limits | `SCADA_MOCK_IT=1`, Windows, SQL Server |
 

@@ -74,6 +74,7 @@ if ($failures.Count -gt 0) { throw "Build failed; see $out\build.log" }
 
 Invoke-Phase 'unit-tests' { & $dotnet test $unitProject -c $Configuration --no-build --logger 'trx;LogFileName=unit-tests.trx' --results-directory $trx 2>&1 | Select-Object -Last 3 }
 Invoke-Phase 'mock-self-tests' { & $dotnet test $itProject -c $Configuration --no-build --filter 'Category=MockSelfTest' --logger 'trx;LogFileName=mock-self-tests.trx' --results-directory $trx 2>&1 | Select-Object -Last 3 }
+Invoke-Phase 'report-logic-tests' { & $dotnet test $itProject -c $Configuration --no-build --filter 'Category=ReportLogic' --logger 'trx;LogFileName=report-logic-tests.trx' --results-directory $trx 2>&1 | Select-Object -Last 3 }
 
 $env:SCADA_MOCK_IT = '1'
 $env:SCADA_MOCK_IT_RESULTS = $out
