@@ -314,15 +314,40 @@ public sealed class Site : IAsyncDisposable
         {
             // A bat must end within MAXTIME + margin (curl --max-time bounds it). Kill cmd.exe and every
             // child (powershell.exe, curl.exe) and fail the test with the evidence.
-            try { p.Kill(entireProcessTree: true); } catch (InvalidOperationException) { }
-            try { await p.WaitForExitAsync(new CancellationTokenSource(TimeSpan.FromSeconds(15)).Token); } catch (OperationCanceledException) { }
-            var killed = new BatResult(args, -1, started, DateTime.UtcNow,
-                $"Harness timeout: no exit within {BatHarnessTimeout.TotalSeconds:0} s; process tree killed", TimedOut: true);
+            var note = $"Harness timeout: no exit within {BatHarnessTimeout.TotalSeconds:0} s; ";
+            try
+            {
+                p.Kill(entireProcessTree: true);
+                note += "process tree killed";
+            }
+            catch (Exception ex) // InvalidOperationException (already gone), Win32Exception (access denied), AggregateException...
+            {
+                note += $"Kill failed ({ex.GetType().Name}: {ex.Message}); ";
+                note += TaskKillTree(p.Id);
+            }
+            try { await p.WaitForExitAsync(new CancellationTokenSource(TimeSpan.FromSeconds(15)).Token); }
+            catch (Exception) { note += "; process still present after 15 s"; }
+            var killed = new BatResult(args, -1, started, DateTime.UtcNow, note, TimedOut: true);
             lock (_harnessTimeouts) _harnessTimeouts.Add(killed);
             return killed;
         }
         var ended = DateTime.UtcNow;
         return new BatResult(args, p.ExitCode, started, ended, "");
+    }
+
+    /// <summary>Fallback when Process.Kill fails: taskkill /T /F on the bat's process tree.</summary>
+    private static string TaskKillTree(int pid)
+    {
+        try
+        {
+            using var tk = Process.Start(new ProcessStartInfo("taskkill.exe", $"/T /F /PID {pid}") { UseShellExecute = false, CreateNoWindow = true })!;
+            tk.WaitForExit(15000);
+            return $"taskkill /T /F exit {tk.ExitCode}";
+        }
+        catch (Exception ex)
+        {
+            return $"taskkill failed ({ex.GetType().Name}: {ex.Message})";
+        }
     }
 
     public string[] SpoolFiles() => Directory.Exists(SpoolDir)
