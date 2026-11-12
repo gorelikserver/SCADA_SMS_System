@@ -26,11 +26,11 @@ Console.WriteLine($"Report written: {Path.Combine(dir, "report.html")}");
 Console.WriteLine($"Summary written: {Path.Combine(dir, "summary.md")}");
 return 0;
 
-sealed record TestCounts(string Name, int Total, int Passed, int Failed, int Skipped);
-sealed record FindingItem(string Id, string Severity, string Title, string Detail, string Source);
-sealed record CheckItem(string Area, string Item, string Status, string Evidence);
+public sealed record TestCounts(string Name, int Total, int Passed, int Failed, int Skipped);
+public sealed record FindingItem(string Id, string Severity, string Title, string Detail, string Source);
+public sealed record CheckItem(string Area, string Item, string Status, string Evidence);
 
-sealed class ReportData
+public sealed class ReportData
 {
     public JsonObject Env { get; init; } = new();
     public List<JsonObject> Scenarios { get; init; } = new();
@@ -63,7 +63,13 @@ sealed class ReportData
             counts.Add(new TestCounts(Path.GetFileNameWithoutExtension(trx), total, A("passed"), A("failed"), total - executed));
         }
 
-        var data = new ReportData { Env = env, Scenarios = scenarios, Loads = loads, Counts = counts, Folder = dir };
+        return From(env, scenarios, loads, counts, dir);
+    }
+
+    /// <summary>Builds the analysed report data from evidence already in memory (used by Load and by tests).</summary>
+    public static ReportData From(JsonObject env, List<JsonObject> scenarios, List<JsonObject> loads, List<TestCounts> counts, string folder = "")
+    {
+        var data = new ReportData { Env = env, Scenarios = scenarios, Loads = loads, Counts = counts, Folder = folder };
         data.Findings.AddRange(Analysis.Findings(data));
         data.Checklist.AddRange(Analysis.Checklist(data));
         return data;
@@ -80,7 +86,7 @@ sealed class ReportData
     public static bool Passed(JsonNode? o) => S(o, "Status") == "passed";
 }
 
-static class Analysis
+public static class Analysis
 {
     // Findings that come from reading the code and spec while building the suite; each one is
     // re-stated with the run's numbers where the run measured it.
@@ -151,7 +157,7 @@ static class Analysis
                 "from cmd.exe fail while another bat holds the file. Append with a retry (or via PowerShell with a shared-write open).", "load"));
         }
 
-        foreach (var l in d.Loads.Where(l => !ReportData.Passed(l)))
+        foreach (var l in d.Loads.Where(l => LoadStatus(l) is "FAIL" or "INDETERMINATE"))
             list.Add(new FindingItem("F-LOSS-" + ReportData.S(l, "Kind") + ReportData.S(l, "Id"), "High", $"Zero-loss check failed in {ReportData.S(l, "Kind")} {ReportData.S(l, "Id")}",
                 ReportData.S(l, "Failure"), $"load {ReportData.S(l, "Id")}"));
 
@@ -177,17 +183,16 @@ static class Analysis
             if (r == null || s == null) return "NOT RUN";
             return ReportData.Passed(r) && ReportData.Passed(s) ? "PASS" : "FAIL";
         }
+        // Worst status over every run of the given cases, both kinds: NOT RUN > FAIL > INDETERMINATE > DEGRADED > PASS.
         string Load(params string[] prefixes)
         {
-            var status = "PASS";
+            var statuses = new List<string>();
             foreach (var prefix in prefixes)
                 foreach (var kind in new[] { "REST", "SOAP" })
-                {
-                    var run = d.LoadRun(kind, prefix);
-                    if (run == null) return "NOT RUN";
-                    if (!ReportData.Passed(run)) status = "FAIL";
-                }
-            return status;
+                    statuses.Add(LoadStatus(d.LoadRun(kind, prefix)) is var st && st == "n/a" ? "NOT RUN" : st);
+            foreach (var worst in new[] { "NOT RUN", "FAIL", "INDETERMINATE", "DEGRADED" })
+                if (statuses.Contains(worst)) return worst;
+            return "PASS";
         }
 
         yield return new("Contract", "Exact SOAP envelope, SOAPAction, WS-Security and REST JSON match the profile/spec", Both("S01"), "S01 payload checks");
@@ -211,16 +216,70 @@ static class Analysis
         yield return new("Site", "PCIMUTIL copy of Scada_sms.bat current (no red banner) and SPOOL_ROOT = ScadaSpool:Root", "OPEN", "CONTEXT.md packaging");
     }
 
-    /// <summary>Every automated (non-site) checklist item must be PASS; FAIL or NOT RUN blocks GO.</summary>
-    public static bool AutomatedComplete(ReportData d) => d.Checklist.Where(c => c.Area != "Site").All(c => c.Status == "PASS");
+    public enum VerdictLevel { Go, GoWithReservations, NoGo }
 
-    public static string Verdict(ReportData d) =>
-        d.Checklist.Any(c => c.Status == "FAIL") ? "NO-GO (automated checks failed)"
-        : !AutomatedComplete(d) ? "NO-GO (mandatory cases not run for both REST and SOAP)"
-        : "GO for site integration (open site items and findings remain)";
+    public sealed record VerdictResult(VerdictLevel Level, string Text, IReadOnlyList<string> Reasons);
 
-    public static string LoadStatus(JsonNode? l) =>
-        l == null ? "n/a" : !ReportData.Passed(l) ? "FAIL" : ReportData.D(l, "DuplicateAcceptedSms") > 0 ? "DEGRADED" : "PASS";
+    /// <summary>
+    /// Go/no-go over ALL evidence, not only the checklist rows:
+    /// NO-GO when any executed scenario failed (a FINDING scenario counts only if its assertions passed),
+    /// any load run is FAIL or INDETERMINATE, any .trx reports failed tests, the run script recorded a
+    /// phase failure, or any automated checklist item is not PASS/DEGRADED (FAIL, NOT RUN, INDETERMINATE).
+    /// GO WITH RESERVATIONS when everything passed but a load run or checklist item is DEGRADED.
+    /// Plain GO only when every automated item is PASS.
+    /// </summary>
+    public static VerdictResult ComputeVerdict(ReportData d)
+    {
+        var noGo = new List<string>();
+        var reservations = new List<string>();
+
+        foreach (var s in d.Scenarios.Where(s => !ReportData.Passed(s)))
+            noGo.Add($"scenario {ReportData.S(s, "Kind")} {ReportData.S(s, "Id")} {(ReportData.S(s, "Status") is { Length: > 0 } st ? st : "no status")}" +
+                     ((s["Findings"]?.AsArray().Count ?? 0) > 0 ? " (FINDING scenario whose assertions failed)" : ""));
+        foreach (var l in d.Loads)
+        {
+            var st = LoadStatus(l);
+            if (st is "FAIL" or "INDETERMINATE") noGo.Add($"load {ReportData.S(l, "Kind")} {ReportData.S(l, "Id")} {st}");
+            else if (st == "DEGRADED") reservations.Add($"load {ReportData.S(l, "Kind")} {ReportData.S(l, "Id")} DEGRADED (duplicate SMS)");
+        }
+        foreach (var c in d.Counts.Where(c => c.Failed > 0))
+            noGo.Add($"test run {c.Name}: {c.Failed} failed");
+        foreach (var text in PhaseFailures(d.Env))
+            noGo.Add($"phase failure: {text}");
+        foreach (var l in d.Loads.Where(l => ReportData.D(l, "HarnessTimeouts") > 0))
+            noGo.Add($"load {ReportData.S(l, "Kind")} {ReportData.S(l, "Id")}: {ReportData.D(l, "HarnessTimeouts")} bat call(s) killed by harness timeout");
+        foreach (var c in d.Checklist.Where(c => c.Area != "Site"))
+        {
+            if (c.Status == "DEGRADED") reservations.Add($"checklist '{c.Item}' DEGRADED");
+            else if (c.Status != "PASS") noGo.Add($"checklist '{c.Item}' {c.Status}");
+        }
+
+        if (noGo.Count > 0)
+            return new VerdictResult(VerdictLevel.NoGo, "NO-GO", noGo);
+        if (reservations.Count > 0)
+            return new VerdictResult(VerdictLevel.GoWithReservations, "GO WITH RESERVATIONS for site integration (open site items and findings remain)", reservations);
+        return new VerdictResult(VerdictLevel.Go, "GO for site integration (open site items and findings remain)", Array.Empty<string>());
+    }
+
+    public static string Verdict(ReportData d) => ComputeVerdict(d).Text;
+
+    /// <summary>env.json phaseFailures: a JSON array, or a single string when PowerShell unwrapped a one-element array.</summary>
+    public static IEnumerable<string> PhaseFailures(JsonObject env) => env["phaseFailures"] switch
+    {
+        JsonArray a => a.Select(f => f?.ToString() ?? "").Where(t => t.Length > 0),
+        JsonValue v when v.ToString() is { Length: > 0 } t => new[] { t },
+        _ => Array.Empty<string>(),
+    };
+
+    /// <summary>PASS / DEGRADED / FAIL / INDETERMINATE from the run's own Verdict (older evidence: derived).</summary>
+    public static string LoadStatus(JsonNode? l)
+    {
+        if (l == null) return "n/a";
+        var v = ReportData.S(l, "Verdict");
+        if (v is "PASS" or "DEGRADED" or "FAIL" or "INDETERMINATE")
+            return v == "PASS" && !ReportData.Passed(l) ? "FAIL" : v;
+        return !ReportData.Passed(l) ? "FAIL" : ReportData.D(l, "DuplicateAcceptedSms") > 0 ? "DEGRADED" : "PASS";
+    }
 
     public static string ExitCodes(JsonNode? l) =>
         string.Join(", ", (l?["ExitCodes"]?.AsObject() ?? new JsonObject()).Select(kv => $"{kv.Key}: {kv.Value}"));
@@ -229,7 +288,7 @@ static class Analysis
         p?[key] is JsonValue v && v.TryGetValue<double>(out var d) ? (d >= 10000 ? $"{d / 1000:0.0} s" : $"{d:0} ms") : "-";
 }
 
-static class HtmlReport
+public static class HtmlReport
 {
     private static string E(string? s) => WebUtility.HtmlEncode(s ?? "");
 
@@ -237,16 +296,18 @@ static class HtmlReport
     {
         var sb = new StringBuilder();
         var scenariosPassed = d.Scenarios.Count(ReportData.Passed);
-        var loadsPassed = d.Loads.Count(ReportData.Passed);
-        var automatedFail = !Analysis.AutomatedComplete(d);
-        var verdict = Analysis.Verdict(d);
-        var verdictClass = automatedFail ? "bad" : "good";
+        var loadsPassed = d.Loads.Count(l => Analysis.LoadStatus(l) == "PASS");
+        var verdictResult = Analysis.ComputeVerdict(d);
+        var verdict = verdictResult.Text;
+        var verdictClass = verdictResult.Level switch { Analysis.VerdictLevel.Go => "good", Analysis.VerdictLevel.GoWithReservations => "warn-box", _ => "bad" };
 
         sb.Append("<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">");
         sb.Append("<title>SCADA SMS Mock Integration</title><style>").Append(Css).Append("</style></head><body><main>");
         sb.Append("<header><h1>SCADA SMS — pre-site-integration mock suite</h1>");
         sb.Append($"<p class=\"sub\">Generated {E(ReportData.S(d.Env, "generatedAt"))} · commit {E(ReportData.S(d.Env, "gitSha"))} ({E(ReportData.S(d.Env, "gitBranch"))})</p>");
         sb.Append($"<div class=\"verdict {verdictClass}\">{E(verdict)}</div>");
+        if (verdictResult.Reasons.Count > 0)
+            sb.Append("<ul class=\"reasons\">").Append(string.Concat(verdictResult.Reasons.Select(r => $"<li>{E(r)}</li>"))).Append("</ul>");
         sb.Append("<div class=\"tiles\">");
         Tile(sb, "Scenarios", $"{scenariosPassed}/{d.Scenarios.Count}", "passed");
         Tile(sb, "Load runs", $"{loadsPassed}/{d.Loads.Count}", "zero-loss");
@@ -324,7 +385,7 @@ static class HtmlReport
             sb.Append($"<tr><td><b>{E(ReportData.S(l, "Kind"))} {E(ReportData.S(l, "Id"))}</b></td><td>{ReportData.D(l, "Burst")}</td><td>{E(faults)}</td><td>{E(Analysis.ExitCodes(l))}</td>" +
                       $"<td>{Analysis.Ms(lat, "P50")}</td><td>{Analysis.Ms(lat, "P95")}</td><td>{Analysis.Ms(lat, "P99")}</td><td>{Analysis.Ms(lat, "Max")}</td>" +
                       $"<td>{ReportData.D(l, "AlarmsPerSecond"):0.0}</td><td>{ReportData.D(l, "SmsPerSecondDuringBurst"):0.0}</td><td>{Secs(ReportData.D(l, "SecondsToFullDelivery"))}</td>" +
-                      $"<td>{ReportData.D(l, "ProviderRequests")} ({ReportData.D(l, "ProviderAccepted")} ok)</td><td>{ReportData.D(l, "MissingPairs")}</td><td>{(ReportData.Passed(l) ? "yes" : "<span class=\"bad\">no</span>")}</td><td>{ReportData.D(l, "DuplicateAcceptedSms")}</td><td>{(ReportData.D(l, "DuplicateAcceptedSms") > 0 ? "<span class=\"warn\">no</span>" : "yes")}</td><td>{LoadPill(l)}</td></tr>");
+                      $"<td>{ReportData.D(l, "ProviderRequests")} ({ReportData.D(l, "ProviderAccepted")} ok)</td><td>{ReportData.D(l, "MissingPairs")}</td><td>{(ZeroLoss(l) ? "yes" : "<span class=\"bad\">no</span>")}</td><td>{ReportData.D(l, "DuplicateAcceptedSms")}</td><td>{(ReportData.D(l, "DuplicateAcceptedSms") > 0 ? "<span class=\"warn\">no</span>" : "yes")}</td><td>{LoadPill(l)}</td></tr>");
         }
         sb.Append("</table></div>");
         foreach (var kind in new[] { "REST", "SOAP" })
@@ -361,11 +422,14 @@ static class HtmlReport
             ? $"<span class=\"pill open\" title=\"Passed by documenting current product behavior\">FINDING {E(string.Join(", ", o["Findings"]!.AsArray().Select(f => ReportData.S(f, "Id"))))}</span>"
             : "<span class=\"pill pass\">PASS</span>";
 
+    private static bool ZeroLoss(JsonNode? l) => l?["ZeroLoss"]?.GetValue<bool>() == true;
+
     private static string LoadPill(JsonNode? l) => Analysis.LoadStatus(l) switch
     {
         "PASS" => "<span class=\"pill pass\">PASS</span>",
         "DEGRADED" => "<span class=\"pill open\" title=\"Zero loss, but duplicate SMS were accepted\">DEGRADED</span>",
         "FAIL" => "<span class=\"pill fail\">FAIL</span>",
+        "INDETERMINATE" => "<span class=\"pill fail\" title=\"Reconciliation did not settle\">INDETERMINATE</span>",
         _ => "<span class=\"pill not-run\">n/a</span>",
     };
 
@@ -445,7 +509,7 @@ static class HtmlReport
 main{max-width:1200px;margin:0 auto;padding:16px}h1{font-size:24px;margin:8px 0}h2{margin-top:32px;border-bottom:1px solid var(--line);padding-bottom:4px}
 .sub,.note{color:var(--muted)}nav{position:sticky;top:0;background:var(--bg);padding:8px 0;border-bottom:1px solid var(--line);display:flex;gap:16px;flex-wrap:wrap;z-index:2}
 nav a{color:var(--accent);text-decoration:none}.verdict{display:inline-block;padding:8px 14px;border-radius:8px;font-weight:600;margin:8px 0}
-.verdict.good{background:color-mix(in srgb,var(--good) 15%,transparent);color:var(--good)}.verdict.bad{background:color-mix(in srgb,var(--bad) 15%,transparent);color:var(--bad)}
+.verdict.good{background:color-mix(in srgb,var(--good) 15%,transparent);color:var(--good)}.verdict.warn-box{background:color-mix(in srgb,var(--warn) 15%,transparent);color:var(--warn)}.verdict.bad{background:color-mix(in srgb,var(--bad) 15%,transparent);color:var(--bad)}
 .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin:12px 0}.tile{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px}
 .tl{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.04em}.tv{font-size:26px;font-weight:600}.ts{color:var(--muted);font-size:12px}
 table{border-collapse:collapse;width:100%;background:var(--card);margin:8px 0}th,td{border:1px solid var(--line);padding:5px 8px;text-align:left;vertical-align:top}
@@ -453,7 +517,8 @@ th{background:color-mix(in srgb,var(--line) 40%,transparent);font-weight:600}tab
 code,pre{font-family:Consolas,"Cascadia Mono",monospace;font-size:12px}pre{background:var(--card);border:1px solid var(--line);padding:8px;overflow-x:auto;white-space:pre-wrap;word-break:break-word}
 pre.resp{border-left:3px solid var(--accent)}.req{margin:8px 0}.rh{font-weight:600;font-size:12px}
 .pill{display:inline-block;padding:1px 8px;border-radius:10px;font-size:12px;font-weight:600}.pass{background:color-mix(in srgb,var(--good) 18%,transparent);color:var(--good)}
-.fail{background:color-mix(in srgb,var(--bad) 18%,transparent);color:var(--bad)}.open,.not-run{background:color-mix(in srgb,var(--warn) 18%,transparent);color:var(--warn)}
+.fail{background:color-mix(in srgb,var(--bad) 18%,transparent);color:var(--bad)}.degraded{background:color-mix(in srgb,var(--warn) 18%,transparent);color:var(--warn)}.indeterminate{background:color-mix(in srgb,var(--bad) 18%,transparent);color:var(--bad)}.reasons{color:var(--muted);margin:4px 0 8px}
+.open,.not-run{background:color-mix(in srgb,var(--warn) 18%,transparent);color:var(--warn)}
 .sev-high{background:color-mix(in srgb,var(--bad) 18%,transparent);color:var(--bad)}.sev-medium{background:color-mix(in srgb,var(--warn) 18%,transparent);color:var(--warn)}.sev-low{background:color-mix(in srgb,var(--accent) 15%,transparent);color:var(--accent)}
 .bad{color:var(--bad)}.warn{color:var(--warn)}details{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:8px 12px;margin:8px 0}summary{cursor:pointer}
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:12px}.chart{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:8px}
@@ -462,7 +527,7 @@ footer{margin:32px 0;color:var(--muted)}
 """;
 }
 
-static class Charts
+public static class Charts
 {
     private static readonly string[] SeriesColors = { "var(--c1)", "var(--c2)", "var(--c3)", "var(--c4)" };
     private static readonly string[] SeriesKeys = { "P50", "P95", "P99", "Max" };
@@ -547,14 +612,17 @@ static class Charts
     }
 }
 
-static class MarkdownReport
+public static class MarkdownReport
 {
     public static string Render(ReportData d)
     {
         var sb = new StringBuilder();
 
         sb.AppendLine("# SCADA SMS — mock integration suite summary").AppendLine();
-        sb.AppendLine($"Generated {ReportData.S(d.Env, "generatedAt")} · commit `{ReportData.S(d.Env, "gitSha")}` · verdict: **{Analysis.Verdict(d)}**").AppendLine();
+        var verdictResult = Analysis.ComputeVerdict(d);
+        sb.AppendLine($"Generated {ReportData.S(d.Env, "generatedAt")} · commit `{ReportData.S(d.Env, "gitSha")}` · verdict: **{verdictResult.Text}**").AppendLine();
+        foreach (var r in verdictResult.Reasons) sb.AppendLine($"- {r}");
+        if (verdictResult.Reasons.Count > 0) sb.AppendLine();
         if (d.Counts.Count > 0)
         {
             sb.AppendLine("| Test run | Total | Passed | Failed | Skipped |").AppendLine("|---|---|---|---|---|");
@@ -576,7 +644,7 @@ static class MarkdownReport
             var lat = l["BatLatencyMs"];
             var full = ReportData.D(l, "SecondsToFullDelivery");
             sb.AppendLine($"| {ReportData.S(l, "Kind")} {ReportData.S(l, "Id")} | {ReportData.D(l, "Burst")} | {Analysis.ExitCodes(l)} | {Analysis.Ms(lat, "P50")} | {Analysis.Ms(lat, "P95")} | {Analysis.Ms(lat, "P99")} | {Analysis.Ms(lat, "Max")} | " +
-                          $"{ReportData.D(l, "AlarmsPerSecond"):0.0} | {ReportData.D(l, "SmsPerSecondDuringBurst"):0.0} | {(full < 0 ? "not reached" : $"{full:0.0} s")} | {ReportData.D(l, "MissingPairs")} | {(ReportData.Passed(l) ? "yes" : "NO")} | {ReportData.D(l, "DuplicateAcceptedSms")} | {(ReportData.D(l, "DuplicateAcceptedSms") > 0 ? "no" : "yes")} | {Analysis.LoadStatus(l)} |");
+                          $"{ReportData.D(l, "AlarmsPerSecond"):0.0} | {ReportData.D(l, "SmsPerSecondDuringBurst"):0.0} | {(full < 0 ? "not reached" : $"{full:0.0} s")} | {ReportData.D(l, "MissingPairs")} | {(l["ZeroLoss"]?.GetValue<bool>() == true ? "yes" : "NO")} | {ReportData.D(l, "DuplicateAcceptedSms")} | {(ReportData.D(l, "DuplicateAcceptedSms") > 0 ? "no" : "yes")} | {Analysis.LoadStatus(l)} |");
         }
         sb.AppendLine().AppendLine("## Findings").AppendLine();
         foreach (var f in d.Findings) sb.AppendLine($"- **{f.Severity} · {f.Id} · {f.Title}.** {f.Detail}");

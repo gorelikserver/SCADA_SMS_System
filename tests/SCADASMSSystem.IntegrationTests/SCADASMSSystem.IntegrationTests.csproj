@@ -30,6 +30,8 @@
     <!-- Referenced for SCADADbContext, migrations and the ProviderProfile model; the app itself
          runs as a separate process (bin\<Configuration>\net9.0\SCADASMSSystem.Web.exe). -->
     <ProjectReference Include="..\..\SCADASMSSystem.Web.csproj" />
+    <!-- Verdict logic of the report generator is unit-tested here (Category=ReportLogic). -->
+    <ProjectReference Include="..\SCADASMSSystem.MockReport\SCADASMSSystem.MockReport.csproj" />
   </ItemGroup>
 
   <ItemGroup>
