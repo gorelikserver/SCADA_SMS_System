@@ -82,8 +82,9 @@ public class SoapScenarios : ScenarioTests
             var r = site.Mock.Requests.First();
             foreach (var field in new[] { "TZ", "FirstName", "LastName" })
                 ev.Equal($"<tem:{field}> sent empty", "", r.Fields[field]);
-            ev.True("refused with a contract error for TZ/FirstName/LastName", !r.Accepted && r.ContractErrors.Any(e => e.StartsWith("TZ")) &&
-                r.ResponseBody.Contains("<Success>false</Success>"), string.Join("; ", r.ContractErrors));
+            foreach (var field in new[] { "TZ", "FirstName", "LastName" })
+                ev.True($"contract error for empty {field}", r.ContractErrors.Any(e => e.StartsWith(field + " ")), string.Join("; ", r.ContractErrors));
+            ev.True("refused: <Success>false</Success>, not accepted", !r.Accepted && r.ResponseBody.Contains("<Success>false</Success>"), r.ResponseBody);
             var row = (await TestDb.DeliveriesForGroupAsync(group.GroupId)).Single();
             ev.Equal("delivery row FAILED", CriticalDeliveryStatus.Failed, row.Status);
             ev.True("alarm left undelivered in the spool", site.SpoolFiles().Contains(alarmId + ".json"));
