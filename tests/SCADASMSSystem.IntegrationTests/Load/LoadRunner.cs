@@ -66,10 +66,14 @@ public sealed class LoadResult
     public int BatLogLines { get; set; }
     public bool ZeroLoss { get; set; }
     public bool NoDuplicates { get; set; }
-    /// <summary>PASS (zero loss, no duplicates), DEGRADED (zero loss, duplicates), FAIL (loss or harness failure).</summary>
+    /// <summary>
+    /// PASS (zero loss, no duplicates), DEGRADED (zero loss, duplicates), FAIL (loss or harness failure),
+    /// INDETERMINATE (provider/DB state never settled, so loss and duplicate counts are not final).
+    /// </summary>
     public string Verdict { get; set; } = "FAIL";
     public int HarnessTimeouts { get; set; }
     public double SettleSeconds { get; set; }
+    public bool Settled { get; set; }
     public List<string> MissingSample { get; set; } = new();
     public List<string> Notes { get; set; } = new();
 }
@@ -170,7 +174,8 @@ public static class LoadRunner
                 last = snapshot;
             }
             result.SettleSeconds = Math.Round((DateTime.UtcNow - settleStart).TotalSeconds, 1);
-            if (stableFor < 3) result.Notes.Add("Provider/DB state did not settle within 60 s; duplicate count may be incomplete.");
+            result.Settled = stableFor >= 3;
+            if (!result.Settled) result.Notes.Add("Provider/DB state did not settle within 60 s: reconciliation incomplete (INDETERMINATE).");
             var requests = site.Mock.Requests;
             var pairs = AcceptedPairs();
             result.ProviderRequests = requests.Count;
@@ -202,12 +207,14 @@ public static class LoadRunner
             if (result.BatLogLines != spec.Burst)
                 result.Notes.Add($"Scada_sms.log has {result.BatLogLines} lines for {spec.Burst} calls (concurrent appends).");
             result.NoDuplicates = result.DuplicateAcceptedSms == 0;
-            result.Verdict = !result.ZeroLoss ? "FAIL" : result.NoDuplicates ? "PASS" : "DEGRADED";
-            result.Status = result.ZeroLoss ? "passed" : "failed";
+            result.Verdict = !result.ZeroLoss ? "FAIL" : !result.Settled ? "INDETERMINATE" : result.NoDuplicates ? "PASS" : "DEGRADED";
+            result.Status = result.Verdict switch { "PASS" or "DEGRADED" => "passed", "INDETERMINATE" => "indeterminate", _ => "failed" };
             if (result.HarnessTimeouts > 0)
                 result.Notes.Add($"{result.HarnessTimeouts} bat call(s) did not exit within {site.BatHarnessTimeout.TotalSeconds:0} s and were killed.");
-            if (!result.ZeroLoss)
+            if (result.Status != "passed")
                 site.KeepFiles = true;
+            if (result.Verdict == "INDETERMINATE")
+                result.Failure = "Reconciliation incomplete: provider/DB state did not settle within 60 s.";
             if (!result.ZeroLoss)
                 result.Failure = $"Zero-loss check failed: harness-killed bats {result.HarnessTimeouts}, missing {result.MissingPairs}, spool residual {result.SpoolResidual}, failed {result.SpoolFailed}, bad {result.SpoolBad}, DB success {result.DbRowsSuccess}/{result.ExpectedSms}, DB alarms {result.DbDistinctAlarms}/{spec.Burst}";
             return result;

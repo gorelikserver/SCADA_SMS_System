@@ -42,6 +42,8 @@ public abstract class LoadTests
     {
         var result = await LoadRunner.RunAsync(spec);
         Assert.True(result.ZeroLoss, result.Failure);
+        // DEGRADED (duplicates) passes here and is flagged by the report; INDETERMINATE fails.
+        Assert.True(result.Verdict is "PASS" or "DEGRADED", $"{result.Verdict}: {result.Failure}");
     }
 
     [MockItFact]
