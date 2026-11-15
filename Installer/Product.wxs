@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
      xmlns:util="http://wixtoolset.org/schemas/v4/wxs/util"
      xmlns:fire="http://wixtoolset.org/schemas/v4/wxs/firewall">
@@ -103,6 +103,11 @@
     <SetProperty Id="DB_PASSWORD" Action="DefaultDbPassword" Value="pulse" After="AppSearch" Sequence="first"
                  Condition="NOT DB_PASSWORD AND NOT DB_PASSWORD_SAVED" />
     <Property Id="WIXUI_INSTALLDIR" Value="INSTALLDIR" />
+
+    <!-- Logo in Apps & Features / Programs and Features, and a link to the web UI there -->
+    <Icon Id="ScadaSmsIcon" SourceFile="Resources\ScadaSms.ico" />
+    <Property Id="ARPPRODUCTICON" Value="ScadaSmsIcon" />
+    <SetProperty Id="ARPURLINFOABOUT" Action="SetArpUrl" Value="http://localhost:[APP_PORT]/" After="CostFinalize" Sequence="both" />
     <WixVariable Id="WixUILicenseRtf" Value="Resources\License.rtf" />
 
     <!-- ============================================================
@@ -116,6 +121,12 @@
           <Directory Id="TOOLSDIR" Name="Tools" />
         </Directory>
       </Directory>
+    </StandardDirectory>
+
+    <!-- Per-machine package: these resolve to the Public desktop and the all-users Start menu -->
+    <StandardDirectory Id="DesktopFolder" />
+    <StandardDirectory Id="ProgramMenuFolder">
+      <Directory Id="ProgramMenuDir" Name="$(ProductName)" />
     </StandardDirectory>
 
     <StandardDirectory Id="CommonAppDataFolder">
@@ -210,7 +221,7 @@
     ============================================================ -->
     <ComponentGroup Id="ScadaIntegration">
 
-      <!-- Copy of the repo-root Scada_sms.bat (UTF-8 BOM, CRLF), byte for byte.
+      <!-- Copy of the repo-root Scada_sms.bat (pure ASCII, no BOM, CRLF), byte for byte.
            Scada_sms.ini next to it is written by the ConfigureAppSettings CA. -->
       <Component Id="ScadaSmsBatComponent" Directory="SCRIPTSDIR"
                  Guid="31B3D710-55EC-4F23-B8FF-8E2FEB59D995">
@@ -294,12 +305,52 @@
     </ComponentGroup>
 
     <!-- ============================================================
+         SHORTCUTS — web UI link with the Afcon logo
+         Internet shortcuts (.url) to http://localhost:[APP_PORT]/, so they follow the port
+         chosen in the installer (rewritten on every install/upgrade, removed on uninstall).
+    ============================================================ -->
+    <ComponentGroup Id="Shortcuts">
+      <Component Id="ShortcutIconComponent" Directory="INSTALLDIR"
+                 Guid="0B7C2E5A-3F41-4D8E-9A6B-7C1E2D3F4A51">
+        <File Id="ShortcutIcon" Source="Resources\ScadaSms.ico" KeyPath="yes" />
+      </Component>
+      <!-- Components live in INSTALLDIR (machine-wide key paths, no ICE38); only the .url
+           files go to the desktop / Start menu through the Directory attribute. -->
+      <Component Id="DesktopShortcutComponent" Directory="INSTALLDIR"
+                 Guid="5E2A9C14-8B3D-4F67-A1C2-9D8E7F6A5B42">
+        <util:InternetShortcut Id="DesktopWebShortcut"
+                               Directory="DesktopFolder"
+                               Name="$(ProductName)"
+                               Target="http://localhost:[APP_PORT]/"
+                               Type="url"
+                               IconFile="[INSTALLDIR]ScadaSms.ico"
+                               IconIndex="0" />
+        <RegistryValue Root="HKLM" Key="Software\$(Manufacturer)\$(ProductName)"
+                       Name="DesktopShortcut" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+      <Component Id="StartMenuShortcutComponent" Directory="INSTALLDIR"
+                 Guid="A93F1D6E-2C47-4B58-8E0A-1F2D3C4B5A63">
+        <util:InternetShortcut Id="StartMenuWebShortcut"
+                               Directory="ProgramMenuDir"
+                               Name="$(ProductName)"
+                               Target="http://localhost:[APP_PORT]/"
+                               Type="url"
+                               IconFile="[INSTALLDIR]ScadaSms.ico"
+                               IconIndex="0" />
+        <RemoveFolder Id="RemoveProgramMenuDir" Directory="ProgramMenuDir" On="uninstall" />
+        <RegistryValue Root="HKLM" Key="Software\$(Manufacturer)\$(ProductName)"
+                       Name="StartMenuShortcut" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+    </ComponentGroup>
+
+    <!-- ============================================================
          FEATURES
     ============================================================ -->
     <Feature Id="Complete" Title="$(ProductName)" Level="1">
       <Feature Id="MainApp" Title="Application" Level="1">
         <ComponentGroupRef Id="AppFiles" />
         <ComponentGroupRef Id="ScadaIntegration" />
+        <ComponentGroupRef Id="Shortcuts" />
       </Feature>
     </Feature>
 
@@ -324,6 +375,20 @@
       Impersonate="no"
       Return="check" />
 
+
+    <!--
+      "Open the web interface" check box on the last dialog (checked by default). Opens the
+      default browser as the installing user. The service may still be starting (database
+      migrations), so the first page load can take a few seconds.
+    -->
+    <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT" Value="Open the Scada SMS web interface" />
+    <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOX" Value="1" />
+    <SetProperty Id="WixShellExecTarget" Action="SetShellExecTarget" Value="http://localhost:[APP_PORT]/" After="CostFinalize" Sequence="ui" />
+    <CustomAction Id="OpenWebInterface"
+      BinaryRef="Wix4UtilCA_$(sys.BUILDARCHSHORT)"
+      DllEntry="WixShellExec"
+      Impersonate="yes"
+      Return="ignore" />
 
     <!-- ============================================================
          INSTALL SEQUENCE
