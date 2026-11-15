@@ -52,6 +52,12 @@
       <RegistrySearch Id="RememberDbUser" Root="HKLM" Key="Software\$(Manufacturer)\$(ProductName)"
                       Name="DbUser" Type="raw" Bitness="always64" />
     </Property>
+    <!-- Install folder read back from the registry for RemoveFolderEx. INSTALLDIR itself is not
+         resolved yet when WixRemoveFoldersEx runs (before CostFinalize), so it cannot be used there. -->
+    <Property Id="CLEANUP_INSTALLDIR" Secure="yes">
+      <RegistrySearch Id="RememberInstallDir" Root="HKLM" Key="Software\$(Manufacturer)\$(ProductName)"
+                      Name="InstallDir" Type="raw" Bitness="always64" />
+    </Property>
     <Property Id="REMEMBERED_APP_PORT" Secure="yes">
       <RegistrySearch Id="RememberAppPort" Root="HKLM" Key="Software\$(Manufacturer)\$(ProductName)"
                       Name="Port" Type="raw" Bitness="always64" />
@@ -207,7 +213,7 @@
                        Type="string"
                        Value="[INSTALLDIR]"
                        KeyPath="yes" />
-        <util:RemoveFolderEx On="uninstall" Property="INSTALLDIR" />
+        <util:RemoveFolderEx On="uninstall" Property="CLEANUP_INSTALLDIR" />
       </Component>
 
       <!-- Remaining files: harvested by Generate-HarvestedFiles.ps1 (HarvestedAppFiles component group) -->
@@ -358,7 +364,8 @@
          CUSTOM ACTIONS — Inline VBScript (no managed DLL required)
     ============================================================ -->
 
-    <!-- Pack deferred CA properties -->
+    <!-- Pack deferred CA properties. Hidden: the value carries DB_PASSWORD, keep it out of verbose logs. -->
+    <Property Id="ConfigureAppSettings" Hidden="yes" />
     <SetProperty Id="ConfigureAppSettings"
       Before="ConfigureAppSettings"
       Sequence="execute"
