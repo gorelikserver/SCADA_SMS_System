@@ -51,6 +51,10 @@
 
       <!-- Finish: open the web UI when the optional check box (Product.wxs) is checked -->
       <Publish Dialog="ExitDialog" Control="Finish"
+               Property="WixShellExecTarget" Value="http://localhost:[APP_PORT]/"
+               Order="998"
+               Condition="WIXUI_EXITDIALOGOPTIONALCHECKBOX = 1 AND NOT Installed" />
+      <Publish Dialog="ExitDialog" Control="Finish"
                Event="DoAction" Value="OpenWebInterface"
                Order="999"
                Condition="WIXUI_EXITDIALOGOPTIONALCHECKBOX = 1 AND NOT Installed" />
